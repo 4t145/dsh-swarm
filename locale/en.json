@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Local agent swarm",
+    "description": "Run peer workers in isolated Git worktrees and integrate verified changes into one result branch."
+  }
+}

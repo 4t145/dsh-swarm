@@ -1,0 +1,8 @@
+{
+  "name": "@local/dsh-swarm-native-smoke",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./index.js" },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

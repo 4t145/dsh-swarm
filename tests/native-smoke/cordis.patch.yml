@@ -1,0 +1,3 @@
+- insert:
+    - id: swarm-native-smoke
+      name: './check-current.js'

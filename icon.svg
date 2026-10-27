@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Local agent swarm">
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#162235"/>
+  <path d="M16 20h12v12h8V20h12M16 44h12V32m8 0v12h12" fill="none" stroke="#8fe0c0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#e4f6ef"><circle cx="16" cy="20" r="5"/><circle cx="48" cy="20" r="5"/><circle cx="16" cy="44" r="5"/><circle cx="48" cy="44" r="5"/></g>
+  <path d="m32 25 7 7-7 7-7-7z" fill="#8fe0c0"/>
+</svg>

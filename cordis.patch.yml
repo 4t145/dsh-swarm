@@ -1,0 +1,41 @@
+- insert:
+    - id: swarm-worktrees
+      name: '@deepseek-ai/dsh-experimental-worktree'
+    - id: swarm-runtime
+      name: '@local/dsh-swarm'
+      config:
+        eventPageSize: 20
+        commandOutputBytes: 262144
+        commandGraceMs: 3000
+    - id: preset-swarm-worker
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: swarm-worker
+        name: Swarm worker
+        description: Peer coding worker with an isolated Git worktree and shared coordination tools.
+        order: 50
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: You are a cooperative software engineer working in your assigned private Git worktree.
+          - id: swarm-worker-tools
+            name: '@local/dsh-swarm/worker'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'

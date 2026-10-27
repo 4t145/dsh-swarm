@@ -1,0 +1,27 @@
+# Lead 接线反馈（实现成员只读）
+
+- 构建/测试环境已创建：Node24、pnpm、TypeScript5.9、Zod4、Vitest3、esbuild，已经 pnpm install；可直接 pnpm exec vitest run tests/<自己的文件>.test.ts。不要重新安装或改package/lockfile。
+- 共享types/ports已发布，因此第二批协作/集成/workspace/投递/runtime正在并行写互不重叠模块。
+- events.ts由协作成员负责：appendEvent必须同时更新等待者wakeTargetSeq，不只push数组。集成模块可以直接import；不要放一个不更新pending的本地替代实现。
+- 集成finish验证通过后在publicationGate复查并写quiescing/targetcompleted，runtime订阅负责实际收尾和最终completed；这是明确授权交接，不是让integration负责停Agent。
+- Lead首次typecheck发现 src/spec.ts 的 readonly acceptanceCriteria 与 RunSpec 可变数组不匹配；基础模块成员可在自己作用域内修正。不要靠as unknown断言跳过。
+- 发现src/types.ts FindingKind暂为info/decision/fail，与架构OBSERVED/FACT/FAIL/PATCH_SUMMARY不一致：Lead待foundation交付后统一修正types/schema，其他模块暂不要跨scope修改类型。
+- 存储reducer抛出的业务SwarmError应保留原code；不要把CAS/权限错误统一转为INVALID_REDUCER或STORE_WRITE_FAILED。基础模块完成后Lead会一起核对。
+- 当前环境send_message工具仅路由Team成员，无法以plain subagent UUID回送；因此这里记录已收到的接口问题答案。最终共享文件和notes/runtime-contract.md是当前接线依据。
+- 更新：events.ts已落地，appendEvent(run,input,now) **返回SwarmEvent而非Run**，修改的是store已隔离的Run副本；caller调用后return run即可，不能 next=appendEvent(next,...)。纯同步reducer不等于禁止修改隔离副本；不改持久后端对象即可。appendEvent已同时更新wakeTargetSeq。
+- 更新：foundation已完成36个单测，spec readonly与业务SwarmError保码已修。IntegrationQueue options是now而非clock，请runtime按固定constructor传now:()=>clock.now()。armDeadline形参请保持Run或统一调用，勿混string/Run。
+- 更新：暂不改FindingKind，等所有模块交付后Lead统一types/schema/callsite；当前实现成员继续使用已发布types，避免跨scope同时改。
+- 更新：Delivery已由低推理小上下文成员交付，12个单测通过，固定接口未变。
+- 关键：Workspace.initializeResult目前没有调用方，请Runtime在第一个worker初始化已创建integrationWorktree后、phase变running和任何submit之前调用 workspace.initializeResult(run, signal)创建公共ref；不能让不存在resultRef进入运行。
+- Host根index.ts已由Lead编写，domain名local_swarm（符合域名称正则），实例化SwarmRuntime/Host/Workspace；commands与worker-tools成员分别实现src/commands.ts及src/tools.ts/worker.ts。
+- 执行器采用真实subprocess+sandbox+sandboxPolicy，元数据已创建；worktrees通过bundle显式挂载。仍选架构A：第一个worker初始化两棵树，不对用户owner切cwd。这与AGENTS没有冲突，不改为自己重写worktree add。
+- 整仓tsc曾4GB OOM；Lead已将runSchema注解为z.ZodType<Run>降低公开泛型展开。不要在多个成员中同时重复起全仓tsc；各自先针对性编译，最后Lead统一检查。
+- 不更改Host权限、不尝试worker审批（原生never）；独立preset冷恢复必须保留原id，不fallback。
+- Lead最新整套测试已通过182项（tools测试当时尚未生成）。统一Cordis实际实例已处理：link:harness现在将项目cordis开发symlink对齐宿主，Context增强问题消失。rootindex的domainTable泛型正由Lead收窄，fs增强import也已补。
+- 最新typecheck+build已全通过（Zod现在精确4.4.3匹配storageDomain，Cordis实例也已统一）。后续勿用grep过滤0行声称全仓通过。
+- Runtime关键待复核：start仍未调用workspace.initializeResult，nativeHost也不创建resultRef，实际运行会首个发布失败。请Runtime first delivery.start返回后、markRunning前调用。
+- Runtime关键待复核：resume当前仅start pending worker，然后delivery.kick；已暂停的ready+claimed且没有wait/pending的worker不会被kick唤醒，run可能空跑到预算。需要明确给每个恢复的readyworker投递一次resume控制通知，必须走Delivery同worker队列+runtime admission，不能靠伪造读取cursor。可给Delivery新增resume/run operation小方法并让Lead改其作用域，或Runtime通知时经现有Delivery.start而Host.start对ready路径走原生coldresume（不能新建重复Session）。请先报告选项，由Lead统一接线。
+- Host start未设置maxDepth:1；Lead在其交付后补。原生stop在owner离线且冷恢复activation无持有handle时必须检测仍live child并报不确定，不可假装已停止。
+- Lead已开始安排tests/e2e.test.ts，真实Runtime/Collab/Delivery/Integration/GitWorkspace串联，仅fake nativeWorkerHost，不能让fake隐藏resultRef初始化。
+- Runtime另需检查并发start：inspect后assertRepositoryIdle再await store.create，如果两个不同runId同时启动同一gitCommonDir，per-run store锁不足，可能都看到空。需要以gitCommonDir加短启动门禁，原子围住assertRepositoryIdle+store.create，而不是整个模型运行；这是架构的单仓唯一活动run要求。
+- Host已由Lead补maxDepth1、resultPromise错误显式报告、owner离线且无法停止仍live child时拒绝确认停止；未变更公开WorkerHost接口。

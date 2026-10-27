@@ -1,0 +1,17 @@
+{
+  "repository": "/absolute/path/to/your/repository",
+  "baseRef": "HEAD",
+  "goal": "为项目增加 CSV 导入和对应 CLI，并保留现有行为",
+  "acceptanceCriteria": [
+    "CSV 导入结果与错误处理符合项目约定",
+    "CLI 可调用导入并报告错误",
+    "现有测试与新增功能测试通过"
+  ],
+  "workers": 2,
+  "budgetMinutes": 30,
+  "allowDirtyBaseline": false,
+  "verification": {
+    "setup": [{ "argv": ["npm", "ci"], "timeoutMs": 300000 }],
+    "test": [{ "argv": ["npm", "test"], "timeoutMs": 300000 }]
+  }
+}
