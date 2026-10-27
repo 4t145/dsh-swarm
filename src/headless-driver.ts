@@ -12,10 +12,10 @@ import type {} from './index.ts';
 import { parseRunSpec } from './spec.ts';
 import { normalizeError, SwarmError } from './errors.ts';
 import { parseSwarmHeadlessArgs, SWARM_HEADLESS_HELP, type SwarmHeadlessArgs } from './headless-args.ts';
-import { runSwarmHeadless } from './headless.ts';
+import { installHeadlessSignals } from './headless-signals.ts';
 
 export const name = 'swarm-headless-driver';
-export const inject = ['swarm', 'agents', 'agentDefaultModel', 'cmdlineArgs', 'fs', 'sandboxPolicy'];
+export const inject = ['swarm', 'agents', 'agentDefaultModel', 'cmdlineArgs', 'fs', 'sandboxPolicy', 'llm'];
 
 /** Boot through `dsh --profile headless --patch ...`, never a second server. */
 export function apply(ctx: Context): void {
@@ -53,11 +53,14 @@ export function apply(ctx: Context): void {
       const target = await ctx.fs.resolve(specPath, { signal: controller.signal });
       const source = await ctx.fs.readText(target, controller.signal);
       const spec = parseRunSpec(JSON.parse(source), specPath);
-      const runtime = await ctx.swarm.ready;
+      await ctx.swarm.ready;
       const selection = ctx.agentDefaultModel.currentSelection();
       const provider = selectedArgs.provider ?? selection.provider;
       const model = selectedArgs.model ?? selection.model;
-      const effort = selectedArgs.reasoningEffort ? ReasoningEffortId(selectedArgs.reasoningEffort) : selection.reasoningEffort;
+      // A new profile may not have the GUI's provider routes. Reject that before
+      // starting a run whose first activation would otherwise pause indefinitely.
+      await ctx.llm.resolveModelInfo(provider, model, controller.signal);
+      const effort = selectedArgs.reasoningEffort ? ReasoningEffortId(selectedArgs.reasoningEffort) : (selectedArgs.provider ? undefined : selection.reasoningEffort);
       ownerHandle = await ctx.agents.create({
         sessionId: SessionId(`swarm-cli-${randomUUID()}`),
         meta: { cwd: spec.repository, origin: 'subagent', delegationDepth: 0 },
@@ -67,8 +70,7 @@ export function apply(ctx: Context): void {
       const owner = ownerHandle.agent;
       const policy = ctx.sandboxPolicy.resolve({ session: owner.session });
       if (policy.mode === 'read-only') throw new SwarmError('SWARM_FORBIDDEN', 'Swarm needs a writable Session; no automatic permission escalation is allowed');
-      const result = await runSwarmHeadless(runtime, String(owner.id), spec, {
-        observe: ctx.swarm.observer,
+      const result = await ctx.agents.withInitiator(owner, () => ctx.swarm.runHeadless(String(owner.id), spec, {
         signal: controller.signal,
         write: (line: string) => {
           if (selectedArgs.json) process.stdout.write(`${line}\n`);
@@ -80,11 +82,12 @@ export function apply(ctx: Context): void {
             else process.stderr.write(`swarm ${String(record['phase'] ?? '')} ${String(record['runId'] ?? '')}\n`);
           }
         },
-      });
+      }));
       code = interrupted ? 130 : result.exitCode;
     } catch (error) {
       const failure = normalizeError(error);
       process.stderr.write(`${failure.code}: ${failure.message}\n`);
+      if (selectedArgs.json) process.stdout.write(`${JSON.stringify({ type: 'error', code: failure.code, message: failure.message })}\n`);
       code = interrupted ? 130 : 1;
     } finally {
       if (ownerHandle) {
@@ -98,12 +101,10 @@ export function apply(ctx: Context): void {
   const start = (): void => { task = run(); };
   const offReady = ctx.appReady?.onReady(start);
   if (!ctx.appReady) queueMicrotask(start);
-  process.once('SIGINT', cancel);
-  process.once('SIGTERM', cancel);
+  const restoreSignals = installHeadlessSignals(process, cancel);
   ctx.effect(() => async () => {
     offReady?.();
-    process.off('SIGINT', cancel);
-    process.off('SIGTERM', cancel);
+    restoreSignals();
     controller.abort(new Error('Headless Swarm application is shutting down'));
     await task;
   });

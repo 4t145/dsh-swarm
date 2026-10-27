@@ -9,9 +9,9 @@
  * through the Typert Gateway.
  *
  * The service extends {@link TypertRemoteService} and marks `snapshot`/`watch`
- * with the protocol's Remote markers. Standard decorator syntax is applied
- * manually because the package build uses esbuild, which cannot compile
- * standard decorators; the resulting markers are identical to `@Remote` /
+ * with the protocol's Remote markers. Installing the markers explicitly keeps
+ * the source-fallback method names stable without a Typert code-generation
+ * step; the resulting markers are identical to `@Remote` /
  * `@Remote({ mode: 'stream' })`.
  *
  * @module @deepseek-ai/dsh-swarm/progress

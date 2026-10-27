@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-swarm",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Single-host peer workers with isolated worktrees and verified Git integration for DeepSeek Harness",
   "type": "module",
@@ -46,6 +46,7 @@
     },
     "client": {
       "platform": "web",
+      "immediately": true,
       "inject": [
         "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-client-locale",
@@ -56,6 +57,7 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:native-headless": "pnpm build && node scripts/test-native-headless.mjs",
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs && tsc -p tsconfig.build.json",
     "link:harness": "node scripts/link-harness.mjs"

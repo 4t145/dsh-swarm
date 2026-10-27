@@ -400,7 +400,9 @@ export function runSwarmHeadless(
     if (settled || run.id !== activeRunId) {
       return;
     }
-    if (run.revision === lastRevision) {
+    // start() may already return a newer snapshot than the pre-start buffer.
+    // Never replay those older revisions after publishing the current state.
+    if (run.revision <= lastRevision) {
       return;
     }
     lastRevision = run.revision;

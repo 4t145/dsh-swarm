@@ -17,27 +17,33 @@
 
 - 人类：`/swarm start --spec <绝对路径>`，以及 `/swarm status|pause|resume|stop`。
 - 模型/Agent：`swarm_manage` 工具，`action=start|status|pause|resume|stop`。start 需要内联 `spec` 对象或 `spec_path`。身份取自真实 `exec.agent`；子会话与 worker 一律被拒绝，不能递归控制包含自己的 run。
-- Web 对话页的 “Swarm 进度” 面板展示 run 阶段、预算、task 完成数、每个 worker 的原生 running/inactive/unavailable、当前任务以及 proposal/验证计数。没有 run 时面板会说明上述启动方法。面板不显示私信正文、finding 正文或事件日志。
+- Web 对话页的“协作群”标签位于“对话”和“轨迹”之间，展示 run 阶段、预算、task 完成数、每个 worker 的原生 running/inactive/unavailable、当前任务以及 proposal/验证计数。没有 run 时面板说明启动方法；切换或关闭标签只取消读取，不停止 run。面板不显示私信正文、finding 正文或事件日志。
+
+可以直接对普通 owner 会话中的 Agent 说：
+
+> 用 Swarm，在当前仓库安排 2 个 Agent，30 分钟内实现 X。验收是 Y；不要合入主分支。先整理配置给我确认，再启动。
+
+之后可以说“查看 Swarm 状态”“暂停，保留任务”“继续并追加 15 分钟预算”“停止并给我结果分支”。Agent 使用上述 `swarm_manage` 工具，而不是靠聊天文本触发隐藏后台任务。`stopped` 是终态，不能直接继续，须以已接受的 SHA 开新 run。需要 DeepSeek 时先在 owner 会话选择该模型；当前同一次 run 的 worker 都继承 owner 模型，不能在 spec 中指定不同模型。
 
 ## 无 GUI / CI：headless 驱动
 
-```sh
-# 1) 安装本 bundle 到任意 headless 类型 profile，例如：
-dsh plugin --profile swarm-run add /absolute/path/to/dsh-swarm
+本地 checkout 先按本文开发命令构建并链接宿主依赖。附带的 overlay 是完整入口，不要求把包再安装到另一个 profile，也不要同时叠加 [cordis.patch.yml](</home/atlas/Github/4t145/dsh-swarm/cordis.patch.yml>)：
 
-# 2) 用附带的 overlay 替换该 profile 自带的一任务 runner：
-dsh --profile swarm-run --patch /absolute/path/to/dsh-swarm/cordis.headless.yml \
+```sh
+dsh --profile headless --patch /absolute/path/to/dsh-swarm/cordis.headless.yml \
   --spec /absolute/path/to/run.json --json
 
-# 只查看参数：
-dsh --profile swarm-run --patch /absolute/path/to/dsh-swarm/cordis.headless.yml -- --help
+# 不启动模型，只查看参数：
+dsh --profile headless --patch /absolute/path/to/dsh-swarm/cordis.headless.yml -- --help
 ```
 
-overlay 会禁用 `headless-startup`/`headless-runner`、挂载 Agent preset registry、把存储域切到 `local_swarm_headless`（避免与 GUI 进程争用 run），并插入本插件的 driver。driver 自己创建 owner Session，等待整个 run 进入终态才退出：
+需要指定模型时追加 `--provider <id> --model <id> --effort <id>`。provider/model 必须成对提供，省略时使用该 profile 的默认模型。路由必须已在所选 profile 注册，并具有可用凭据；仅加参数不会把网页 profile 的 adapter 搬过来。启动前会核验路由，缺失时明确失败，不创建挂起的 run。凭据沿用该 profile 的 adapter/环境/.env 配置，不从网页复制密钥。
+
+overlay 禁用 `headless-startup`/`headless-runner`、挂载 Agent preset registry 与相同的 worker 工具、把存储域切到 `local_swarm_headless`（避免恢复 GUI 进程的 run），并插入 driver。worker 模块使用基于构建入口的绝对 URL，避免被错误解析到 profile 目录。driver 自己创建 owner Session，等待整个 run 进入终态才退出：
 
 - 退出码 `0` = `completed`；`1` = `failed` 或启动错误；`2` = 参数错误；`130` = `stopped`/中断。
-- `--json` 输出有界 JSONL：`progress` 行与一条 `final` 行；无 `--json` 时只把阶段摘要写到 stderr，final 写到 stdout。
-- abort（Ctrl-C/SIGTERM）只停止本次 run，并等待它静止后退出。不要同时对同一仓库运行 GUI 和 CLI worker。
+- `--json` 输出有界 JSONL：`progress` 行与一条 `final` 行；启动前的参数/路由错误可以输出 `error` 行。无 `--json` 时只把阶段摘要写到 stderr，final 写到 stdout。
+- 首次 Ctrl-C/SIGTERM 先停止本次 run、记录终态，再退出应用；再次发送信号交回平台的强制关闭路径，此时不保证最终记录。不要同时对同一仓库运行 GUI 和 CLI worker。
 
 ## 启动一次任务
 
@@ -96,6 +102,8 @@ pnpm link:harness -- <当前 @deepseek-ai/dsh 的安装目录>
 pnpm typecheck
 pnpm test
 pnpm build
+# 原生 CLI 回归：隔离 DSH_HOME，使用阻塞测试 adapter，不调用付费模型 API
+pnpm test:native-headless
 ```
 
 链接脚本只对齐本地开发的宿主声明和 Cordis 实例，不把机器路径写入源码。Zod 固定为 4.4.3，与目标 DSH storageDomain 的类型兼容。
@@ -107,6 +115,7 @@ pnpm build
 - 已有状态机、CAS、消息分页、等待竞态、权限执行适配、控制/发布排序、恢复和工具注册测试。
 - 真实临时 Git 仓库的端到端测试串联了实际 Runtime、Collaboration、Delivery、IntegrationQueue 和 GitWorkspace；仅原生 worker/模型边界使用 fake。
 - 已在当前运行 Host 中检查 runtime ready、命令、worktree 服务和真实 worker preset 的 9 个 Swarm 工具，见 [原生加载报告](</home/atlas/Github/4t145/dsh-swarm/notes/native-smoke.json>)。该报告的 `latestWorkerFailurePauseCode: false` 表示**最新构建尚未载入当前进程，必须重启**。测试没有创建模型任务或消耗模型 API。
-- **已执行真实模型端到端验收（v0.2）**：在临时 Git 仓库中由 headless driver 启动 2 个真实 worker，完成两个互补 commit，经集成工作区验证后 run 进入 `completed`（reason `finish_verified`），结果分支包含验收文件，driver 退出码 0。该次验收同时覆盖了修复后的 artifact 存储键；旧键 `swarm-artifact:<uuid>` 含冒号，被 storageDomain 的 per-record 路径规则拒绝，v0.2 已改为 `swarm-artifact-<uuid>`。
+- **真实 Swarm 自举开发已尝试**：2 个 `vast-internal/deepseek-v4.1-flash-1017` worker 在原生 Session/worktree 中产出本轮功能提交；首次集成因 artifact id 含冒号被真实存储后端拒绝而失败，代码随后由 Lead 审查合入。v0.2 已改为安全前缀并增加真实 JSON 后端测试。不能把该次 failed run 记作 completed。
+- 已验证独立 headless profile 的启动/帮助、缺失路由诊断，以及两个原生 worker 的真实 SIGINT 退出链路（模型端为明确的阻塞测试 adapter）：最终 `stopped`、`aborted=true`、进程/记录退出码均为 `130`。该测试不是付费模型编码验收。默认 headless profile 尚无 `vast-internal`，完整真实模型 CLI 验收仍需先配置相应路由。
 - 本项目的 fake 边界测试仍不能替代真实模型任务；GUI 面板的最终视觉呈现未做浏览器目视验证。插件为实验性 v0.2。
 - 插件元数据、locale 与原创 SVG 文件已检查；未对 GUI 中的最终视觉呈现做浏览器目视验证。临时加载测试 bundle 的安装与配置已移除；管理器提示当前进程还需重启完成清理。正式插件保留启用。

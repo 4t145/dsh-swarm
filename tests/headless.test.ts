@@ -237,6 +237,20 @@ describe('runSwarmHeadless', () => {
     }
   });
 
+  it('never regresses revisions when startup publishes buffered states', async () => {
+    const runtime = new FakeRuntime();
+    const lines: string[] = [];
+    runtime.onStart = async (run) => {
+      await runtime.transition(run.id, 'draining');
+      await runtime.transition(run.id, 'completed');
+    };
+    const result = await runSwarmHeadless(runtime, 'owner-1', SPEC, { observe: runtime.store, write: (line) => lines.push(line) });
+    expect(result.phase).toBe('completed');
+    const revisions = parseLines(lines).filter((line) => line['type'] === 'progress').map((line) => Number(line['revision']));
+    expect(revisions.length).toBeGreaterThan(0);
+    expect(revisions.every((revision, index) => index === 0 || revision > (revisions[index - 1] ?? -1))).toBe(true);
+  });
+
   it('counts tasks and refuses to leak message bodies', async () => {
     const runtime = new FakeRuntime();
     const lines: string[] = [];

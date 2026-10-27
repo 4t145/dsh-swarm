@@ -41,7 +41,7 @@ export function parseSwarmHeadlessArgs(argv: readonly string[]): SwarmHeadlessAr
 export const SWARM_HEADLESS_HELP = `DSH Swarm headless
 
 Run with the supplied headless patch over a headless profile:
-  dsh --profile headless --patch /path/to/dsh-swarm/headless.patch.yml --spec /path/to/run.json [--json]
+  dsh --profile headless --patch /path/to/dsh-swarm/cordis.headless.yml --spec /path/to/run.json [--json]
 
 Options:
   --spec <path>       Explicit run specification (required)

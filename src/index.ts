@@ -16,7 +16,7 @@ import { registerSwarmCommand } from './commands.ts';
 import { DshCommandExecutor } from './dsh-executor.ts';
 import { DshWorkerHost } from './dsh-worker-host.ts';
 import { runSchema } from './schema.ts';
-import type { Run } from './types.ts';
+import type { Run, RunSpec } from './types.ts';
 import type { ArtifactRecord } from './artifacts.ts';
 import type {} from '@deepseek-ai/dsh-fs';
 import type {} from '@deepseek-ai/dsh-tools';
@@ -25,6 +25,8 @@ import { SwarmRuntime } from './runtime.ts';
 import { GitWorkspace } from './workspace.ts';
 import { registerOwnerTools } from './owner-tools.ts';
 import { registerProgress } from './progress.ts';
+import { runSwarmHeadless, type RunSwarmHeadlessOptions, type SwarmHeadlessResult } from './headless.ts';
+import { HeadlessDriverLifetime } from './headless-lifetime.ts';
 
 /** Deployment controls; goals and verification commands belong in each run spec. */
 export interface SwarmConfig {
@@ -69,6 +71,7 @@ export class SwarmService extends Service {
   private artifactsValue: StoredArtifacts | undefined;
   private observerValue: Pick<StateStore, 'get' | 'subscribe'> | undefined;
   private closeResources: (() => Promise<void>) | undefined;
+  private readonly headlessDrivers = new HeadlessDriverLifetime();
 
   constructor(ctx: Context, config: SwarmConfig) {
     super(ctx, 'swarm');
@@ -101,6 +104,13 @@ export class SwarmService extends Service {
     return this.observerValue;
   }
 
+  /** Own the driver lifetime so provider teardown cannot close its store early. */
+  runHeadless(ownerSessionId: string, spec: RunSpec, options: Omit<RunSwarmHeadlessOptions, 'observe'>): Promise<SwarmHeadlessResult> {
+    return this.headlessDrivers.run(async (signal) => runSwarmHeadless(await this.ready, ownerSessionId, spec, {
+      ...options, observe: this.observer, signal,
+    }), options.signal);
+  }
+
   private async initialize(config: SwarmConfig): Promise<SwarmRuntime> {
     const domain = await this.ctx.storageDomain.open(domainSpec(config.storageDomainName));
     const store = new MemoryStateStore(domain.table('runs'));
@@ -117,6 +127,7 @@ export class SwarmService extends Service {
     let disposeOwnerTools: (() => void) | undefined;
     let progress: { dispose(): Promise<void> } | undefined;
     this.closeResources = async () => {
+      await this.headlessDrivers.close();
       disposeOwnerTools?.();
       await progress?.dispose();
       await runtime.dispose();
