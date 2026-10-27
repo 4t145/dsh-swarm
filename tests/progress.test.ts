@@ -475,6 +475,7 @@ function flattenText(node: unknown): string {
   if (node === null || node === undefined || node === false) return '';
   if (typeof node === 'string' || typeof node === 'number') return String(node);
   if (Array.isArray(node)) return node.map(flattenText).join(' ');
+  if (typeof node === 'object' && node !== null && 'tag' in node && node.tag === 'style') return '';
   if (typeof node === 'object' && node !== null && 'children' in node) {
     const children = (node as { children: unknown[] }).children;
     return children.map(flattenText).join(' ');

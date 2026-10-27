@@ -285,6 +285,7 @@ export class SwarmRuntime {
           (error.code === 'SWARM_WORKER_BUSY' || typeof error.details?.['activationId'] === 'string');
         if (workerFailure) {
           this.recordDiagnostic(runId, errorMessage(error));
+          console.error('[swarm] worker activation failed:', errorMessage(error));
           this.trackGuarded(this.controlTransition(runId, 'paused', 'worker_activation_failed').then(() => undefined), runId, 'worker pause failed');
         } else {
           this.trackGuarded(this.failRun(runId, 'delivery_error', error), runId, 'delivery failure cleanup failed');

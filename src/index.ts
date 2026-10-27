@@ -19,23 +19,30 @@ import { runSchema } from './schema.ts';
 import type { Run } from './types.ts';
 import type { ArtifactRecord } from './artifacts.ts';
 import type {} from '@deepseek-ai/dsh-fs';
-import { MemoryStateStore } from './store.ts';
+import type {} from '@deepseek-ai/dsh-tools';
+import { MemoryStateStore, type StateStore } from './store.ts';
 import { SwarmRuntime } from './runtime.ts';
 import { GitWorkspace } from './workspace.ts';
+import { registerOwnerTools } from './owner-tools.ts';
+import { registerProgress } from './progress.ts';
 
 /** Deployment controls; goals and verification commands belong in each run spec. */
 export interface SwarmConfig {
   eventPageSize: number;
   commandOutputBytes: number;
   commandGraceMs: number;
+  /** Distinct CLI storage avoids recovering another live GUI process's runs. */
+  storageDomainName: string;
 }
 
-const domainSpec = defineDomain({
-  name: 'local_swarm',
-  version: 1,
-  layout: 'per-record',
-  tables: { runs: domainTable<string, Run>(runSchema), artifacts: domainTable<string, ArtifactRecord>(artifactSchema) },
-});
+function domainSpec(name: string) {
+  return defineDomain({
+    name,
+    version: 1,
+    layout: 'per-record' as const,
+    tables: { runs: domainTable<string, Run>(runSchema), artifacts: domainTable<string, ArtifactRecord>(artifactSchema) },
+  });
+}
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -47,18 +54,20 @@ declare module '@deepseek-ai/cordis' {
 export class SwarmService extends Service {
   static inject = [
     'storageDomain', 'agents', 'subagents', 'worktrees', 'workingDirectory',
-    'commands', 'jobs', 'fs', 'sandbox', 'sandboxPolicy', 'subprocess',
+    'commands', 'jobs', 'tools', 'fs', 'sandbox', 'sandboxPolicy', 'subprocess',
   ];
 
   static Config = Schema.object({
     eventPageSize: Schema.number().min(1).max(100).default(20),
     commandOutputBytes: Schema.number().min(4096).max(4194304).default(262144),
     commandGraceMs: Schema.number().min(100).max(30000).default(3000),
+    storageDomainName: Schema.string().default('local_swarm'),
   });
 
   /** Initialization is explicit so preset tools never observe a partial runtime. */
   readonly ready: Promise<SwarmRuntime>;
   private artifactsValue: StoredArtifacts | undefined;
+  private observerValue: Pick<StateStore, 'get' | 'subscribe'> | undefined;
   private closeResources: (() => Promise<void>) | undefined;
 
   constructor(ctx: Context, config: SwarmConfig) {
@@ -86,9 +95,16 @@ export class SwarmService extends Service {
     return this.artifactsValue;
   }
 
+  /** Read-only persisted-run observation shared by CLI and browser transports. */
+  get observer(): Pick<StateStore, 'get' | 'subscribe'> {
+    if (!this.observerValue) throw new Error('Swarm storage is not initialized');
+    return this.observerValue;
+  }
+
   private async initialize(config: SwarmConfig): Promise<SwarmRuntime> {
-    const domain = await this.ctx.storageDomain.open(domainSpec);
+    const domain = await this.ctx.storageDomain.open(domainSpec(config.storageDomainName));
     const store = new MemoryStateStore(domain.table('runs'));
+    this.observerValue = { get: (id) => store.get(id), subscribe: (listener) => store.subscribe(listener) };
     const artifacts = new StoredArtifacts(domain.table('artifacts'));
     const host = new DshWorkerHost(this.ctx, store);
     const executor = new DshCommandExecutor(this.ctx, {
@@ -98,7 +114,11 @@ export class SwarmService extends Service {
     const workspace = new GitWorkspace(executor);
     const runtime = new SwarmRuntime(store, host, workspace, artifacts, { eventPageSize: config.eventPageSize });
     this.artifactsValue = artifacts;
+    let disposeOwnerTools: (() => void) | undefined;
+    let progress: { dispose(): Promise<void> } | undefined;
     this.closeResources = async () => {
+      disposeOwnerTools?.();
+      await progress?.dispose();
       await runtime.dispose();
       await host.dispose();
       await store.close();
@@ -107,6 +127,10 @@ export class SwarmService extends Service {
     try {
       await runtime.recover();
       registerSwarmCommand(this.ctx, runtime, workspace);
+      // Owner-only model control surface; the worker preset never loads this module.
+      disposeOwnerTools = registerOwnerTools(this.ctx, runtime);
+      // Read-only progress service used by the browser panel and headless observer.
+      progress = registerProgress(this.ctx, runtime, store);
       return runtime;
     } catch (error) {
       await this.closeResources();

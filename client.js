@@ -5,21 +5,12 @@ window.__ModuleLoader__.load({
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 		const React = require("react");
-		const zod = require("zod");
 
 		/* ------------------------------------------------------------------ */
 		/* 样式                                                                */
 		/* ------------------------------------------------------------------ */
 
-		const css = ".dshSwarm_root{box-sizing:border-box;width:100%;max-width:820px;margin:0 auto;padding:16px 18px 28px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px}.dshSwarm_head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:10px}.dshSwarm_title{font-size:14px;line-height:20px;font-weight:600}.dshSwarm_run{color:var(--dsw-alias-label-tertiary);font-family:var(--dsw-font-mono);font-size:11px}.dshSwarm_phase{border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-fill-l2);color:var(--dsw-alias-label-secondary);padding:1px 6px;font-size:11px}.dshSwarm_phase_completed{color:var(--dsw-alias-state-success-primary)}.dshSwarm_phase_failed{color:var(--dsw-alias-state-error-primary)}.dshSwarm_meta{display:flex;flex-wrap:wrap;gap:6px 16px;color:var(--dsw-alias-label-secondary);margin-bottom:12px}.dshSwarm_section{border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;margin-top:10px}.dshSwarm_sectionTitle{color:var(--dsw-alias-label-tertiary);font-size:11px;margin-bottom:6px}.dshSwarm_workers{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}.dshSwarm_worker{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px}.dshSwarm_dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-label-tertiary);align-self:center}.dshSwarm_dot_running{background:var(--dsw-alias-state-success-primary)}.dshSwarm_dot_inactive{background:var(--dsw-alias-label-tertiary)}.dshSwarm_dot_unavailable{background:var(--dsw-alias-state-error-primary)}.dshSwarm_workerId{font-family:var(--dsw-font-mono);font-size:11px}.dshSwarm_workerState{color:var(--dsw-alias-label-secondary);font-size:11px}.dshSwarm_task{color:var(--dsw-alias-label-secondary);min-width:0;overflow-wrap:anywhere}.dshSwarm_diag{color:var(--dsw-alias-state-warn-label,var(--dsw-alias-label-tertiary));font-size:11px;overflow-wrap:anywhere}.dshSwarm_empty{border:1px dashed var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md);padding:14px 16px;color:var(--dsw-alias-label-secondary)}.dshSwarm_emptyTitle{font-weight:600;color:var(--dsw-alias-label-primary);margin-bottom:4px}.dshSwarm_hint{font-family:var(--dsw-font-mono);font-size:11px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}.dshSwarm_error{color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere}";
-		const tagId = "@local/dsh-swarm/SwarmProgressView.module.css";
-		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
-			const tag = document.createElement("style");
-			tag.dataset.plugin = "@local/dsh-swarm";
-			tag.dataset.pluginCss = tagId;
-			tag.textContent = css;
-			document.head.appendChild(tag);
-		}
+		const css = ".dshSwarm_root{box-sizing:border-box;width:100%;max-width:820px;margin:0 auto;padding:16px 18px 28px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px}.dshSwarm_head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:10px}.dshSwarm_title{font-size:14px;line-height:20px;font-weight:600}.dshSwarm_run{color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font-mono,ui-monospace);font-size:11px}.dshSwarm_phase{border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);padding:1px 6px;font-size:11px}.dshSwarm_phase_completed{color:var(--dsw-alias-state-success-primary)}.dshSwarm_phase_failed{color:var(--dsw-alias-state-error-primary)}.dshSwarm_meta{display:flex;flex-wrap:wrap;gap:6px 16px;color:var(--dsw-alias-label-secondary);margin-bottom:12px}.dshSwarm_section{border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;margin-top:10px}.dshSwarm_sectionTitle{color:var(--dsw-alias-label-secondary);font-size:11px;margin-bottom:6px}.dshSwarm_workers{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}.dshSwarm_worker{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px}.dshSwarm_dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-label-secondary);align-self:center}.dshSwarm_dot_running{background:var(--dsw-alias-state-success-primary)}.dshSwarm_dot_inactive{background:var(--dsw-alias-label-secondary)}.dshSwarm_dot_unavailable{background:var(--dsw-alias-state-error-primary)}.dshSwarm_workerId{font-family:var(--dsw-font-mono,ui-monospace);font-size:11px}.dshSwarm_workerState{color:var(--dsw-alias-label-secondary);font-size:11px}.dshSwarm_task{color:var(--dsw-alias-label-secondary);min-width:0;overflow-wrap:anywhere}.dshSwarm_diag{color:var(--dsw-alias-state-warn-primary,var(--dsw-alias-label-secondary));font-size:11px;overflow-wrap:anywhere}.dshSwarm_empty{border:1px dashed var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md);padding:14px 16px;color:var(--dsw-alias-label-secondary)}.dshSwarm_emptyTitle{font-weight:600;color:var(--dsw-alias-label-primary);margin-bottom:4px}.dshSwarm_hint{font-family:var(--dsw-font-mono,ui-monospace);font-size:11px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}.dshSwarm_error{color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere}";
 
 		/* ------------------------------------------------------------------ */
 		/* 文案（中文为源，英文键完全一致）                                     */
@@ -27,13 +18,13 @@ window.__ModuleLoader__.load({
 
 		const NS = "swarmProgress";
 		const zh = {
-			"view.label": "Swarm 进度",
+			"view.label": "协作群",
 			"title": "Swarm 运行",
 			"loading": "正在读取 Swarm 进度…",
 			"error": "读取进度失败：{message}",
 			"unavailable": "Swarm 进度接口未接线：Host 的 swarmProgress 服务未加载。",
 			"noRun.title": "当前没有 Swarm run",
-			"noRun.body": "用 /swarm start <spec.json> 启动，或让 Agent 调用 swarm_manage action=start 并给出 spec 对象或 spec_path。",
+			"noRun.body": "用 /swarm start --spec <spec.json> 启动，或让 Agent 调用 swarm_manage action=start 并给出 spec 对象或 spec_path。",
 			"phase.preparing": "准备中",
 			"phase.running": "运行中",
 			"phase.draining": "收尾中",
@@ -60,13 +51,13 @@ window.__ModuleLoader__.load({
 			"reason": "当前阶段原因：{reason}"
 		};
 		const en = {
-			"view.label": "Swarm progress",
+			"view.label": "Swarm",
 			"title": "Swarm run",
 			"loading": "Reading Swarm progress…",
 			"error": "Failed to read progress: {message}",
 			"unavailable": "Swarm progress is not wired: the Host swarmProgress service is not loaded.",
 			"noRun.title": "No Swarm run in this session",
-			"noRun.body": "Start one with /swarm start <spec.json>, or ask the Agent to call swarm_manage action=start with a spec object or spec_path.",
+			"noRun.body": "Start one with /swarm start --spec <spec.json>, or ask the Agent to call swarm_manage action=start with a spec object or spec_path.",
 			"phase.preparing": "preparing",
 			"phase.running": "running",
 			"phase.draining": "draining",
@@ -100,13 +91,13 @@ window.__ModuleLoader__.load({
 		const stringCodec = Object.freeze({
 			mode: "strict",
 			typeSymbol: "string",
-			create: () => zod.z.string(),
+			create: () => ({ parse(value) { if (typeof value !== "string") throw new TypeError("Session id must be a string"); return value; } }),
 			jsonSchema: { type: "string" }
 		});
 		const unknownCodec = Object.freeze({
 			mode: "strict",
 			typeSymbol: "unknown",
-			create: () => zod.z.unknown(),
+			create: () => ({ parse: (value) => value }),
 			jsonSchema: {}
 		});
 		const SESSION_PARAMETER = Object.freeze({
@@ -146,6 +137,9 @@ window.__ModuleLoader__.load({
 		/* ------------------------------------------------------------------ */
 
 		const h = React.createElement;
+		function panel(...children) {
+			return h("section", { className: "dshSwarm_root" }, h("style", { key: "swarm-css" }, css), ...children);
+		}
 
 		function phaseLabel(t, phase) {
 			const key = "phase." + phase;
@@ -254,19 +248,19 @@ window.__ModuleLoader__.load({
 			}, [available, props.watchProgress, sessionId]);
 
 			if (state.status === "unavailable") {
-				return h("section", { className: "dshSwarm_root" }, h("div", { className: "dshSwarm_empty" }, t("unavailable", {})));
+				return panel( h("div", { className: "dshSwarm_empty" }, t("unavailable", {})));
 			}
 			if (state.status === "loading") {
-				return h("section", { className: "dshSwarm_root" }, h("div", { className: "dshSwarm_hint" }, t("loading", {})));
+				return panel( h("div", { className: "dshSwarm_hint" }, t("loading", {})));
 			}
 			if (state.status === "error") {
-				return h("section", { className: "dshSwarm_root" },
+				return panel(
 					h("div", { className: "dshSwarm_error" }, t("error", { message: state.message })));
 			}
 			if (state.progress === null) {
-				return h("section", { className: "dshSwarm_root" }, emptyState(t));
+				return panel( emptyState(t));
 			}
-			return h("section", { className: "dshSwarm_root" }, runBody(t, state.progress));
+			return panel( runBody(t, state.progress));
 		}
 
 		/* ------------------------------------------------------------------ */

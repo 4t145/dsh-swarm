@@ -6,10 +6,38 @@
 
 - 目标：DSH **0.2.1-rc.4**、Node **24.9+**、Linux、较新的 Git（建议 **2.46+**）。其他 DSH 版本或操作系统未验证。
 - 当前 `web` profile 已安装并启用 `@local/dsh-swarm`，提供 `/swarm` 命令及 `swarm-worker` preset。**当前 DSH 进程仍缓存旧 JavaScript；首次使用最终构建前请重启 DSH，不只是刷新网页。** 最后的原生检查已明确检测到这个版本差异。
-- 是 Host 插件＋命令界面，没有额外网页或自定义 Swarm 看板；无需启动新 Web 服务器。
+- 是 Host 插件＋命令界面，并在 Web 对话页提供一个只读的 Swarm 进度面板（`conversation.view`，order=5）。面板只读取有界公开 DTO，不另起 Web 服务器。
 - 原生 worker 继承启动者的模型和权限。只支持本地 spawn，不支持 Codex/Claude Code 外部 worker。
 - worker 的审批策略是 `never`，不能在子会话内申请扩大权限。只读模式会拒绝启动；其他权限不足会明确失败，不自动改成 full access。
 - worktree 不是安全沙箱。当前 profile 的全局 MCP 工具仍可能被 worker 继承；Swarm 不提供针对恶意 worker 的文件或网络隔离保证。
+
+## 让 Agent 启动与控制
+
+在聊天里描述目标**不会**自动后台开跑。两条显式入口：
+
+- 人类：`/swarm start --spec <绝对路径>`，以及 `/swarm status|pause|resume|stop`。
+- 模型/Agent：`swarm_manage` 工具，`action=start|status|pause|resume|stop`。start 需要内联 `spec` 对象或 `spec_path`。身份取自真实 `exec.agent`；子会话与 worker 一律被拒绝，不能递归控制包含自己的 run。
+- Web 对话页的 “Swarm 进度” 面板展示 run 阶段、预算、task 完成数、每个 worker 的原生 running/inactive/unavailable、当前任务以及 proposal/验证计数。没有 run 时面板会说明上述启动方法。面板不显示私信正文、finding 正文或事件日志。
+
+## 无 GUI / CI：headless 驱动
+
+```sh
+# 1) 安装本 bundle 到任意 headless 类型 profile，例如：
+dsh plugin --profile swarm-run add /absolute/path/to/dsh-swarm
+
+# 2) 用附带的 overlay 替换该 profile 自带的一任务 runner：
+dsh --profile swarm-run --patch /absolute/path/to/dsh-swarm/cordis.headless.yml \
+  --spec /absolute/path/to/run.json --json
+
+# 只查看参数：
+dsh --profile swarm-run --patch /absolute/path/to/dsh-swarm/cordis.headless.yml -- --help
+```
+
+overlay 会禁用 `headless-startup`/`headless-runner`、挂载 Agent preset registry、把存储域切到 `local_swarm_headless`（避免与 GUI 进程争用 run），并插入本插件的 driver。driver 自己创建 owner Session，等待整个 run 进入终态才退出：
+
+- 退出码 `0` = `completed`；`1` = `failed` 或启动错误；`2` = 参数错误；`130` = `stopped`/中断。
+- `--json` 输出有界 JSONL：`progress` 行与一条 `final` 行；无 `--json` 时只把阶段摘要写到 stderr，final 写到 stdout。
+- abort（Ctrl-C/SIGTERM）只停止本次 run，并等待它静止后退出。不要同时对同一仓库运行 GUI 和 CLI worker。
 
 ## 启动一次任务
 
@@ -79,5 +107,6 @@ pnpm build
 - 已有状态机、CAS、消息分页、等待竞态、权限执行适配、控制/发布排序、恢复和工具注册测试。
 - 真实临时 Git 仓库的端到端测试串联了实际 Runtime、Collaboration、Delivery、IntegrationQueue 和 GitWorkspace；仅原生 worker/模型边界使用 fake。
 - 已在当前运行 Host 中检查 runtime ready、命令、worktree 服务和真实 worker preset 的 9 个 Swarm 工具，见 [原生加载报告](</home/atlas/Github/4t145/dsh-swarm/notes/native-smoke.json>)。该报告的 `latestWorkerFailurePauseCode: false` 表示**最新构建尚未载入当前进程，必须重启**。测试没有创建模型任务或消耗模型 API。
-- **尚未执行真实模型自主编码的端到端验收**；不能把上述 fake 边界测试说成真实 DeepSeek worker 任务已完成。插件仍为实验性 v0.1。
+- **已执行真实模型端到端验收（v0.2）**：在临时 Git 仓库中由 headless driver 启动 2 个真实 worker，完成两个互补 commit，经集成工作区验证后 run 进入 `completed`（reason `finish_verified`），结果分支包含验收文件，driver 退出码 0。该次验收同时覆盖了修复后的 artifact 存储键；旧键 `swarm-artifact:<uuid>` 含冒号，被 storageDomain 的 per-record 路径规则拒绝，v0.2 已改为 `swarm-artifact-<uuid>`。
+- 本项目的 fake 边界测试仍不能替代真实模型任务；GUI 面板的最终视觉呈现未做浏览器目视验证。插件为实验性 v0.2。
 - 插件元数据、locale 与原创 SVG 文件已检查；未对 GUI 中的最终视觉呈现做浏览器目视验证。临时加载测试 bundle 的安装与配置已移除；管理器提示当前进程还需重启完成清理。正式插件保留启用。

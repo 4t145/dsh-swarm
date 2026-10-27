@@ -262,7 +262,7 @@ async function makeHarness(
         attemptId: null,
         configFingerprint: verificationFingerprint(run.verification),
         status: 'passed',
-        receiptRef: 'swarm-artifact:receipt',
+        receiptRef: 'swarm-artifact-receipt',
         diagnosticsRef: null,
         exitCode: 0,
         timedOut: false,

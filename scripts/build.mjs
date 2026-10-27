@@ -1,7 +1,7 @@
 import { build } from 'esbuild';
 
 await build({
-  entryPoints: ['src/index.ts', 'src/worker.ts'],
+  entryPoints: ['src/index.ts', 'src/worker.ts', 'src/headless.ts', 'src/headless-driver.ts'],
   outdir: 'lib',
   bundle: true,
   platform: 'node',

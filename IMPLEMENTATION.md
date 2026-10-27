@@ -58,3 +58,15 @@
 - 恢复会核对 Git/ref/凭据并暂停，不自动调用模型或补发未发布候选；对进程外、不受 DSH 管理的残留服务不保证自动清理。
 - 源代码目录最初没有 Git 元数据，因此本轮没有伪造 commit 或声称已做 git diff 审查；Lead 直接审查模块及其测试，所有破坏性 Git 测试只在临时仓库运行。
 - 保留架构和冷读报告作为设计依据；最终实现事实以源码、测试和本记录为准。
+
+## v0.2 增量（进度面板、owner 工具、headless 驱动）
+
+- `src/progress.ts`：`ProgressService`/`registerProgress(ctx, runtime, store)` 以 `swarmProgress` 服务暴露只读 `snapshot(sessionId)` 与事件驱动 `watch(sessionId, signal)`；DTO 只含 phase、预算、task 计数、worker 原生状态/有界诊断、当前 task、proposal/验证计数与 finishRequest，不含私信、finding 正文、artifact 或事件日志。非 owner 抛 `swarm-progress/forbidden`，无 run 返回 `null`；订阅 store 与 `agent/status|disposed` 刷新，不轮询、不重复发帧、终态结束流。手工安装 Remote 标记，避免 esbuild 不能编译标准装饰器。
+- `client.js`：通过 `window.__ModuleLoader__.load({ id: '@local/dsh-swarm' })` 注册 `conversation.view` 的 `swarm-progress` 面板（order=5），用 strict codec descriptor `$mount` `swarmProgress/snapshot|watch`；展示 run 阶段/预算/task/worker/当前任务/proposal/验证，无 run 时给出 `/swarm start --spec` 与 `swarm_manage` 提示；使用 DSH 主题 token 与 zh/en 文案，不编造百分比或把 inactive 当作完成。
+- `src/owner-tools.ts`：`swarm_manage` 的 start/status/pause/resume/stop；身份来自 `exec.agent`，子会话与 delegationDepth>0 一律拒绝，start 只接受显式内联 spec 或 spec_path，并与命令共用同一个 Runtime。
+- `src/headless.ts`：`runSwarmHeadless(runtime, ownerSessionId, spec, options)` 只在整个 run 进入 completed/stopped/failed 后结算；输出有界 JSONL progress + final；abort 停止本 run 并等待静止；worker/agent idle 不是完成信号。
+- `src/headless-args.ts`、`src/headless-driver.ts`、`cordis.headless.yml`：独立 app 入口创建 owner Session、解析 spec、调用 headless 驱动并退出；overlay 禁用自带 `headless-startup`/`headless-runner`，挂载 preset registry，使用独立 `local_swarm_headless` 存储域。
+- `src/index.ts`：注入 `tools`，在 runtime ready 后注册 owner 工具与 progress 服务，并在 `closeResources` 中释放；新增只读 `observer`，供 driver 订阅持久 run。
+- `package.json`：新增 `./headless`、`./headless-app`、`./client` 导出与 `dsh.client { platform: 'web', inject: [...] }`，`files` 包含 `client.js` 与 `cordis.headless.yml`。
+- 修复 storageDomain per-record 键：artifact id 由 `swarm-artifact:<uuid>` 改为 `swarm-artifact-<uuid>`，冒号不在路径安全字符集内，旧格式会在真实集成保存验证诊断时把 run 判为 `infrastructure_error`。
+- 检查：`pnpm typecheck` 通过；`pnpm test` 19 个文件 / 259 项通过；`pnpm build` 生成 Host/worker/headless/client 入口与声明。真实 Host 加载检查确认 `swarmProgress`、`swarm_manage` 与 preset registry 可用。真实模型 headless 端到端：2 个 worker 在临时仓库各自提交、串行集成、验证通过，run `completed`（`finish_verified`），driver 退出码 0；GUI 面板未做浏览器目视验证。

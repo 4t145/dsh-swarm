@@ -1,0 +1,24 @@
+# Headless Swarm application overlay.
+#
+# The base `headless` profile owns its own one-task runner with a conflicting
+# command line and does not mount the Agent preset registry that worker agents
+# need. Apply this overlay alongside the bundle to replace the runner with the
+# Swarm run driver:
+#
+#   dsh --profile <name> --patch /abs/path/cordis.headless.yml -- --spec run.json
+#
+# Exit codes: 0 completed, 1 failed, 2 usage error, 130 stopped/interrupted.
+- id: swarm-runtime
+  config:
+    storageDomainName: local_swarm_headless
+- id: headless-startup
+  disabled: true
+- id: headless-runner
+  disabled: true
+- insert:
+    - id: swarm-headless-presets
+      name: '@deepseek-ai/dsh-agent-preset-registry'
+      config:
+        default: standard
+    - id: swarm-headless-driver
+      name: '@local/dsh-swarm/headless-app'

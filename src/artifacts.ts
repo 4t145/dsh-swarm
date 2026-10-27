@@ -27,7 +27,7 @@ export class StoredArtifacts implements ArtifactPort {
 
   /** Store a new immutable diagnostic after its producing command completed. */
   async save(runId: string, name: string, text: string): Promise<string> {
-    const id = `swarm-artifact:${randomUUID()}`;
+    const id = `swarm-artifact-${randomUUID()}`;
     await this.table.put(id, { id, runId, name, text, createdAt: Date.now() });
     return id;
   }

@@ -23,7 +23,7 @@ import type { JsonValue } from './types.ts';
 /* ------------------------------------------------------------------ */
 
 /** `StoredArtifacts.save` 生成的 id 前缀；带该前缀的 id 走诊断文本读取。 */
-const ARTIFACT_PREFIX = 'swarm-artifact:';
+const ARTIFACT_PREFIX = 'swarm-artifact-';
 /** 诊断文本单次默认与最大字符数，与 `readForRun` 的上限一致。 */
 const DEFAULT_ARTIFACT_CHARS = 12_000;
 const MAX_ARTIFACT_CHARS = 24_000;
@@ -245,7 +245,7 @@ export function registerWorkerTools(
       name: 'swarm_read',
       description:
         'Read one record by id, or search tasks, findings, and your direct messages. Diagnostic artifact ids '
-        + '(starting with swarm-artifact:) return bounded text slices instead.',
+        + '(starting with swarm-artifact-) return bounded text slices instead.',
       properties: {
         id: { type: 'string', description: 'Task, finding, message, or diagnostic artifact id.' },
         query: { type: 'string', description: 'Case-insensitive text filter when no id is given.' },
