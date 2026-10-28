@@ -30,7 +30,7 @@ import {
   type SwarmOwnerRuntimePort,
   type SwarmOwnerToolContext,
 } from '../src/owner-tools.ts';
-import type { AppendGoalInput, AppendGoalReceipt, RunSpec } from '../src/types.ts';
+import type { AppendGoalInput, AppendGoalReceipt, RunPhase, RunSpec } from '../src/types.ts';
 import { SwarmError } from '../src/errors.ts';
 
 /** The real Host services must satisfy the narrow owner-tool context. */
@@ -77,7 +77,7 @@ const SPEC_INPUT = {
   },
 };
 
-const BASE_RUN: SwarmRunView = {
+const BASE_RUN: SwarmRunView & { phase: RunPhase } = {
   id: 'run-1',
   phase: 'running',
   reason: null,
@@ -207,7 +207,7 @@ class FakeRuntime implements SwarmOwnerRuntimePort {
     return { ...this.run, id: 'run-2', phase: 'running' };
   }
 
-  run: SwarmRunView = { ...BASE_RUN };
+  run: SwarmRunView & { phase: RunPhase } = { ...BASE_RUN };
   statusView: SwarmRunStatusView = structuredClone(BASE_STATUS);
   failure: unknown;
 
