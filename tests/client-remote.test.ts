@@ -12,6 +12,7 @@ interface ViewProps {
   watchProgress(sessionId: string, signal?: AbortSignal): Stream;
   watchSessionProgress(sessionId: string, signal?: AbortSignal): Stream;
   executeCommand(sessionId: string, line: string, attachments: readonly unknown[], signal?: AbortSignal): Promise<unknown>;
+  loadHistory(sessionId: string, cursor: string | null, signal?: AbortSignal): Promise<unknown>;
 }
 interface Registration {
   name: string;
@@ -137,6 +138,37 @@ describe('client.js with the real Remote client', () => {
         .resolves.toMatchObject({ ok: true, value: { result: { kind: 'success' } } });
       expect(execute).toHaveBeenCalledExactlyOnceWith('owner-session', '/swarm append --json {"goal":"CSV"}', [], signal);
       expect(view.registration()?.inject().executeCommand).toBe(props.executeCommand);
+      await panel.dispose();
+    } finally {
+      await ctx.fiber.dispose();
+    }
+  });
+
+  it('forwards history cursors and cancellation through the real unary descriptor', async () => {
+    const ctx = new Context();
+    const page = { runId: 'run', items: [], worktrees: [], nextCursor: null };
+    let rawSignal: AbortSignal | undefined;
+    const call = vi.fn(async (_path: string, _endpoint: string, _payload: unknown, signal: AbortSignal) => {
+      rawSignal = signal;
+      return { ok: true, value: page };
+    });
+    try {
+      ctx.provide('connection', {
+        interactions: 'none', isLoopback: true,
+        generation: { getSnapshot: () => undefined }, rpc: { call },
+      });
+      await ctx.plugin(registry);
+      await ctx.plugin(gateway);
+      const view = viewServices(ctx);
+      const panel = await ctx.plugin(load());
+      const props = view.registration()?.inject();
+      if (!props) throw new Error('missing view');
+      const controller = new AbortController();
+      await expect(props.loadHistory('owner-session', 'opaque-cursor', controller.signal)).resolves.toEqual(page);
+      expect(call).toHaveBeenCalledWith('/api', 'swarmProgress/worktreeHistory', { args: { sessionId: 'owner-session', cursor: 'opaque-cursor' } }, expect.any(AbortSignal));
+      controller.abort();
+      expect(rawSignal?.aborted).toBe(true);
+      expect(view.registration()?.inject().loadHistory).toBe(props.loadHistory);
       await panel.dispose();
     } finally {
       await ctx.fiber.dispose();

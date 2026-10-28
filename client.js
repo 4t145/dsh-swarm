@@ -29,10 +29,12 @@ window.__ModuleLoader__.load({
 @media(max-width:760px){.dshSwarm_collaboration{grid-template-columns:1fr;gap:0}}
 @container(max-width:620px){.dshSwarm_workers{grid-template-columns:1fr}.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr))}.dshSwarm_step:nth-child(2){border-inline-end:0}.dshSwarm_step:nth-child(-n+2){border-bottom:1px solid var(--dsw-alias-border-l1)}.dshSwarm_kpis{gap:8px}.dshSwarm_kpi dd{font-size:21px}}
 @media(max-width:540px){.dshSwarm_root{padding:16px 12px 28px}.dshSwarm_workers{grid-template-columns:1fr}.dshSwarm_header{gap:12px}.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr))}.dshSwarm_step:nth-child(2){border-inline-end:0}.dshSwarm_step:nth-child(-n+2){border-bottom:1px solid var(--dsw-alias-border-l1)}.dshSwarm_taskRow{grid-template-columns:minmax(0,1fr)}.dshSwarm_taskRow>.dshSwarm_badge{justify-self:start}.dshSwarm_kpis{gap:8px}.dshSwarm_kpi dd{font-size:20px}}
+.dshSwarm_gitScroll{max-height:68vh;min-height:180px;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;padding:18px 18px 10px;margin-top:12px}.dshSwarm_gitList{border-inline-start:2px solid var(--dsw-alias-border-l1);margin-inline-start:5px!important;padding-inline-start:20px!important}.dshSwarm_gitCommit{position:relative;padding:0 0 22px;min-width:0}.dshSwarm_gitCommit:before{content:"";position:absolute;inset-inline-start:-26px;top:7px;width:10px;height:10px;border:2px solid var(--dsw-alias-brand-primary);border-radius:50%;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_gitCommit[data-merge=true]:before{border-radius:2px;transform:rotate(45deg)}.dshSwarm_gitSubject{font-size:13px;font-weight:600;overflow-wrap:anywhere;margin-top:5px!important}.dshSwarm_gitMeta{display:flex;gap:5px 10px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}.dshSwarm_gitFooter{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;padding:12px 0}.dshSwarm_gitSentinel{height:1px}.dshSwarm_gitWorktrees{display:grid;gap:8px;margin-top:10px!important}.dshSwarm_gitWorktree{padding:10px 12px;background:var(--dsw-alias-bg-layer-2);border-radius:6px;overflow-wrap:anywhere}.dshSwarm_gitWorktree code{display:block;margin-top:3px}.dshSwarm_gitScroll:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
 @media(prefers-reduced-motion:reduce){.dshSwarm_root *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 `;
 		const zh = {
 			"view.label": "◈ 协作群", "title": "Swarm 协作群",
+			"git.title": "Git 工作树", "git.note": "各成员工作树与已接受结果的合并历史流 · 同一提交只显示一次。来源分支表示可达关系，不代表作者。", "git.refresh": "更新历史", "git.loading": "正在读取 Git 历史…", "git.more": "加载更早提交", "git.end": "已到达历史起点", "git.empty": "当前没有可显示的提交。", "git.unavailable": "当前 Host 不支持工作树历史，请更新 Host 后重连。", "git.failed": "Git 历史读取失败", "git.retry": "重试", "git.loaded": "已显示 {count} 个提交", "git.worktrees": "工作树与版本快照", "git.result": "已接受结果", "git.source": "来源分支", "git.merge": "合并提交", "git.parents": "父提交", "git.commit": "完整提交 SHA", "git.details": "提交详情", "git.snapshot": "分页固定于首次读取的版本；更新历史可查看最新提交。", "git.missingRun": "运行已变化或不可用，请重新连接。", "git.invalid": "Host 返回了无效的 Git 历史。", "git.worktreeMissing": "工作树尚未准备完成",
 			"goals.title": "目标", "goals.add": "追加目标", "goals.placeholder": "接下来还需要做什么？", "goals.criteria": "验收条件（可选，每行一项）", "goals.publish": "发布目标", "goals.publishing": "正在提交…", "goals.scope": "当前会话 · 当前仓库", "goals.original": "初始目标", "goal.active": "本轮待完成", "goal.deferred": "待下一轮", "goal.completed": "已处理", "goal.continued": "已转下一轮", "goals.paused": "追加后仍保持暂停", "goals.deferred": "本轮已收尾，追加将保存到下一轮", "goals.resume": "恢复本轮", "goals.continue": "开始下一轮", "goals.criteriaTitle": "验收条件", "goals.more": "显示 {shown}/{total} 项；其余记录已保存，暂不在面板展示", "goals.clipped": "此处内容已截断；完整内容保存在运行记录中", "goals.publishFirst": "先发布或清空草稿", "goals.unavailable": "当前 Host 不支持追加目标，请更新 Host 后重连。", "goals.sent.executing": "已发布 · 已加入本轮工作", "goals.sent.paused": "已保存 · 恢复后处理", "goals.sent.deferred": "已保存 · 等待下一轮", "goals.sent.continue": "下一轮已启动", "goals.sent.resume": "本轮已恢复", "goals.unknownReceipt": "回执不完整，请检查目标列表后再决定是否重试。", "goals.commandUnavailable": "命令服务不可用", "goals.pending": "{count} 项待下一轮", "goals.failed": "提交失败，草稿已保留", "goals.uncertain": "未确认提交结果；请检查目标列表后再重试。", "goals.nextRun": "下一轮运行", "goals.commit": "完成版本", "loading": "正在连接进度流…", "refresh": "更新连接", "unknown": "未知", "unavailable": "不可用",
 			"connection.live": "实时连接", "connection.loading": "连接中", "connection.ended": "订阅已结束", "connection.error": "连接中断", "connection.unavailable": "服务不可用",
 			"updated": "快照更新于 {time}", "stale.title": "非实时 · 最后已知快照", "stale.body": "连接中断后保留已知状态，工作可能仍在继续。请更新连接。", "ended.body": "当前订阅已结束。请手动更新以查看此会话的新运行。",
@@ -59,6 +61,7 @@ window.__ModuleLoader__.load({
 		};
 		const en = {
 			"view.label": "◈ Swarm", "title": "Swarm",
+			"git.title": "Git worktrees", "git.note": "Merged history of worker worktrees and accepted results · Each commit appears once. Source branch means reachability, not authorship.", "git.refresh": "Refresh history", "git.loading": "Reading Git history…", "git.more": "Load earlier commits", "git.end": "Beginning of history reached", "git.empty": "No commits to display yet.", "git.unavailable": "This Host does not support worktree history. Update the Host and reconnect.", "git.failed": "Could not read Git history", "git.retry": "Retry", "git.loaded": "Showing {count} commits", "git.worktrees": "Worktrees & revision snapshot", "git.result": "Accepted result", "git.source": "Source branch", "git.merge": "Merge commit", "git.parents": "Parent commits", "git.commit": "Full commit SHA", "git.details": "Commit details", "git.snapshot": "Pages are pinned to the first read. Refresh history to see newer commits.", "git.missingRun": "The run changed or is unavailable. Reconnect to update.", "git.invalid": "Host returned invalid Git history.", "git.worktreeMissing": "Worktree is not ready yet",
 			"goals.title": "Goals", "goals.add": "Add a goal", "goals.placeholder": "What else should we work on?", "goals.criteria": "Acceptance criteria (optional, one per line)", "goals.publish": "Publish goal", "goals.publishing": "Submitting…", "goals.scope": "This session · This repository", "goals.original": "Initial goal", "goal.active": "Open this round", "goal.deferred": "Next round", "goal.completed": "Handled", "goal.continued": "Moved to next round", "goals.paused": "Adding a goal will not resume this run", "goals.deferred": "This round is closing; new goals are saved for the next round", "goals.resume": "Resume this round", "goals.continue": "Start next round", "goals.criteriaTitle": "Acceptance criteria", "goals.more": "Showing {shown}/{total}; other records are saved but not shown in this panel", "goals.clipped": "Content clipped here; the complete content is saved in the run record", "goals.publishFirst": "Publish or clear the draft first", "goals.unavailable": "This Host cannot append goals. Update the Host and reconnect.", "goals.sent.executing": "Published · Added to this round", "goals.sent.paused": "Saved · Waiting for resume", "goals.sent.deferred": "Saved · Waiting for next round", "goals.sent.continue": "Next round started", "goals.sent.resume": "This round resumed", "goals.unknownReceipt": "Incomplete receipt. Check the goal list before retrying.", "goals.commandUnavailable": "Command service unavailable", "goals.pending": "{count} goals for next round", "goals.failed": "Submission failed; draft retained", "goals.uncertain": "Submission not confirmed; check the goal list before retrying.", "goals.nextRun": "Next run", "goals.commit": "Completed revision", "loading": "Connecting to progress…", "refresh": "Reconnect", "unknown": "Unknown", "unavailable": "Unavailable",
 			"connection.live": "Live", "connection.loading": "Connecting", "connection.ended": "Subscription ended", "connection.error": "Disconnected", "connection.unavailable": "Service unavailable",
 			"updated": "Snapshot updated {time}", "stale.title": "Not live · Last known snapshot", "stale.body": "The connection was lost; work may still be continuing. Reconnect to update this view.", "ended.body": "This subscription has ended. Reconnect manually to see a new run in this session.",
@@ -87,12 +90,17 @@ window.__ModuleLoader__.load({
 		const stringCodec = Object.freeze({ mode: "strict", typeSymbol: "string", create: () => ({ parse(value) { if (typeof value !== "string") throw new TypeError("Session id must be a string"); return value; } }), jsonSchema: { type: "string" } });
 		const unknownCodec = Object.freeze({ mode: "strict", typeSymbol: "unknown", create: () => ({ parse: (value) => value }), jsonSchema: {} });
 		const SESSION_PARAMETER = Object.freeze({ name: "sessionId", wire: "sessionId", source: "json", codec: stringCodec });
+		const cursorCodec = Object.freeze({ mode: "strict", typeSymbol: "string | null", create: () => ({ parse(value) { if (value !== null && typeof value !== "string") throw new TypeError("History cursor must be a string or null"); return value; } }), jsonSchema: { anyOf: [{ type: "string" }, { type: "null" }] } });
 		const REMOTE_CONTRIBUTION = Object.freeze({
 			package: "@local/dsh-swarm",
 			descriptors: Object.freeze(["snapshot", "watch", "watchSession"].map((method) => Object.freeze({
 				id: "@local/dsh-swarm#swarmProgress/" + method, service: "swarmProgress", namespace: "swarmProgress", method,
 				invocation: Object.freeze({ kind: "direct" }), parameters: Object.freeze([SESSION_PARAMETER]), result: unknownCodec,
 				...(method === "snapshot" ? {} : { mode: "stream", cancellation: Object.freeze({ parameter: "signal" }) })
+			})).concat(Object.freeze({
+				id: "@local/dsh-swarm#swarmProgress/worktreeHistory", service: "swarmProgress", namespace: "swarmProgress", method: "worktreeHistory",
+				invocation: Object.freeze({ kind: "direct" }), parameters: Object.freeze([SESSION_PARAMETER, Object.freeze({ name: "cursor", wire: "cursor", source: "json", codec: cursorCodec })]),
+				result: unknownCodec, cancellation: Object.freeze({ parameter: "signal" })
 			})))
 		});
 		const terminal = (phase) => ["completed", "stopped", "failed"].includes(phase);
@@ -296,6 +304,101 @@ window.__ModuleLoader__.load({
 						worker.wait ? fact(t("worker.wait", {}), h("div", {}, t("wait." + worker.wait.mode, {}), h("div", {}, t("wait.after", { seq: worker.wait.afterSeq })), h("code", {}, [...worker.wait.taskIds, ...worker.wait.proposalIds].join(" · ")))) : null,
 						worker.currentProposal ? fact(t("worker.proposal", {}), h("code", {}, worker.currentProposal.id + " · " + label(t, "proposal", worker.currentProposal.status))) : null),
 					worker.activity?.recentTools.length ? h("div", { className: "dshSwarm_section" }, h("p", {}, t("tools.recent", {})), tools(worker.activity.recentTools)) : null));
+		}
+
+		/** Validate the paginated unknown-codec boundary independently of progress frames. */
+		function readHistoryPage(page, runId) {
+			if (page === null || (object(page) && page.runId !== runId)) throw Object.assign(new Error("Run changed or is unavailable"), { code: "history/run-changed" });
+			const sha = (value) => typeof value === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value);
+			const lane = (value) => object(value) && textOrNull(value.workerId) && textOrNull(value.displayName) && typeof value.branch === "string" && textOrNull(value.worktreePath);
+			if (!object(page) || typeof page.runId !== "string" || !(page.nextCursor === null || (typeof page.nextCursor === "string" && page.nextCursor.length > 0))
+				|| !Array.isArray(page.items) || !page.items.every((item) => lane(item) && typeof item.id === "string" && item.id.length > 0 && sha(item.sha) && Array.isArray(item.parents) && item.parents.every(sha) && typeof item.subject === "string" && validTime(item.committedAt))
+				|| !Array.isArray(page.worktrees) || !page.worktrees.every((tree) => lane(tree) && (tree.head === null || sha(tree.head)) && textOrNull(tree.diagnostic))) throw Object.assign(new Error("Invalid Git history page"), { code: "history/invalid" });
+			return page;
+		}
+		async function executeHistoryRead(read, sessionId, cursor, signal) {
+			const reply = await read(sessionId, cursor, signal);
+			if (!object(reply) || reply.ok !== true) throw Object.assign(new Error(reply?.error?.message || "Invalid history response"), { code: reply?.error?.code ?? "history/invalid" });
+			return reply.value;
+		}
+		function initialHistory(sessionId, runId) {
+			return { sessionId, runId, items: [], worktrees: [], nextCursor: null, started: false, loading: false, error: null };
+		}
+		/** One cancellable page request at a time; late results never cross run/session boundaries. */
+		function createHistoryPager({ sessionId, runId, loadHistory, onChange }) {
+			let state = initialHistory(sessionId, runId);
+			let request = null;
+			let disposed = false;
+			const cursors = new Set();
+			const publish = (patch) => { if (!disposed) { state = { ...state, ...patch }; onChange(state); } };
+			const loadMore = async () => {
+				if (disposed || request || (state.started && state.nextCursor === null)) return;
+				const controller = new AbortController();
+				request = controller;
+				const cursor = state.nextCursor;
+				publish({ loading: true, error: null });
+				try {
+					const page = readHistoryPage(await loadHistory(sessionId, cursor, controller.signal), runId);
+					if (disposed || controller.signal.aborted || request !== controller) return;
+					if (page.nextCursor !== null && (page.nextCursor === cursor || cursors.has(page.nextCursor))) throw Object.assign(new Error("History cursor did not advance"), { code: "history/invalid" });
+					const known = new Set(state.items.map((item) => item.id));
+					const added = page.items.filter((item) => { if (known.has(item.id)) return false; known.add(item.id); return true; });
+					if (cursor !== null) cursors.add(cursor);
+					publish({ items: [...state.items, ...added], worktrees: page.worktrees, nextCursor: page.nextCursor, started: true });
+				} catch (error) {
+					if (!disposed && !controller.signal.aborted && request === controller) publish({ error: { code: error?.code ?? null, message: error instanceof Error ? error.message : String(error) } });
+				} finally {
+					if (request === controller) { request = null; if (!controller.signal.aborted) publish({ loading: false }); }
+				}
+			};
+			return { loadMore, refresh() { if (disposed) return; request?.abort(); request = null; cursors.clear(); state = initialHistory(sessionId, runId); return loadMore(); }, dispose() { disposed = true; request?.abort(); request = null; } };
+		}
+		/** IntersectionObserver is only an enhancement; the load-more button always remains. */
+		function observeHistoryEnd(root, target, loadMore) {
+			if (!target || typeof IntersectionObserver !== "function") return undefined;
+			const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadMore(); }, { root, rootMargin: "0px 0px 240px 0px" });
+			observer.observe(target);
+			return () => observer.disconnect();
+		}
+		function GitStreamSection({ t, progress, sessionId, loadHistory }) {
+			const [state, setState] = React.useState(() => initialHistory(sessionId, progress.runId));
+			const pager = React.useRef(null);
+			const scroll = React.useRef(null);
+			const sentinel = React.useRef(null);
+			const current = state.sessionId === sessionId && state.runId === progress.runId ? state : initialHistory(sessionId, progress.runId);
+			const available = typeof loadHistory === "function";
+			React.useEffect(() => {
+				if (!available) return undefined;
+				const owned = createHistoryPager({ sessionId, runId: progress.runId, loadHistory, onChange: setState });
+				pager.current = owned;
+				void owned.loadMore();
+				return () => { owned.dispose(); if (pager.current === owned) pager.current = null; };
+			}, [sessionId, progress.runId, loadHistory, available]);
+			React.useEffect(() => {
+				if (current.loading || current.error || !current.started || current.nextCursor === null) return undefined;
+				return observeHistoryEnd(scroll.current, sentinel.current, () => void pager.current?.loadMore());
+			}, [sessionId, progress.runId, current.loading, current.error, current.started, current.nextCursor]);
+			const name = (item) => item.workerId === null ? t("git.result", {}) : item.displayName || progress.workers.find((worker) => worker.id === item.workerId)?.displayName || item.workerId;
+			const missing = !available || ["gateway/invocation-unavailable", "gateway/method-unavailable"].includes(current.error?.code);
+			const errorText = current.error?.code === "history/run-changed" ? t("git.missingRun", {}) : current.error?.code === "history/invalid" ? t("git.invalid", {}) : current.error?.message;
+			return h("section", { className: "dshSwarm_section", "aria-label": t("git.title", {}) },
+				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("git.title", {})), h("button", { type: "button", className: "dshSwarm_button", disabled: !available || current.loading, onClick: () => { if (scroll.current) scroll.current.scrollTop = 0; void pager.current?.refresh(); } }, t("git.refresh", {}))),
+				h("p", { className: "dshSwarm_scopeNote" }, t("git.note", {})),
+				h("p", { className: "dshSwarm_scopeNote" }, t("git.snapshot", {})),
+				current.worktrees.length ? h("details", { className: "dshSwarm_details" }, h("summary", {}, t("git.worktrees", {})), h("ul", { className: "dshSwarm_gitWorktrees" }, current.worktrees.map((tree) => h("li", { key: tree.workerId ?? "result", className: "dshSwarm_gitWorktree" }, h("strong", {}, name(tree)), h("code", {}, tree.branch), h("code", {}, tree.worktreePath ?? t("git.worktreeMissing", {})), tree.head ? h("code", {}, tree.head) : null, tree.diagnostic ? h("p", { className: "dshSwarm_warn" }, tree.diagnostic) : null)))) : null,
+				missing ? h("p", { className: "dshSwarm_notice", role: "status" }, t("git.unavailable", {})) : null,
+				h("div", { className: "dshSwarm_gitScroll", ref: scroll, tabIndex: 0, role: "region", "aria-label": t("git.title", {}), "aria-busy": current.loading },
+					h("ol", { className: "dshSwarm_gitList" }, current.items.map((item) => h("li", { className: "dshSwarm_gitCommit", key: item.id, "data-merge": item.parents.length > 1 },
+						h("div", { className: "dshSwarm_gitMeta" }, badge(name(item)), h("code", { title: item.sha }, item.sha.slice(0, 12)), timeElement(item.committedAt), item.parents.length > 1 ? badge(t("git.merge", {})) : null),
+						h("h3", { className: "dshSwarm_gitSubject" }, item.subject),
+						h("div", { className: "dshSwarm_gitMeta" }, t("git.source", {}), h("code", {}, item.branch)),
+						h("details", { className: "dshSwarm_details" }, h("summary", {}, t("git.details", {})), h("dl", { className: "dshSwarm_facts" }, fact(t("git.commit", {}), h("code", {}, item.sha)), fact(t("git.parents", {}), item.parents.map((parent) => h("div", { key: parent }, h("code", {}, parent))))), item.worktreePath ? h("code", {}, item.worktreePath) : null)))),
+					current.started && !current.items.length ? h("p", { className: "dshSwarm_empty" }, t("git.empty", {})) : null,
+					current.error && !missing ? h("p", { className: "dshSwarm_notice", role: "alert" }, t("git.failed", {}), ": ", errorText) : null,
+					h("div", { ref: sentinel, className: "dshSwarm_gitSentinel", "aria-hidden": true }),
+					h("div", { className: "dshSwarm_gitFooter" }, h("span", { className: "dshSwarm_subtle", role: "status", "aria-live": "polite" }, t(current.loading ? "git.loading" : "git.loaded", { count: current.items.length })),
+						!missing && (current.error || current.nextCursor !== null) ? h("button", { type: "button", className: "dshSwarm_button", disabled: current.loading, onClick: () => void pager.current?.loadMore() }, t(current.error ? "git.retry" : "git.more", {})) : null,
+						current.started && current.nextCursor === null && !current.error ? h("span", { className: "dshSwarm_subtle" }, t("git.end", {})) : null)));
 		}
 
 		const taskFilters = ["all", "open", "claimed", "proposed", "blocked", "done", "cancelled"];
@@ -510,14 +613,19 @@ window.__ModuleLoader__.load({
 						if (typeof commands?.execute !== "function") throw new Error(t("goals.commandUnavailable", {}));
 						return commands.execute(sessionId, line, attachments, signal);
 					};
+					const loadHistory = (sessionId, cursor, signal) => executeHistoryRead((...args) => {
+						const remote = progressRemote();
+						if (typeof remote?.worktreeHistory !== "function") throw Object.assign(new Error(t("git.unavailable", {})), { code: "gateway/method-unavailable" });
+						return remote.worktreeHistory(...args);
+					}, sessionId, cursor, signal);
 					const watchProgress = (sessionId, signal) => progressRemote().watch(sessionId, signal);
 					const watchSessionProgress = (sessionId, signal) => progressRemote().watchSession(sessionId, signal);
-					removeSlot = ctx.slots.inject("conversation.view", () => ctx.slots.register({ name: "conversation.view", id: "swarm-progress", order: 5, locale: NS, label: () => t("view.label", {}), inject: () => ({ progressAvailable: available, progressError, watchProgress, watchSessionProgress, executeCommand }) }, SwarmProgressView));
+					removeSlot = ctx.slots.inject("conversation.view", () => ctx.slots.register({ name: "conversation.view", id: "swarm-progress", order: 5, locale: NS, label: () => t("view.label", {}), inject: () => ({ progressAvailable: available, progressError, watchProgress, watchSessionProgress, executeCommand, loadHistory }) }, SwarmProgressView));
 				}
 				return async () => { cleanup(); await unmount?.(); };
 			}, "dsh-swarm: progress panel");
 		}
 		// Pure derivations and the stream owner are also exercised without emulating a browser.
-		return { apply, inject: ["slots", "locale", "remote"], progressClient: { readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, dictionaries: { zh, en } } };
+		return { apply, inject: ["slots", "locale", "remote"], progressClient: { readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, dictionaries: { zh, en } } };
 	}
 });
