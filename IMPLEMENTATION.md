@@ -2,7 +2,7 @@
 
 ## 基线
 
-- 业务规格：[ARCHITECTURE.md](</home/atlas/Github/4t145/dsh-swarm/ARCHITECTURE.md>) R4。
+- 业务规格：[ARCHITECTURE.md](<ARCHITECTURE.md>) R4。
 - 实现由 Lead 组织 `vast-internal/deepseek-v4.1-flash-1017` 分批并行完成；共享接口先固定，再展开独立模块。
 - DSH 目标版本为当前安装版 0.2.1-rc.4。依赖其 experimental worktree API，未承诺其他版本兼容。
 - 保留现有四轮冷读原始报告；已按用户要求删除评审 README，不新增 README。
@@ -49,7 +49,7 @@
 | 最终构建加载代际检查 | **当前进程仍是旧 JavaScript，重启必需**；报告 latestWorkerFailurePauseCode=false |
 | 真实模型自主编码任务 | 未执行；不把 fake WorkerHost 的测试说成真实模型端到端 |
 
-原生检查见 [native-smoke.json](</home/atlas/Github/4t145/dsh-swarm/notes/native-smoke.json>)。测试 bundle 是一次性 fixture，故未配插件展示元数据/图标；安装和配置已移除，管理器要求重启完成当前进程清理。正式插件已安装并保留启用；重启 DSH 才载入最终构建，不能靠页面刷新替代。源码和构建验证通过，不等于已完成真实模型任务或 GUI 目视验证。
+原生检查见 [native-smoke.json](<notes/native-smoke.json>)。测试 bundle 是一次性 fixture，故未配插件展示元数据/图标；安装和配置已移除，管理器要求重启完成当前进程清理。正式插件已安装并保留启用；重启 DSH 才载入最终构建，不能靠页面刷新替代。源码和构建验证通过，不等于已完成真实模型任务或 GUI 目视验证。
 
 ## 已知 v0.1 限制
 
@@ -79,5 +79,5 @@
 - 模型路由按 profile 配置。实际读取原生 Session 日志确认默认 headless 的 `vast-internal` 失败原因为 `NO_ADAPTER`，没有调用付费模型。driver 已增加启动前 metadata 检查；不能凭网页里存在该路由就假定 CLI 也可用。
 - 实际 SIGINT 测试暴露全局 Launcher 先卸载 domain、后完成 run.stop 的竞态。独立 headless app 现在拥有首次中断：先取消并记录本 run 终态，再调用 appExit；重复信号委托原平台处理，卸载时恢复借用的处理器。`SwarmService.runHeadless` 同时跟踪 driver 生命周期，并通过原生 initiator 边界执行；Host 不会把正常关闭的 store 提前交给活跃 driver。
 - 原生中断验收 run `4971e190-8941-4062-b02f-860c2cca0991`：两个原生 worker 到达 model stream 后发送真实 SIGINT，最终记录为 `stopped`、`aborted=true`、`error=null`，记录与进程退出码均为 `130`。模型端是明确的阻塞测试 adapter；这证明退出链路，不是假称真实模型编码成功。
-- Client 只依赖宿主 React，style 随组件卸载，使用 strict descriptor 挂载 Remote；包声明 `immediately=true`。**当前网页仍需重启 DSH 后再验证标签注册与渲染；单元测试不替代这一步。**
-- 最后完整检查：typecheck、22 文件 / **266 项测试**、build 全部通过。`pnpm test:native-headless` 在全新临时 DSH_HOME 中验证缺失路由提前失败、两个原生 worker 的 SIGINT→持久 stopped→退出 130，原 checkout 不变；该脚本使用阻塞测试 adapter，不调用付费模型 API。所有临时 Web probe bundle 已移除，正式包保留启用；管理器仍明确要求重启完成代码代际切换。
+- Client 只依赖宿主 React，style 随组件卸载，使用 strict descriptor 挂载 Remote；包声明 `immediately=true`。重启 DSH 后实测：标签位于“对话”与“轨迹”之间，但面板报“未接线”。原因是 `$mount` 安装的是独立的 `remote.swarmProgress` 服务，经 `ctx.remote.swarmProgress` 读取会触发 Cordis 的 inject 检查而抛错；mock 测试未覆盖。现改用 `ctx.get('remote.swarmProgress')`，失败时显示真实错误，并新增 `tests/client-remote.test.ts`，用真实 typert-registry 与 api-gateway Client 回归。修复后的页面渲染需刷新后再确认。
+- 最后完整检查：typecheck、23 文件 / **267 项测试**、build 全部通过。`pnpm test:native-headless` 在全新临时 DSH_HOME 中验证缺失路由提前失败、两个原生 worker 的 SIGINT→持久 stopped→退出 130，原 checkout 不变；该脚本使用阻塞测试 adapter，不调用付费模型 API。所有临时 Web probe bundle 已移除，正式包保留启用；管理器仍明确要求重启完成代码代际切换。

@@ -5,8 +5,8 @@
 以及只读的 `dsh --profile web --dump-config`。
 
 本文只写**核验过的事实**。凡本文说"不支持"，都是因为签名或实现里确实没有该参数/方法，不是没找到。
-与 [ARCHITECTURE.md](</home/atlas/Github/4t145/dsh-swarm/ARCHITECTURE.md>) 冲突之处集中在 §11。
-worktree / sandbox / Git 执行细节已由 [workspace-api.md](</home/atlas/Github/4t145/dsh-swarm/notes/workspace-api.md>) 深入核验，
+与 [ARCHITECTURE.md](<../ARCHITECTURE.md>) 冲突之处集中在 §11。
+worktree / sandbox / Git 执行细节已由 [workspace-api.md](<../notes/workspace-api.md>) 深入核验，
 本文只在必要处交叉引用，不重复。
 
 `<packageDir>` 一律指 `cordis_inspect_query(host, Config, listConfigs, { name })` 返回的字段；本文不放任何绝对安装路径。
@@ -900,7 +900,7 @@ interface PresetDefinition {
 `namePrefix` **只在 `request.name` 省略时**参与 `${prefix}${randomUUID()}`；本方案总是显式传
 `name: worker.branch`（该值同时当分支名与目录名），所以 `namePrefix` 只是美观。
 树落在 `<repositoryRoot>/<directory>/<name>`，且 `name` 必须是合法相对分支名、不能以 `-` 开头。
-detail 见 [workspace-api.md](</home/atlas/Github/4t145/dsh-swarm/notes/workspace-api.md>)。
+detail 见 [workspace-api.md](<../notes/workspace-api.md>)。
 
 ### 10.3 子路径插件（`@local/dsh-swarm/worker`）的形态
 
@@ -1012,7 +1012,7 @@ ARCHITECTURE §5.3 第 5 点要求第一个 worker 先建集成 worktree、把 c
 - 名字必须是 `^[a-z][a-z0-9_]*$` → `dsh_swarm`（不是 `dsh-swarm`）。
 - `update` 不做 upsert（`missing-key`）→ `StateStore.create` 必须走 `put`。
 - 写入不做 zod 校验 → 写入口自己校验。
-（[contracts.md](</home/atlas/Github/4t145/dsh-swarm/notes/contracts.md>) §3.1 说 `KvTable` 结构上直接满足 `RunTable`，
+（[contracts.md](<../notes/contracts.md>) §3.1 说 `KvTable` 结构上直接满足 `RunTable`，
 这一条仍成立，但上面三点是该结论的前提条件，实现时不能漏。）
 
 ### 11.9 下面这些 ARCHITECTURE 说法**没有**真实 API 对应，都是我们自己要写的模块

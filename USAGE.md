@@ -1,6 +1,6 @@
 # DSH Swarm 使用说明
 
-单机、对等 worker、独立 worktree、验证后集成到一个结果分支。架构见 [ARCHITECTURE.md](</home/atlas/Github/4t145/dsh-swarm/ARCHITECTURE.md>)，开发规则见 [AGENTS.md](</home/atlas/Github/4t145/dsh-swarm/AGENTS.md>)。
+单机、对等 worker、独立 worktree、验证后集成到一个结果分支。架构见 [ARCHITECTURE.md](<ARCHITECTURE.md>)，开发规则见 [AGENTS.md](<AGENTS.md>)。
 
 ## 环境与当前安装
 
@@ -27,7 +27,7 @@
 
 ## 无 GUI / CI：headless 驱动
 
-本地 checkout 先按本文开发命令构建并链接宿主依赖。附带的 overlay 是完整入口，不要求把包再安装到另一个 profile，也不要同时叠加 [cordis.patch.yml](</home/atlas/Github/4t145/dsh-swarm/cordis.patch.yml>)：
+本地 checkout 先按本文开发命令构建并链接宿主依赖。附带的 overlay 是完整入口，不要求把包再安装到另一个 profile，也不要同时叠加 [cordis.patch.yml](<cordis.patch.yml>)：
 
 ```sh
 dsh --profile headless --patch /absolute/path/to/dsh-swarm/cordis.headless.yml \
@@ -48,7 +48,7 @@ overlay 禁用 `headless-startup`/`headless-runner`、挂载 Agent preset regist
 ## 启动一次任务
 
 1. 准备一个有本地提交的 Git 仓库。默认要求干净工作区；插件不替你 stash、commit 或覆盖未提交修改。
-2. 复制并编辑 [配置示例](</home/atlas/Github/4t145/dsh-swarm/examples/swarm-run.json>)，明确仓库路径、目标、逐项验收、worker 数量、时间和真实验证命令。
+2. 复制并编辑 [配置示例](<examples/swarm-run.json>)，明确仓库路径、目标、逐项验收、worker 数量、时间和真实验证命令。
 3. 在需要作为 owner 的普通 DSH 会话中，输入：
 
 ```text
@@ -114,7 +114,7 @@ pnpm test:native-headless
 
 - 已有状态机、CAS、消息分页、等待竞态、权限执行适配、控制/发布排序、恢复和工具注册测试。
 - 真实临时 Git 仓库的端到端测试串联了实际 Runtime、Collaboration、Delivery、IntegrationQueue 和 GitWorkspace；仅原生 worker/模型边界使用 fake。
-- 已在当前运行 Host 中检查 runtime ready、命令、worktree 服务和真实 worker preset 的 9 个 Swarm 工具，见 [原生加载报告](</home/atlas/Github/4t145/dsh-swarm/notes/native-smoke.json>)。该报告的 `latestWorkerFailurePauseCode: false` 表示**最新构建尚未载入当前进程，必须重启**。测试没有创建模型任务或消耗模型 API。
+- 已在当前运行 Host 中检查 runtime ready、命令、worktree 服务和真实 worker preset 的 9 个 Swarm 工具，见 [原生加载报告](<notes/native-smoke.json>)。该报告的 `latestWorkerFailurePauseCode: false` 表示**最新构建尚未载入当前进程，必须重启**。测试没有创建模型任务或消耗模型 API。
 - **真实 Swarm 自举开发已尝试**：2 个 `vast-internal/deepseek-v4.1-flash-1017` worker 在原生 Session/worktree 中产出本轮功能提交；首次集成因 artifact id 含冒号被真实存储后端拒绝而失败，代码随后由 Lead 审查合入。v0.2 已改为安全前缀并增加真实 JSON 后端测试。不能把该次 failed run 记作 completed。
 - 已验证独立 headless profile 的启动/帮助、缺失路由诊断，以及两个原生 worker 的真实 SIGINT 退出链路（模型端为明确的阻塞测试 adapter）：最终 `stopped`、`aborted=true`、进程/记录退出码均为 `130`。该测试不是付费模型编码验收。默认 headless profile 尚无 `vast-internal`，完整真实模型 CLI 验收仍需先配置相应路由。
 - 本项目的 fake 边界测试仍不能替代真实模型任务；GUI 面板的最终视觉呈现未做浏览器目视验证。插件为实验性 v0.2。

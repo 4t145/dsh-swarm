@@ -1,6 +1,6 @@
 # DSH Swarm 开发规范
 
-本项目是单机 DSH/Cordis 插件，不是新的 Agent harness。先读 [架构规格](</home/atlas/Github/4t145/dsh-swarm/ARCHITECTURE.md>)，再改自己负责的模块。实现与文档冲突时先报告，不能默默改目标或假造宿主 API。
+本项目是单机 DSH/Cordis 插件，不是新的 Agent harness。先读 [架构规格](<ARCHITECTURE.md>)，再改自己负责的模块。实现与文档冲突时先报告，不能默默改目标或假造宿主 API。
 
 本规范参考 [DeepSeek Harness 上游 AGENTS.md](https://github.com/deepseek-ai/deepseek-harness/blob/master/AGENTS.md)，保留适用的 TypeScript、插件生命周期、持久化、工具和测试规则；不继承其 monorepo、SDK 双端、发布、PR 标签、官方美术、全仓覆盖率及平台矩阵流程。
 

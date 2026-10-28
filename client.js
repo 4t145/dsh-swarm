@@ -22,7 +22,7 @@ window.__ModuleLoader__.load({
 			"title": "Swarm 运行",
 			"loading": "正在读取 Swarm 进度…",
 			"error": "读取进度失败：{message}",
-			"unavailable": "Swarm 进度接口未接线：Host 的 swarmProgress 服务未加载。",
+			"unavailable": "Swarm 进度连接失败：{message}",
 			"noRun.title": "当前没有 Swarm run",
 			"noRun.body": "用 /swarm start --spec <spec.json> 启动，或让 Agent 调用 swarm_manage action=start 并给出 spec 对象或 spec_path。",
 			"phase.preparing": "准备中",
@@ -55,7 +55,7 @@ window.__ModuleLoader__.load({
 			"title": "Swarm run",
 			"loading": "Reading Swarm progress…",
 			"error": "Failed to read progress: {message}",
-			"unavailable": "Swarm progress is not wired: the Host swarmProgress service is not loaded.",
+			"unavailable": "Could not connect to Swarm progress: {message}",
 			"noRun.title": "No Swarm run in this session",
 			"noRun.body": "Start one with /swarm start --spec <spec.json>, or ask the Agent to call swarm_manage action=start with a spec object or spec_path.",
 			"phase.preparing": "preparing",
@@ -248,7 +248,7 @@ window.__ModuleLoader__.load({
 			}, [available, props.watchProgress, sessionId]);
 
 			if (state.status === "unavailable") {
-				return panel( h("div", { className: "dshSwarm_empty" }, t("unavailable", {})));
+				return panel( h("div", { className: "dshSwarm_empty" }, t("unavailable", { message: props.progressError ?? "Remote client unavailable" })));
 			}
 			if (state.status === "loading") {
 				return panel( h("div", { className: "dshSwarm_hint" }, t("loading", {})));
@@ -273,11 +273,17 @@ window.__ModuleLoader__.load({
 
 			return (async () => {
 				let available = false;
+				let progressError = null;
+				// Mounted namespaces are separate `remote.<ns>` services; reading them through
+				// `ctx.remote.<ns>` trips Cordis' inject check, so use ctx.get() instead.
+				const progressRemote = () => ctx.get("remote.swarmProgress");
 				if (typeof ctx.remote === "object" && ctx.remote !== null && typeof ctx.remote.$mount === "function") {
 					try {
 						await ctx.remote.$mount(REMOTE_CONTRIBUTION);
-						available = typeof ctx.remote.swarmProgress?.snapshot === "function";
+						available = typeof progressRemote()?.watch === "function";
+						if (!available) progressError = "remote.swarmProgress was not installed";
 					} catch (error) {
+						progressError = error instanceof Error ? error.message : String(error);
 						console.warn("[dsh-swarm] failed to mount swarmProgress Remote", error);
 					}
 				}
@@ -290,7 +296,8 @@ window.__ModuleLoader__.load({
 					label: () => t("view.label", {}),
 					inject: () => ({
 						progressAvailable: available,
-						watchProgress: (sessionId) => ctx.remote.swarmProgress.watch(sessionId)
+						progressError,
+						watchProgress: (sessionId) => progressRemote().watch(sessionId)
 					})
 				}, SwarmProgressView));
 			})();

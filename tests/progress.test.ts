@@ -556,7 +556,11 @@ async function loadPlugin(options: LoadPluginOptions = {}): Promise<LoadedPlugin
         contribution = mounted;
         return async () => undefined;
       },
-      swarmProgress: {
+    },
+    // Mounted namespaces are their own `remote.<ns>` services, read via ctx.get().
+    get: (name: string) => (name === 'remote.swarmProgress' && contribution !== undefined ? progressRemote : undefined),
+  };
+  const progressRemote = {
         snapshot: async () => ({ ok: true, value: null }),
         watch: () => {
           let index = 0;
@@ -573,8 +577,6 @@ async function loadPlugin(options: LoadPluginOptions = {}): Promise<LoadedPlugin
             dispose: () => undefined,
           };
         },
-      },
-    },
   };
 
   await pluginExports.apply(ctx);
@@ -686,6 +688,7 @@ describe('client.js progress panel rendering', () => {
   it('reports the Host interface as unavailable when the Remote mount fails', async () => {
     const plugin = await loadPlugin({ mountFails: true });
     const { text } = plugin.render();
-    expect(text).toContain(plugin.locale.zh['unavailable']);
+    expect(text).toContain('Swarm 进度连接失败');
+    expect(text).toContain('mount failed');
   });
 });
