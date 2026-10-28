@@ -737,6 +737,7 @@ interface LoadedPlugin {
     component: (props: Record<string, unknown>) => unknown;
   };
   render: (sessionId?: string) => { text: string; element: unknown };
+  selectTab: (tab: string) => void;
 }
 /** 最小假 React：只为提取注册与渲染文本服务，不模拟真实调度。 */
 function fakeReact(): {
@@ -787,6 +788,7 @@ function flattenText(node: unknown): string {
   if (Array.isArray(node)) return node.map(flattenText).join(' ');
   if (typeof node === 'object' && node !== null && 'tag' in node && node.tag === 'style') return '';
   if (typeof node === 'object' && node !== null && 'children' in node) {
+    if ('props' in node && (node.props as Record<string, unknown> | null)?.['hidden']) return '';
     const children = (node as { children: unknown[] }).children;
     return children.map(flattenText).join(' ');
   }
@@ -896,12 +898,22 @@ async function loadPlugin(options: LoadPluginOptions = {}): Promise<LoadedPlugin
     throw new Error('client plugin did not mount its Remote contribution');
   }
   const registered = registration;
+  let rendered: unknown;
+  function clickTab(node: unknown, tab: string): boolean {
+    if (node === null || typeof node !== 'object') return false;
+    if ('props' in node) {
+      const props = node.props as Record<string, unknown>;
+      if (props['data-swarm-tab'] === tab && typeof props['onClick'] === 'function') { props['onClick'](); return true; }
+    }
+    return 'children' in node && (node.children as unknown[]).some((child) => clickTab(child, tab));
+  }
 
   return {
     exports: pluginExports,
     contribution: contribution ?? { package: '', descriptors: [] },
     locale,
     registration: registered,
+    selectTab: (tab) => { if (!clickTab(rendered, tab)) throw new Error(`Missing tab ${tab}`); },
     render: (sessionId = OWNER) => {
       react.reset();
       const props = {
@@ -910,6 +922,7 @@ async function loadPlugin(options: LoadPluginOptions = {}): Promise<LoadedPlugin
         ...registered.options.inject(sessionId),
       };
       const element = registered.component(props);
+      rendered = element;
       return { element, text: flattenText(element) };
     },
   };
@@ -974,23 +987,25 @@ describe('client.js progress panel rendering', () => {
     expect(text).toContain('4 / 21');
     expect(text).toContain(zh('budget.kpi'));
     expect(text).toMatch(/0:0[45]/);
-    // 每个 worker 的原生状态原样展示；inactive 不得显示成完成。
-    expect(text).toContain('w1');
-    expect(text).toContain('w2');
-    expect(text).toContain('w3');
+    // 每个 worker 的原生状态在独立成员页签展示；inactive 不得显示成完成。
+    expect(text).not.toContain(zh('worker.native').replace('{status}', 'running'));
+    plugin.selectTab('members');
+    const members = plugin.render().text;
+    expect(members).toContain('w1');
+    expect(members).toContain('w2');
+    expect(members).toContain('w3');
     for (const native of ['running', 'inactive', 'unavailable']) {
-      expect(text).toContain(zh('worker.native').replace('{status}', native));
+      expect(members).toContain(zh('worker.native').replace('{status}', native));
     }
-    // The member view states facts instead of a blanket completion disclaimer.
     // Inactivity is rendered as idle/unassigned, never as completed work.
-    expect(text).toContain(zh('work.unassigned'));
-    expect(text).toContain(zh('activity.idle'));
-    expect(text).not.toContain(zh('worker.inactiveNote'));
-    expect(text).toContain(zh('stale.title'));
-    expect(text).toContain('provider missing');
-    expect(text).toContain('Implement progress DTO');
-    expect(text).toContain('3');
-    expect(text).not.toContain('%');
+    expect(members).toContain(zh('work.unassigned'));
+    expect(members).toContain(zh('activity.idle'));
+    expect(members).not.toContain(zh('worker.inactiveNote'));
+    expect(members).toContain(zh('stale.title'));
+    expect(members).toContain('provider missing');
+    expect(members).toContain('Implement progress DTO');
+    expect(members).toContain('3');
+    expect(members).not.toContain('%');
   });
 
   it('renders the publishing entry and expandable pending/handled goals without claiming terminal work is executing', async () => {
@@ -1006,8 +1021,10 @@ describe('client.js progress panel rendering', () => {
     const plugin = await loadPlugin({ items: [{ seq: 1, progress }] });
     plugin.render();
     await flush();
+    plugin.render();
+    plugin.selectTab('goals');
     const { text } = plugin.render();
-    for (const key of ['goals.add', 'goals.publish', 'goals.criteria', 'goals.continue', 'goal.deferred', 'goal.completed']) {
+    for (const key of ['goals.wish', 'goals.todo', 'goals.doing', 'goals.done', 'goals.publish', 'goals.criteria', 'goals.continue', 'goal.deferred', 'goal.completed']) {
       expect(text).toContain(plugin.locale.zh[key]);
     }
     expect(text).toContain('CSV downloads');

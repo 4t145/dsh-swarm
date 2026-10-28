@@ -150,7 +150,7 @@ window.__ModuleLoader__.load({
 			if (p.protocolVersion >= 2 && ((p.goalBoard != null && (!object(p.goalBoard) || !count(p.goalBoard.total) || !count(p.goalBoard.revision) || typeof p.goalBoard.truncated !== "boolean" || !Array.isArray(p.goalBoard.items) || !p.goalBoard.items.every(goalValid) || !countsValid(p.goalBoard.counts, ["active", "deferred", "completed", "continued"])))
 				|| (p.acceptanceCriteria !== undefined && (!Array.isArray(p.acceptanceCriteria) || !p.acceptanceCriteria.every((item) => typeof item === "string")))
 				|| (p.originalGoalTruncated !== undefined && typeof p.originalGoalTruncated !== "boolean"))) throw new TypeError("Invalid Swarm goal details");
-			if (p.protocolVersion >= 2 && ((p.workerControls !== undefined && (!object(p.workerControls) || typeof p.workerControls.canAdd !== "boolean" || !count(p.workerControls.maxWorkers)))
+			if (p.protocolVersion >= 2 && ((p.workerControls != null && (!object(p.workerControls) || typeof p.workerControls.canAdd !== "boolean" || !count(p.workerControls.maxWorkers)))
 				|| p.workers.some((worker) => worker.displayName !== undefined && typeof worker.displayName !== "string"))) throw new TypeError("Invalid Swarm worker controls");
 			if (!(p.protocolVersion >= 2)) {
 				// A v1 Host has no contract for v2 additions; do not render unchecked extras.
