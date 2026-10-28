@@ -25,8 +25,10 @@ window.__ModuleLoader__.load({
 .dshSwarm_goalBox{margin-top:18px;padding:16px 18px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_goalBox summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.dshSwarm_goalPreview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin-top:7px;font-size:17px;font-weight:600;line-height:1.5;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}.dshSwarm_goalBox[open] .dshSwarm_goalPreview{display:none}.dshSwarm_goalFull{margin-top:10px!important;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-primary)}
 .dshSwarm_filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.dshSwarm_filter{font:inherit;font-size:11px;padding:4px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);cursor:pointer}.dshSwarm_filter:hover{background:var(--dsw-alias-bg-layer-2)}.dshSwarm_filter[aria-pressed=true]{color:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-2)}.dshSwarm_filterCount{font-variant-numeric:tabular-nums;margin-inline-start:6px}.dshSwarm_taskEntry{border-bottom:1px solid var(--dsw-alias-border-l1)}.dshSwarm_taskEntry:last-child{border-bottom:0}.dshSwarm_taskEntry summary{padding:12px 14px;cursor:pointer}.dshSwarm_taskEntry summary::marker{color:var(--dsw-alias-label-secondary)}.dshSwarm_taskEntry .dshSwarm_taskSubject{font-weight:600;margin-inline-end:10px}.dshSwarm_taskEntry .dshSwarm_taskMeta{margin-inline-start:14px}.dshSwarm_taskFacts{padding:0 14px 14px 28px;font-size:11px}.dshSwarm_taskEntry details[open]{background:var(--dsw-alias-bg-layer-2)}
 .dshSwarm_delivery{border:1px solid var(--dsw-alias-border-l1);border-radius:9px;padding:16px;margin:18px 0 24px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_deliveryTop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.dshSwarm_deliveryRevision{display:flex;align-items:baseline;gap:8px 14px;flex-wrap:wrap;overflow-wrap:anywhere}.dshSwarm_deliveryRevision>code{font-size:18px;font-weight:600}.dshSwarm_deliveryChecks{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:10px;font-size:11px;color:var(--dsw-alias-label-secondary)}.dshSwarm_collaboration{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:24px;align-items:start}.dshSwarm_collaboration>.dshSwarm_section{min-width:0}.dshSwarm_scopeNote{font-size:11px;color:var(--dsw-alias-label-secondary);margin-bottom:10px!important}.dshSwarm_kpis{gap:12px;margin:14px 0}.dshSwarm_kpi dd{font-size:20px}.dshSwarm_kpiNote:empty{display:none}.dshSwarm_workflow{margin-top:16px!important}.dshSwarm_step{padding:11px 12px}
-@container(max-width:760px){.dshSwarm_collaboration{grid-template-columns:1fr;gap:0}}
-@media(max-width:760px){.dshSwarm_collaboration{grid-template-columns:1fr;gap:0}}
+.dshSwarm_tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--dsw-alias-border-l1);margin-top:20px;padding-bottom:0}.dshSwarm_tab{flex:none;border:0;border-bottom:2px solid transparent;border-radius:6px 6px 0 0;background:transparent;padding:10px 14px;font:inherit;color:var(--dsw-alias-label-secondary);cursor:pointer}.dshSwarm_tab[aria-selected=true]{color:var(--dsw-alias-brand-primary);border-bottom-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-1);font-weight:600}.dshSwarm_tabpanel{padding-top:18px}.dshSwarm_tabpanel[hidden]{display:none}.dshSwarm_tabpanel>.dshSwarm_section{margin-top:0}
+.dshSwarm_kanban{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px;align-items:start}.dshSwarm_lane{min-width:0;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_laneTitle{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px!important;margin-bottom:12px!important}.dshSwarm_lane[data-lane=doing]{border-top:2px solid var(--dsw-alias-brand-primary)}.dshSwarm_lane[data-lane=done]{border-top:2px solid var(--dsw-alias-state-success-primary)}.dshSwarm_lane .dshSwarm_goalList{border:0;display:grid;gap:10px}.dshSwarm_lane .dshSwarm_goalEntry{border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-2);padding:10px}.dshSwarm_lane .dshSwarm_composer{padding:10px;margin-top:0}.dshSwarm_lane .dshSwarm_publishRow{align-items:stretch}.dshSwarm_lane .dshSwarm_publishRow>.dshSwarm_row{width:100%}.dshSwarm_laneEmpty{font-size:12px;color:var(--dsw-alias-label-secondary);padding:10px 0}.dshSwarm_addWorker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}.dshSwarm_addWorker .dshSwarm_receipt{margin-top:0!important}
+@container(max-width:760px){.dshSwarm_collaboration{grid-template-columns:1fr;gap:0}.dshSwarm_kanban{grid-template-columns:1fr}}
+@media(max-width:760px){.dshSwarm_collaboration{grid-template-columns:1fr;gap:0}.dshSwarm_kanban{grid-template-columns:1fr}}
 @container(max-width:620px){.dshSwarm_workers{grid-template-columns:1fr}.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr))}.dshSwarm_step:nth-child(2){border-inline-end:0}.dshSwarm_step:nth-child(-n+2){border-bottom:1px solid var(--dsw-alias-border-l1)}.dshSwarm_kpis{gap:8px}.dshSwarm_kpi dd{font-size:21px}}
 @media(max-width:540px){.dshSwarm_root{padding:16px 12px 28px}.dshSwarm_workers{grid-template-columns:1fr}.dshSwarm_header{gap:12px}.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr))}.dshSwarm_step:nth-child(2){border-inline-end:0}.dshSwarm_step:nth-child(-n+2){border-bottom:1px solid var(--dsw-alias-border-l1)}.dshSwarm_taskRow{grid-template-columns:minmax(0,1fr)}.dshSwarm_taskRow>.dshSwarm_badge{justify-self:start}.dshSwarm_kpis{gap:8px}.dshSwarm_kpi dd{font-size:20px}}
 .dshSwarm_gitScroll{max-height:68vh;min-height:180px;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;padding:18px 18px 10px;margin-top:12px}.dshSwarm_gitList{border-inline-start:2px solid var(--dsw-alias-border-l1);margin-inline-start:5px!important;padding-inline-start:20px!important}.dshSwarm_gitCommit{position:relative;padding:0 0 22px;min-width:0}.dshSwarm_gitCommit:before{content:"";position:absolute;inset-inline-start:-26px;top:7px;width:10px;height:10px;border:2px solid var(--dsw-alias-brand-primary);border-radius:50%;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_gitCommit[data-merge=true]:before{border-radius:2px;transform:rotate(45deg)}.dshSwarm_gitSubject{font-size:13px;font-weight:600;overflow-wrap:anywhere;margin-top:5px!important}.dshSwarm_gitMeta{display:flex;gap:5px 10px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}.dshSwarm_gitFooter{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;padding:12px 0}.dshSwarm_gitSentinel{height:1px}.dshSwarm_gitWorktrees{display:grid;gap:8px;margin-top:10px!important}.dshSwarm_gitWorktree{padding:10px 12px;background:var(--dsw-alias-bg-layer-2);border-radius:6px;overflow-wrap:anywhere}.dshSwarm_gitWorktree code{display:block;margin-top:3px}.dshSwarm_gitScroll:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
@@ -34,6 +36,9 @@ window.__ModuleLoader__.load({
 `;
 		const zh = {
 			"view.label": "◈ 协作群", "title": "Swarm 协作群",
+			"tabs.label": "协作视图", "tabs.dashboard": "Dashboard", "tabs.members": "成员列表", "tabs.goals": "目标看板", "tabs.worktrees": "Git 工作树",
+			"goals.todo": "代办", "goals.doing": "办理中", "goals.done": "办结", "goals.wish": "添加新的愿望", "goals.laneEmpty": "此池暂无目标", "goals.flowNote": "愿望提交后自动加入本轮办理；暂停时保留目标，收尾后存入代办等待下一轮。办结仅代表 Host 已完成验收。",
+			"workers.add": "添加成员", "workers.adding": "正在添加…", "workers.addUnavailable": "当前 Host 不支持添加成员", "workers.addLimit": "已达到 {count} 名成员上限", "workers.addPhase": "仅协作中或暂停时可添加成员", "workers.addPaused": "新成员将在恢复后启动", "workers.added.started": "已添加 {name}", "workers.added.paused": "已添加 {name} · 恢复后启动", "workers.addFailed": "添加结果未确认，请检查成员列表后重试", "workers.addReceipt": "成员回执不完整，请检查列表后再重试。", "workers.addReady": "为新成员创建独立工作树与随机可读名字",
 			"git.title": "Git 工作树", "git.note": "各成员工作树与已接受结果的合并历史流 · 同一提交只显示一次。来源分支表示可达关系，不代表作者。", "git.refresh": "更新历史", "git.loading": "正在读取 Git 历史…", "git.more": "加载更早提交", "git.end": "已到达历史起点", "git.empty": "当前没有可显示的提交。", "git.unavailable": "当前 Host 不支持工作树历史，请更新 Host 后重连。", "git.failed": "Git 历史读取失败", "git.retry": "重试", "git.loaded": "已显示 {count} 个提交", "git.worktrees": "工作树与版本快照", "git.result": "已接受结果", "git.source": "来源分支", "git.merge": "合并提交", "git.parents": "父提交", "git.commit": "完整提交 SHA", "git.details": "提交详情", "git.snapshot": "分页固定于首次读取的版本；更新历史可查看最新提交。", "git.missingRun": "运行已变化或不可用，请重新连接。", "git.invalid": "Host 返回了无效的 Git 历史。", "git.worktreeMissing": "工作树尚未准备完成",
 			"goals.title": "目标", "goals.add": "追加目标", "goals.placeholder": "接下来还需要做什么？", "goals.criteria": "验收条件（可选，每行一项）", "goals.publish": "发布目标", "goals.publishing": "正在提交…", "goals.scope": "当前会话 · 当前仓库", "goals.original": "初始目标", "goal.active": "本轮待完成", "goal.deferred": "待下一轮", "goal.completed": "已处理", "goal.continued": "已转下一轮", "goals.paused": "追加后仍保持暂停", "goals.deferred": "本轮已收尾，追加将保存到下一轮", "goals.resume": "恢复本轮", "goals.continue": "开始下一轮", "goals.criteriaTitle": "验收条件", "goals.more": "显示 {shown}/{total} 项；其余记录已保存，暂不在面板展示", "goals.clipped": "此处内容已截断；完整内容保存在运行记录中", "goals.publishFirst": "先发布或清空草稿", "goals.unavailable": "当前 Host 不支持追加目标，请更新 Host 后重连。", "goals.sent.executing": "已发布 · 已加入本轮工作", "goals.sent.paused": "已保存 · 恢复后处理", "goals.sent.deferred": "已保存 · 等待下一轮", "goals.sent.continue": "下一轮已启动", "goals.sent.resume": "本轮已恢复", "goals.unknownReceipt": "回执不完整，请检查目标列表后再决定是否重试。", "goals.commandUnavailable": "命令服务不可用", "goals.pending": "{count} 项待下一轮", "goals.failed": "提交失败，草稿已保留", "goals.uncertain": "未确认提交结果；请检查目标列表后再重试。", "goals.nextRun": "下一轮运行", "goals.commit": "完成版本", "loading": "正在连接进度流…", "refresh": "更新连接", "unknown": "未知", "unavailable": "不可用",
 			"connection.live": "实时连接", "connection.loading": "连接中", "connection.ended": "订阅已结束", "connection.error": "连接中断", "connection.unavailable": "服务不可用",
@@ -61,6 +66,9 @@ window.__ModuleLoader__.load({
 		};
 		const en = {
 			"view.label": "◈ Swarm", "title": "Swarm",
+			"tabs.label": "Collaboration views", "tabs.dashboard": "Dashboard", "tabs.members": "Members", "tabs.goals": "Goal board", "tabs.worktrees": "Git worktrees",
+			"goals.todo": "To do", "goals.doing": "In progress", "goals.done": "Done", "goals.wish": "Add a wish", "goals.laneEmpty": "No goals in this pool", "goals.flowNote": "Submitted wishes join this round automatically. Paused goals stay in this round; closing runs save new wishes for the next round. Only Host-verified goals are done.",
+			"workers.add": "Add worker", "workers.adding": "Adding…", "workers.addUnavailable": "This Host cannot add workers", "workers.addLimit": "Maximum of {count} workers reached", "workers.addPhase": "Workers can be added while running or paused", "workers.addPaused": "New workers start after resume", "workers.added.started": "Added {name}", "workers.added.paused": "Added {name} · Starts after resume", "workers.addFailed": "Addition not confirmed; check the member list before retrying", "workers.addReceipt": "Incomplete worker receipt. Check the list before retrying.", "workers.addReady": "Create a private worktree and a random readable name",
 			"git.title": "Git worktrees", "git.note": "Merged history of worker worktrees and accepted results · Each commit appears once. Source branch means reachability, not authorship.", "git.refresh": "Refresh history", "git.loading": "Reading Git history…", "git.more": "Load earlier commits", "git.end": "Beginning of history reached", "git.empty": "No commits to display yet.", "git.unavailable": "This Host does not support worktree history. Update the Host and reconnect.", "git.failed": "Could not read Git history", "git.retry": "Retry", "git.loaded": "Showing {count} commits", "git.worktrees": "Worktrees & revision snapshot", "git.result": "Accepted result", "git.source": "Source branch", "git.merge": "Merge commit", "git.parents": "Parent commits", "git.commit": "Full commit SHA", "git.details": "Commit details", "git.snapshot": "Pages are pinned to the first read. Refresh history to see newer commits.", "git.missingRun": "The run changed or is unavailable. Reconnect to update.", "git.invalid": "Host returned invalid Git history.", "git.worktreeMissing": "Worktree is not ready yet",
 			"goals.title": "Goals", "goals.add": "Add a goal", "goals.placeholder": "What else should we work on?", "goals.criteria": "Acceptance criteria (optional, one per line)", "goals.publish": "Publish goal", "goals.publishing": "Submitting…", "goals.scope": "This session · This repository", "goals.original": "Initial goal", "goal.active": "Open this round", "goal.deferred": "Next round", "goal.completed": "Handled", "goal.continued": "Moved to next round", "goals.paused": "Adding a goal will not resume this run", "goals.deferred": "This round is closing; new goals are saved for the next round", "goals.resume": "Resume this round", "goals.continue": "Start next round", "goals.criteriaTitle": "Acceptance criteria", "goals.more": "Showing {shown}/{total}; other records are saved but not shown in this panel", "goals.clipped": "Content clipped here; the complete content is saved in the run record", "goals.publishFirst": "Publish or clear the draft first", "goals.unavailable": "This Host cannot append goals. Update the Host and reconnect.", "goals.sent.executing": "Published · Added to this round", "goals.sent.paused": "Saved · Waiting for resume", "goals.sent.deferred": "Saved · Waiting for next round", "goals.sent.continue": "Next round started", "goals.sent.resume": "This round resumed", "goals.unknownReceipt": "Incomplete receipt. Check the goal list before retrying.", "goals.commandUnavailable": "Command service unavailable", "goals.pending": "{count} goals for next round", "goals.failed": "Submission failed; draft retained", "goals.uncertain": "Submission not confirmed; check the goal list before retrying.", "goals.nextRun": "Next run", "goals.commit": "Completed revision", "loading": "Connecting to progress…", "refresh": "Reconnect", "unknown": "Unknown", "unavailable": "Unavailable",
 			"connection.live": "Live", "connection.loading": "Connecting", "connection.ended": "Subscription ended", "connection.error": "Disconnected", "connection.unavailable": "Service unavailable",
@@ -142,9 +150,11 @@ window.__ModuleLoader__.load({
 			if (p.protocolVersion >= 2 && ((p.goalBoard != null && (!object(p.goalBoard) || !count(p.goalBoard.total) || !count(p.goalBoard.revision) || typeof p.goalBoard.truncated !== "boolean" || !Array.isArray(p.goalBoard.items) || !p.goalBoard.items.every(goalValid) || !countsValid(p.goalBoard.counts, ["active", "deferred", "completed", "continued"])))
 				|| (p.acceptanceCriteria !== undefined && (!Array.isArray(p.acceptanceCriteria) || !p.acceptanceCriteria.every((item) => typeof item === "string")))
 				|| (p.originalGoalTruncated !== undefined && typeof p.originalGoalTruncated !== "boolean"))) throw new TypeError("Invalid Swarm goal details");
+			if (p.protocolVersion >= 2 && ((p.workerControls !== undefined && (!object(p.workerControls) || typeof p.workerControls.canAdd !== "boolean" || !count(p.workerControls.maxWorkers)))
+				|| p.workers.some((worker) => worker.displayName !== undefined && typeof worker.displayName !== "string"))) throw new TypeError("Invalid Swarm worker controls");
 			if (!(p.protocolVersion >= 2)) {
 				// A v1 Host has no contract for v2 additions; do not render unchecked extras.
-				return { ...p, goal: null, goalBoard: null, acceptanceCriteria: undefined, originalGoalTruncated: false, createdAt: null, taskBoard: undefined, recentEvents: undefined, workers: p.workers.map((w) => ({ ...w, activity: undefined, wait: null, currentProposal: null })) };
+				return { ...p, goal: null, goalBoard: null, acceptanceCriteria: undefined, originalGoalTruncated: false, createdAt: null, taskBoard: undefined, recentEvents: undefined, workerControls: undefined, workers: p.workers.map((w) => ({ ...w, displayName: undefined, activity: undefined, wait: null, currentProposal: null })) };
 			}
 			return p;
 		}
@@ -269,13 +279,51 @@ window.__ModuleLoader__.load({
 			const selectedId = selection?.runId === progress.runId && progress.workers.some((worker) => worker.id === selection.workerId) ? selection.workerId : null;
 			return { selectedId, items: progress.workers.map((worker, index) => ({ worker, number: index + 1 })).filter(({ worker }) => !selectedId || worker.id === selectedId) };
 		}
-		function WorkersSection({ t, progress, stale }) {
+		function workerName(t, worker, number) { return typeof worker?.displayName === "string" && worker.displayName.trim() ? worker.displayName : t("worker.name", { number }); }
+		function addWorkerState(progress, connected) {
+			if (!progress.workerControls) return "unavailable";
+			if (!connected) return "disconnected";
+			if (progress.workers.length >= progress.workerControls.maxWorkers) return "limit";
+			if (!["running", "paused"].includes(progress.phase) || !progress.workerControls.canAdd) return "phase";
+			return "ready";
+		}
+		function workerReceipt(text, runId) {
+			const parsed = JSON.parse(text);
+			if (!object(parsed) || parsed.runId !== runId || typeof parsed.workerId !== "string" || !parsed.workerId || typeof parsed.displayName !== "string" || !parsed.displayName.trim() || !["started", "paused"].includes(parsed.disposition)) throw new Error("Invalid worker receipt");
+			return parsed;
+		}
+		function AddWorkerControl({ t, progress, connected, sessionId, executeCommand }) {
+			const [pending, setPending] = React.useState(false);
+			const [receipt, setReceipt] = React.useState(null);
+			const request = React.useRef(null);
+			React.useEffect(() => () => { request.current?.abort(); request.current = null; }, []);
+			const availability = addWorkerState(progress, connected);
+			const add = async () => {
+				if (request.current || availability !== "ready" || typeof executeCommand !== "function") return;
+				const controller = new AbortController(); request.current = controller; setPending(true); setReceipt(null);
+				try {
+					const text = await executeGoalCommand(executeCommand, sessionId, "/swarm worker add --json", controller.signal);
+					if (controller.signal.aborted) return;
+					let parsed; try { parsed = workerReceipt(text, progress.runId); } catch { throw new Error(t("workers.addReceipt", {})); }
+					setReceipt({ ok: true, text: t("workers.added." + parsed.disposition, { name: parsed.displayName }) });
+				} catch (error) {
+					if (!controller.signal.aborted) setReceipt({ ok: false, text: error instanceof Error ? error.message : String(error) });
+				} finally {
+					if (request.current === controller) { request.current = null; if (!controller.signal.aborted) setPending(false); }
+				}
+			};
+			const note = availability === "disconnected" ? "stale.title" : availability === "unavailable" ? "workers.addUnavailable" : availability === "limit" ? "workers.addLimit" : availability === "phase" ? "workers.addPhase" : progress.phase === "paused" ? "workers.addPaused" : "workers.addReady";
+			return h("div", { className: "dshSwarm_addWorker" }, h("button", { type: "button", className: "dshSwarm_button dshSwarm_primary", disabled: pending || availability !== "ready" || typeof executeCommand !== "function", onClick: () => void add() }, t(pending ? "workers.adding" : "workers.add", {})),
+				h("span", { className: "dshSwarm_subtle" }, t(note, { count: progress.workerControls?.maxWorkers })), receipt ? h("p", { className: "dshSwarm_receipt " + (receipt.ok ? "dshSwarm_success" : "dshSwarm_error"), role: receipt.ok ? "status" : "alert" }, receipt.ok ? receipt.text : t("workers.addFailed", {}) + ": " + receipt.text) : null);
+		}
+		function WorkersSection({ t, progress, stale, sessionId, executeCommand }) {
 			const [selection, setSelection] = React.useState(null);
 			const focused = selectWorkers(progress, selection);
 			const filter = (workerId, text) => h("button", { key: workerId ?? "all", type: "button", className: "dshSwarm_button dshSwarm_memberFilter", "aria-pressed": focused.selectedId === workerId, onClick: () => setSelection({ runId: progress.runId, workerId }) }, text);
 			return h("section", { className: "dshSwarm_section", "aria-label": t("workers.title", {}) },
 				h("div", { className: "dshSwarm_sectionHead dshSwarm_memberHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("workers.title", {})),
-					h("div", { className: "dshSwarm_memberFilters", role: "group", "aria-label": t("workers.filter", {}) }, filter(null, t("workers.all", { count: progress.workers.length })), progress.workers.map((worker, index) => filter(worker.id, t("worker.name", { number: index + 1 }))))),
+					h("div", { className: "dshSwarm_memberFilters", role: "group", "aria-label": t("workers.filter", {}) }, filter(null, t("workers.all", { count: progress.workers.length })), progress.workers.map((worker, index) => filter(worker.id, workerName(t, worker, index + 1))))),
+				h(AddWorkerControl, { t, progress, connected: !stale, sessionId, executeCommand }),
 				h("ul", { className: "dshSwarm_workers", "data-focused": !!focused.selectedId }, focused.items.map(({ worker, number }) => h(WorkerCard, { key: worker.id, worker, number, t, stale }))));
 		}
 		function WorkerCard({ t, worker, number, stale }) {
@@ -288,7 +336,7 @@ window.__ModuleLoader__.load({
 				h("span", { className: "dshSwarm_toolTime" }, tool.startedAt !== null ? timeElement(tool.startedAt) : null, tool.finishedAt !== null ? h(React.Fragment, {}, " → ", timeElement(tool.finishedAt)) : null))));
 			const diagnostics = [...new Set([worker.diagnostic, worker.activity?.diagnostic].filter(Boolean))];
 			return h("li", { className: "dshSwarm_worker", "data-work": view.work },
-				h("div", { className: "dshSwarm_workerTop" }, h("span", { className: "dshSwarm_avatar", "aria-hidden": true }, "W" + number), h("span", { className: "dshSwarm_workerName" }, t("worker.name", { number })), badge(t("work." + view.work, {}), workTone)),
+				h("div", { className: "dshSwarm_workerTop" }, h("span", { className: "dshSwarm_avatar", "aria-hidden": true }, "W" + number), h("span", { className: "dshSwarm_workerName" }, workerName(t, worker, number)), badge(t("work." + view.work, {}), workTone)),
 				h("div", { className: "dshSwarm_memberTaskLabel" }, h("span", {}, t("worker.task", {})), view.task ? badge(label(t, "task", view.task.status), tone(view.task.status)) : null),
 				h("h3", { className: "dshSwarm_taskTitle" }, view.task?.subject || t("worker.noTask", {})),
 				worker.wait && view.work === "waiting" ? h("p", { className: "dshSwarm_memberWait" }, t(worker.wait.mode === "any" ? "wait.any" : "wait.targets", { tasks: worker.wait.taskIds.length, proposals: worker.wait.proposalIds.length })) : null,
@@ -414,7 +462,7 @@ window.__ModuleLoader__.load({
 		function TaskBoard({ t, progress }) {
 			const [status, setStatus] = React.useState("all");
 			const board = progress.taskBoard;
-			const names = new Map(progress.workers.map((worker, index) => [worker.id, t("worker.name", { number: index + 1 })]));
+			const names = new Map(progress.workers.map((worker, index) => [worker.id, workerName(t, worker, index + 1)]));
 			const items = filterTasks(progress, status);
 			const rows = (tasks) => h("ul", { className: "dshSwarm_board" }, tasks.map((task) => {
 				const owner = names.get(task.ownerWorkerId) ?? task.ownerWorkerId ?? t("tasks.unowned", {});
@@ -439,7 +487,7 @@ window.__ModuleLoader__.load({
 			const rows = (items) => h("ol", { className: "dshSwarm_timeline" }, items.map((event) => {
 				const description = describeEvent(progress, event);
 				return h("li", { className: "dshSwarm_event", key: event.seq }, timeElement(event.createdAt), label(t, "event", event.kind), " · ", description.subject ? h("span", { title: event.objectId }, description.subject, " · ") : null,
-					event.kind === "head" ? t("event.updated", {}) : label(t, event.kind === "run" ? "phase" : event.kind, event.status), description.workerNumber ? h("span", { className: "dshSwarm_subtle" }, " · ", t("worker.name", { number: description.workerNumber })) : null);
+					event.kind === "head" ? t("event.updated", {}) : label(t, event.kind === "run" ? "phase" : event.kind, event.status), description.workerNumber ? h("span", { className: "dshSwarm_subtle" }, " · ", workerName(t, progress.workers[description.workerNumber - 1], description.workerNumber)) : null);
 			}));
 			const newest = filterEvents(progress, kind);
 			return h("section", { className: "dshSwarm_section", "aria-label": t("events.recent", {}) },
@@ -490,6 +538,24 @@ window.__ModuleLoader__.load({
 			if (!object(parsed) || !["executing", "paused", "deferred"].includes(parsed.disposition) || typeof parsed.goalId !== "string" || typeof parsed.runId !== "string" || !count(parsed.goalRevision)) throw new Error("Invalid append receipt");
 			return parsed;
 		}
+		/** A transfer or stopped run is not completion; only verified goal records enter Done. */
+		function goalLane(goal, phase) { const state = goalState(goal, phase); return state === "completed" ? "done" : state === "active" ? "doing" : "todo"; }
+		function goalColumns(progress) {
+			const columns = { todo: [], doing: [], done: [] };
+			if (progress.goal) {
+				const original = { id: "original", text: progress.goal, acceptanceCriteria: progress.acceptanceCriteria ?? [], status: progress.phase === "completed" ? "completed" : "active", original: true, truncated: progress.originalGoalTruncated };
+				columns[goalLane(original, progress.phase)].push(original);
+			}
+			for (const goal of progress.goalBoard?.items ?? []) columns[goalLane(goal, progress.phase)].push(goal);
+			return columns;
+		}
+		function GoalCard({ t, goal, phase }) {
+			const state = goalState(goal, phase);
+			return h("details", { className: "dshSwarm_goalEntry" }, h("summary", {}, badge(t(goal.original ? "goals.original" : "goal." + state, {}), state === "completed" ? "dshSwarm_success" : state === "active" ? "dshSwarm_active" : "dshSwarm_warn"), goal.text.length > 110 ? goal.text.slice(0, 110) + "…" : goal.text),
+				h("p", { className: "dshSwarm_goalFull" }, goal.text), h("ol", { className: "dshSwarm_criteria", "aria-label": t("goals.criteriaTitle", {}) }, goal.acceptanceCriteria.map((criterion, i) => h("li", { key: i }, criterion))),
+				!goal.original ? h("div", { className: "dshSwarm_taskMeta" }, timeElement(goal.createdAt), h("code", {}, goal.id), goal.completedCommit ? h("span", {}, t("goals.commit", {}), " ", h("code", {}, goal.completedCommit.slice(0, 12))) : null, goal.continuedInRunId ? h("span", {}, t("goals.nextRun", {}), " ", h("code", {}, goal.continuedInRunId)) : null) : null,
+				goal.truncated ? h("p", { className: "dshSwarm_subtle" }, t("goals.clipped", {})) : null);
+		}
 		function GoalSection({ t, progress: p, sessionId, executeCommand, connected }) {
 			const [draft, setDraft] = React.useState("");
 			const [criteria, setCriteria] = React.useState("");
@@ -523,40 +589,58 @@ window.__ModuleLoader__.load({
 					if (request.current === controller) { request.current = null; if (!controller.signal.aborted) setPending(false); }
 				}
 			};
-			return h("section", { className: "dshSwarm_goalSection", "aria-label": t("goals.title", {}) },
-				h("div", { className: "dshSwarm_goalSummary" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("goals.title", {})), deferred ? badge(t("goals.pending", { count: deferred }), "dshSwarm_warn") : null),
-				h("details", { className: "dshSwarm_goalBox" }, h("summary", {}, t("goals.original", {}), h("span", { className: "dshSwarm_goalPreview" }, p.goal ?? t("overview.goalMissing", {}))), h("p", { className: "dshSwarm_goalFull" }, p.goal), p.originalGoalTruncated ? h("p", { className: "dshSwarm_subtle" }, t("goals.clipped", {})) : null,
-					p.acceptanceCriteria?.length ? h("ol", { className: "dshSwarm_criteria" }, p.acceptanceCriteria.map((criterion, i) => h("li", { key: i }, criterion))) : null),
-				!supported ? h("p", { className: "dshSwarm_receipt dshSwarm_subtle" }, t("goals.unavailable", {})) : h("form", { className: "dshSwarm_composer", onSubmit: (event) => { event.preventDefault(); if (draft.trim()) void submit("append"); } },
-					h("label", {}, t("goals.add", {}), h("textarea", { className: "dshSwarm_input", value: draft, maxLength: 16000, rows: 3, placeholder: t("goals.placeholder", {}), disabled: pending, onChange: (event) => setDraft(event.target.value) })),
+			const columns = goalColumns(p);
+			const composer = !supported ? h("p", { className: "dshSwarm_receipt dshSwarm_subtle" }, t("goals.unavailable", {})) : h("form", { className: "dshSwarm_composer", onSubmit: (event) => { event.preventDefault(); if (draft.trim()) void submit("append"); } },
+					h("label", {}, t("goals.wish", {}), h("textarea", { className: "dshSwarm_input", value: draft, maxLength: 16000, rows: 3, placeholder: t("goals.placeholder", {}), disabled: pending, onChange: (event) => setDraft(event.target.value) })),
 					h("details", { className: "dshSwarm_details" }, h("summary", {}, t("goals.criteria", {})), h("textarea", { className: "dshSwarm_input", value: criteria, rows: 3, maxLength: 64000, "aria-label": t("goals.criteria", {}), disabled: pending, onChange: (event) => setCriteria(event.target.value) })),
 					h("div", { className: "dshSwarm_publishRow" }, h("span", { className: "dshSwarm_subtle" }, t(!connected ? "stale.title" : p.phase === "paused" ? "goals.paused" : ["draining", "quiescing", "completed", "stopped", "failed"].includes(p.phase) ? "goals.deferred" : "goals.scope", {})),
 						h("div", { className: "dshSwarm_row" }, p.phase === "paused" || (terminal(p.phase) && deferred) ? h("button", { type: "button", className: "dshSwarm_button", disabled: pending || !connected || (p.phase !== "paused" && hasDraft), onClick: () => void submit(p.phase === "paused" ? "resume" : "continue") }, t(p.phase === "paused" ? "goals.resume" : hasDraft ? "goals.publishFirst" : "goals.continue", {})) : null,
 							h("button", { type: "submit", className: "dshSwarm_button dshSwarm_primary", disabled: pending || !connected || !draft.trim() }, t(pending ? "goals.publishing" : "goals.publish", {})))),
-					receipt ? h("p", { className: "dshSwarm_receipt " + (receipt.ok ? "dshSwarm_success" : "dshSwarm_error"), role: receipt.ok ? "status" : "alert" }, receipt.ok ? receipt.text : t("goals.failed", {}) + ": " + receipt.text) : null),
-				board?.items.length ? h("div", { className: "dshSwarm_goalList" }, board.items.map((goal) => h("details", { key: goal.id, className: "dshSwarm_goalEntry" },
-					h("summary", {}, badge(t("goal." + goalState(goal, p.phase), {}), goal.status === "completed" ? "dshSwarm_success" : goalState(goal, p.phase) === "deferred" ? "dshSwarm_warn" : "dshSwarm_active"), goal.text.length > 110 ? goal.text.slice(0, 110) + "…" : goal.text),
-					h("p", { className: "dshSwarm_goalFull" }, goal.text),
-					h("ol", { className: "dshSwarm_criteria", "aria-label": t("goals.criteriaTitle", {}) }, goal.acceptanceCriteria.map((criterion, i) => h("li", { key: i }, criterion))),
-					h("div", { className: "dshSwarm_taskMeta" }, timeElement(goal.createdAt), h("code", {}, goal.id), goal.completedCommit ? h("span", {}, t("goals.commit", {}), " ", h("code", {}, goal.completedCommit.slice(0, 12))) : null, goal.continuedInRunId ? h("span", {}, t("goals.nextRun", {}), " ", h("code", {}, goal.continuedInRunId)) : null),
-					goal.truncated ? h("p", { className: "dshSwarm_subtle" }, t("goals.clipped", {})) : null))) : null,
+					receipt ? h("p", { className: "dshSwarm_receipt " + (receipt.ok ? "dshSwarm_success" : "dshSwarm_error"), role: receipt.ok ? "status" : "alert" }, receipt.ok ? receipt.text : t("goals.failed", {}) + ": " + receipt.text) : null);
+			return h("section", { className: "dshSwarm_goalSection", "aria-label": t("goals.title", {}) },
+				h("div", { className: "dshSwarm_goalSummary" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("tabs.goals", {})), deferred ? badge(t("goals.pending", { count: deferred }), "dshSwarm_warn") : null),
+				h("p", { className: "dshSwarm_subtle" }, t("goals.flowNote", {})),
+				h("div", { className: "dshSwarm_kanban" }, Object.entries(columns).map(([lane, goals]) => h("section", { key: lane, className: "dshSwarm_lane", "data-lane": lane, "aria-label": t("goals." + lane, {}) },
+					h("h3", { className: "dshSwarm_laneTitle" }, t("goals." + lane, {}), badge(String(goals.length))), lane === "todo" ? composer : null,
+					goals.length ? h("div", { className: "dshSwarm_goalList" }, goals.map((goal) => h(GoalCard, { key: goal.id, t, goal, phase: p.phase }))) : h("p", { className: "dshSwarm_laneEmpty" }, t("goals.laneEmpty", {}))))),
 				board?.truncated ? h("p", { className: "dshSwarm_subtle" }, t("goals.more", { shown: board.items.length, total: board.total })) : null);
 		}
-		function RunBody({ t, state, now, sessionId, executeCommand }) {
+		function DashboardPanel({ t, state, now }) {
 			const p = state.progress;
 			const clock = deriveClock(state, now);
 			const kpi = (name, value, note) => h("div", { className: "dshSwarm_kpi" }, h("dt", {}, name), h("dd", {}, value, h("span", { className: "dshSwarm_kpiNote" }, note)));
 			return h(React.Fragment, {},
-				h(GoalSection, { t, progress: p, sessionId, executeCommand, connected: state.status === "live" }),
+				h("details", { className: "dshSwarm_goalBox" }, h("summary", {}, t("overview.goal", {}), h("span", { className: "dshSwarm_goalPreview" }, p.goal ?? t("overview.goalMissing", {}))), h("p", { className: "dshSwarm_goalFull" }, p.goal)),
 				p.reason ? notice(t("reason", { reason: p.reason }), p.phase === "quiescing" && p.quiesceTarget ? label(t, "phase", p.quiesceTarget) : null) : null,
 				h("ol", { className: "dshSwarm_workflow", "aria-label": t("workflow", {}) }, deriveWorkflow(p).map((stage, index) => h("li", { key: stage.id, className: "dshSwarm_step", "data-state": stage.state, "aria-label": t("stage." + stage.id, {}) + ": " + t("stage." + stage.state, {}) }, h("div", { className: "dshSwarm_stepName" }, h("span", { className: "dshSwarm_stepIndex", "aria-hidden": true }, String(index + 1).padStart(2, "0")), t("stage." + stage.id, {})), h("div", { className: "dshSwarm_stepCount" }, t("stage." + stage.id + ".count", stage.counts))))),
 				h("dl", { className: "dshSwarm_kpis" }, kpi(t("tasks.kpi", {}), p.tasks.done + " / " + p.tasks.total, p.tasks.blocked + p.tasks.cancelled ? t("tasks.note", p.tasks) : null), kpi(t("verification.kpi", {}), p.verifications.passed, p.verifications.running + p.verifications.failed + p.verifications.interrupted ? t("verification.note", p.verifications) : null), kpi(t(budgetKey(p), {}), p.deadline === null ? (clock.elapsedMs === null ? "—" : duration(clock.elapsedMs)) : duration(clock.remainingMs), p.deadline === null ? t("budget.noDeadline", {}) : clock.elapsedMs === null ? t("elapsed.unknown", {}) : t("elapsed", { duration: duration(clock.elapsedMs) }))),
 				clock.remainingMs === 0 && !terminal(p.phase) ? h("p", { className: "dshSwarm_subtle dshSwarm_warn" }, t("budget.expired", {})) : null,
 				h(DeliveryCard, { t, progress: p }),
-				h(WorkersSection, { t, progress: p, stale: state.status !== "live" }),
 				p.detailError ? notice(t("unavailable", {}), t("detail.error", { message: p.detailError })) : null,
 				h("div", { className: "dshSwarm_collaboration" }, h(TaskBoard, { t, progress: p }), h(Timeline, { t, progress: p })));
 
+		}
+
+		const viewTabs = ["dashboard", "members", "goals", "worktrees"];
+		function nextTab(current, key) {
+			const index = Math.max(0, viewTabs.indexOf(current));
+			return key === "Home" ? viewTabs[0] : key === "End" ? viewTabs.at(-1) : key === "ArrowRight" ? viewTabs[(index + 1) % viewTabs.length] : key === "ArrowLeft" ? viewTabs[(index + viewTabs.length - 1) % viewTabs.length] : null;
+		}
+		function RunBody({ t, state, now, sessionId, executeCommand, loadHistory }) {
+			const p = state.progress;
+			const [tab, setTab] = React.useState("dashboard");
+			const prefix = "swarm-" + encodeURIComponent(sessionId + ":" + p.runId);
+			const panel = (id, content) => h("div", { key: id, id: prefix + "-panel-" + id, role: "tabpanel", className: "dshSwarm_tabpanel", "aria-labelledby": prefix + "-tab-" + id, hidden: tab !== id, tabIndex: 0 }, content);
+			return h(React.Fragment, {},
+				h("div", { role: "tablist", className: "dshSwarm_tabs", "aria-label": t("tabs.label", {}) }, viewTabs.map((id) => h("button", {
+					key: id, id: prefix + "-tab-" + id, type: "button", role: "tab", className: "dshSwarm_tab", "data-swarm-tab": id, "aria-selected": tab === id, "aria-controls": prefix + "-panel-" + id, tabIndex: tab === id ? 0 : -1, onClick: () => setTab(id),
+					onKeyDown: (event) => { const next = nextTab(id, event.key); if (!next) return; event.preventDefault(); setTab(next); event.currentTarget.parentElement?.querySelector('[data-swarm-tab="' + next + '"]')?.focus(); }
+				}, t("tabs." + id, {})))),
+				panel("dashboard", h(DashboardPanel, { t, state, now })),
+				panel("members", h(WorkersSection, { t, progress: p, stale: state.status !== "live", sessionId, executeCommand })),
+				// Keep drafts and in-flight owner commands mounted when switching tabs.
+				panel("goals", h(GoalSection, { t, progress: p, sessionId, executeCommand, connected: state.status === "live" })),
+				panel("worktrees", tab === "worktrees" ? h(GitStreamSection, { t, progress: p, sessionId, loadHistory }) : null));
 		}
 
 		function SwarmProgressView(props) {
@@ -581,7 +665,7 @@ window.__ModuleLoader__.load({
 				current.status !== "live" && current.hasSnapshot ? notice(t("stale.title", {}), t(current.status === "ended" ? "ended.body" : "stale.body", {})) : null,
 				current.message || (!available && props.progressError) ? h("p", { role: "alert", className: "dshSwarm_notice" }, current.message || props.progressError) : null,
 				current.legacy ? notice(t("legacy.title", {}), t("legacy.body", {})) : null,
-				current.progress ? h(RunBody, { key: sessionId + ":" + current.progress.runId, t, state: current, now, sessionId, executeCommand: props.executeCommand }) : current.hasSnapshot ? h("div", { className: "dshSwarm_empty" }, h("h3", {}, t("noRun.title", {})), h("p", {}, t("noRun.body", {}))) : h("p", { className: "dshSwarm_empty" }, t(current.status === "loading" ? "loading" : "unavailable", {})));
+				current.progress ? h(RunBody, { key: sessionId + ":" + current.progress.runId, t, state: current, now, sessionId, executeCommand: props.executeCommand, loadHistory: props.loadHistory }) : current.hasSnapshot ? h("div", { className: "dshSwarm_empty" }, h("h3", {}, t("noRun.title", {})), h("p", {}, t("noRun.body", {}))) : h("p", { className: "dshSwarm_empty" }, t(current.status === "loading" ? "loading" : "unavailable", {})));
 		}
 
 		async function apply(ctx) {
@@ -626,6 +710,6 @@ window.__ModuleLoader__.load({
 			}, "dsh-swarm: progress panel");
 		}
 		// Pure derivations and the stream owner are also exercised without emulating a browser.
-		return { apply, inject: ["slots", "locale", "remote"], progressClient: { readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, dictionaries: { zh, en } } };
+		return { apply, inject: ["slots", "locale", "remote"], progressClient: { readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, goalLane, goalColumns, workerName, addWorkerState, workerReceipt, nextTab, viewTabs, RunBody, GoalSection, AddWorkerControl, dictionaries: { zh, en } } };
 	}
 });
