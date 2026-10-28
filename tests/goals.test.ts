@@ -213,6 +213,27 @@ describe('append-only owner goals', () => {
     expect(resumed.deadline).toBeNull();
   });
 
+  it('activates goals saved during pause shutdown only after an explicit resume', async () => {
+    const { runtime, store, host, blockShutdown, stopEntered, stopped } = await fixture();
+    blockShutdown();
+    const pausing = runtime.pause(OWNER);
+    await stopEntered.promise;
+    expect(store.get(RUN)).toMatchObject({ phase: 'quiescing', quiesceTarget: 'paused' });
+    const previousRevision = store.get(RUN).goalRevision;
+    const added = await runtime.appendGoal(OWNER, { text: 'Arrived while pausing' }, 'during-pause');
+    expect(added.disposition).toBe('deferred');
+    expect(host.notify).not.toHaveBeenCalled();
+    stopped.release();
+    await pausing;
+    expect(store.get(RUN).phase).toBe('paused');
+    expect(store.get(RUN).goals[added.goal.id]?.status).toBe('deferred');
+    const resumed = await runtime.resume(OWNER);
+    expect(resumed.goals[added.goal.id]?.status).toBe('active');
+    expect(resumed.goalRevision).toBeGreaterThan(previousRevision);
+    const sync = await runtime.collaboration.sync('session-w1');
+    expect(sync.acceptanceCriteria).toContain('Arrived while pausing');
+  });
+
   it.each(['completed', 'stopped', 'failed'] as const)('leaves %s terminal and keeps appended goals deferred', async (phase) => {
     const { runtime, store, host } = await fixture(phase);
     const result = await runtime.appendGoal(OWNER, { text: `After ${phase}` }, `append-${phase}`);
@@ -319,6 +340,8 @@ describe('append-only owner goals', () => {
     verified.release();
     const result = await completed;
     expect(result.finishRequest?.notes).toEqual(notes(ORIGINAL));
+    expect(Object.values(result.finishHistory)).toHaveLength(1);
+    expect(Object.values(result.finishHistory)[0]?.notes).toEqual(notes(ORIGINAL));
     expect(result.goals[added.goal.id]).toMatchObject({ status: 'deferred', completedAt: null, completedCommit: null });
   });
 

@@ -131,4 +131,4 @@
 - active 目标形成当前验收集，finish 和 Verification 绑定 `goalRevision`；有追加目标时，worker 必须用 sync 返回的当前 revision 提交 `goal_revision`，即使新增验收文字与旧验收重复也不能沿用旧请求。旧 revision 的代码验证不可冒充新目标验收。收尾只完成 active 目标；deferred 保持待继续。明确 `continue` 才从旧 acceptedHead 开新 run，保留历史目标到新 run 的关联；停止/故障不隐式复活，默认仍不限时。
 - [协作同步](<src/collaboration.ts>) 支持目标的正常 sync/read/search；公开 goal 事件进入 worker 知识与唤醒路径，新增工作由 worker 自主组织，不需要 owner 给每个 worker 派单。旧记录通过 schema 默认值保持可读，原验收历史不被覆盖。
 - [品牌资源](<icon.svg>) 与面板使用原创 SVG；当前宿主 `CommandDefinition` 只有 name/description/input/handler，没有自定义 icon 字段。slash 描述使用简洁符号，未修改宿主 DOM，也不声称菜单左侧支持自定义 SVG。面板沿用中英文、主题 token 和原生可展开结构。
-- [目标回归](<tests/goals.test.ts>) 使用真实 Runtime、Store、Delivery、IntegrationQueue 与 fake effect ports；验证/停止竞态使用显式 Promise 屏障，不用真实模型、轮询或 sleep。原生 GUI 目视与当前进程部署仍由 Lead 另行完成，源码测试不等于已加载新 Host。
+- [目标回归](<tests/goals.test.ts>) 使用真实 Runtime、Store、Delivery、IntegrationQueue 与 fake effect ports；验证/停止竞态使用显式 Promise 屏障，不用真实模型、轮询或 sleep。16 项定向回归通过，覆盖所有追加阶段、暂停收尾后的显式恢复、continue/append 交错、旧验证与重复验收文字、持久历史和 worker wait/sync/read。此贡献同时通过 `node --check client.js`、`pnpm build` 与 `git diff --check`；未跑全项目测试或另开模型 run。原生 GUI 目视与当前进程部署仍由 Lead 另行完成，源码测试不等于已加载新 Host。
