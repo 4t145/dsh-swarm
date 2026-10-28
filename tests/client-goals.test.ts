@@ -67,6 +67,16 @@ describe('goal panel native command transport', () => {
     expect(client.goalState({ status: 'completed' }, 'completed')).toBe('completed');
   });
 
+  it('states bounded history honestly and requires publishing a draft before switching rounds', () => {
+    expect(client.dictionaries.zh['goals.more']).toContain('暂不在面板展示');
+    expect(client.dictionaries.en['goals.more']).toContain('not shown in this panel');
+    expect(client.dictionaries.en['goals.clipped']).not.toContain('ask the Agent');
+    expect(client.dictionaries.zh['goals.publishFirst']).toBeTruthy();
+    expect(client.dictionaries.en['goals.publishFirst']).toBeTruthy();
+    expect(source).toContain('(action === "continue" && hasDraft)');
+    expect(source).toContain('(p.phase !== "paused" && hasDraft)');
+  });
+
   it('keeps publishing accessible, drafts on errors, scoped effects and bilingual identity', () => {
     expect(source).toContain('event.preventDefault()');
     expect(source).toContain('role: receipt.ok ? "status" : "alert"');
