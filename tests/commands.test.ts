@@ -28,7 +28,7 @@ import {
 } from '../src/commands.ts';
 import { SwarmError } from '../src/errors.ts';
 import type { SwarmRuntime } from '../src/runtime.ts';
-import type { AppendGoalInput, AppendGoalReceipt, Run, RunSpec } from '../src/types.ts';
+import type { AppendGoalInput, AppendGoalReceipt, Run, RunPhase, RunSpec } from '../src/types.ts';
 import type { GitWorkspace } from '../src/workspace.ts';
 
 /** Real Host services must satisfy the narrow command context. */
@@ -68,7 +68,7 @@ const SPEC_INPUT = {
   },
 };
 
-const BASE_RUN: SwarmRunView = {
+const BASE_RUN: SwarmRunView & { phase: RunPhase } = {
   id: 'run-1',
   phase: 'running',
   reason: null,
@@ -208,7 +208,7 @@ class FakeRuntime implements SwarmRuntimePort {
     };
   }> = [];
 
-  run: SwarmRunView = { ...BASE_RUN };
+  run: SwarmRunView & { phase: RunPhase } = { ...BASE_RUN };
   statusView: SwarmRunStatusView = structuredClone(BASE_STATUS);
   failure: unknown;
 
