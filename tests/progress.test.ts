@@ -933,8 +933,8 @@ describe('client.js conversation view', () => {
     for (const phase of ['preparing', 'running', 'draining', 'quiescing', 'paused', 'completed', 'stopped', 'failed']) {
       expect(plugin.locale.zh[`phase.${phase}`]).toBeTruthy();
     }
-    expect(plugin.locale.zh['noRun.body']).toContain('/swarm start');
-    expect(plugin.locale.zh['noRun.body']).toContain('swarm_manage');
+    expect(plugin.locale.zh['noRun.body']).toContain('对话');
+    expect(plugin.locale.zh['noRun.body']).toContain('Agent');
   });
 });
 
@@ -1011,8 +1011,9 @@ describe('client.js progress panel rendering', () => {
     await flush();
     const { text } = plugin.render();
     expect(text).toContain(plugin.locale.zh['noRun.title']);
-    expect(text).toContain('/swarm start');
-    expect(text).toContain('swarm_manage');
+    expect(text).toContain('对话');
+    expect(text).toContain('整理目标');
+    expect(text).not.toContain('swarm_manage');
   });
 
   it('reports the Host interface as unavailable when the Remote mount fails', async () => {

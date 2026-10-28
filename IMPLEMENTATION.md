@@ -132,3 +132,10 @@
 - [协作同步](<src/collaboration.ts>) 支持目标的正常 sync/read/search；公开 goal 事件进入 worker 知识与唤醒路径，新增工作由 worker 自主组织，不需要 owner 给每个 worker 派单。旧记录通过 schema 默认值保持可读，原验收历史不被覆盖。
 - [品牌资源](<icon.svg>) 与面板使用原创 SVG；当前宿主 `CommandDefinition` 只有 name/description/input/handler，没有自定义 icon 字段。slash 描述使用简洁符号，未修改宿主 DOM，也不声称菜单左侧支持自定义 SVG。面板沿用中英文、主题 token 和原生可展开结构。
 - [目标回归](<tests/goals.test.ts>) 使用真实 Runtime、Store、Delivery、IntegrationQueue 与 fake effect ports；验证/停止竞态使用显式 Promise 屏障，不用真实模型、轮询或 sleep。16 项定向回归通过，覆盖所有追加阶段、暂停收尾后的显式恢复、continue/append 交错、旧验证与重复验收文字、持久历史和 worker wait/sync/read。此贡献同时通过 `node --check client.js`、`pnpm build` 与 `git diff --check`；未跑全项目测试或另开模型 run。原生 GUI 目视与当前进程部署仍由 Lead 另行完成，源码测试不等于已加载新 Host。
+
+## 自然语言前台 Agent
+
+- [owner-context](<src/owner-context.ts>) 通过正式 systemPrompt section/context 接入普通顶层 Agent；委派/worker 会话不获得前台指令，也不读取其他 owner 的运行。Host [入口](<src/index.ts>) 显式注入并在卸载时释放两项贡献。
+- 前台代办目标澄清、启动 spec、追加需求、进度问答、暂停/继续及结果收集；不要求用户输入命令/JSON，不变成给各 worker 派工的经理。咨询和暂定想法不等于执行授权；命令和面板仍是备用入口。
+- 当前状态由原生 prompt 管线刷新并日志化，仅包含阶段、任务计数、结果引用和最多 6 个待处理目标摘要，不搬入完整消息/事件历史，不新增轮询或模型唤醒。只在用户/现有驱动触发前台下一步时更新，不宣称新增全天候主动通知服务。ACK 协议保持原样。
+- 空态文案改为直接对话引导。[关键回归](<tests/owner-context.test.ts>) 覆盖 owner/worker 边界、有界只读状态、缺失/失败区分与注册清理；本轮仅构建与定向检查，不另开模型验收。

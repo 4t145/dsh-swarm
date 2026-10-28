@@ -24,6 +24,7 @@ import { MemoryStateStore, type StateStore } from './store.ts';
 import { SwarmRuntime } from './runtime.ts';
 import { GitWorkspace } from './workspace.ts';
 import { registerOwnerTools } from './owner-tools.ts';
+import { registerOwnerContext } from './owner-context.ts';
 import { registerProgress } from './progress.ts';
 import { runSwarmHeadless, type RunSwarmHeadlessOptions, type SwarmHeadlessResult } from './headless.ts';
 import { HeadlessDriverLifetime } from './headless-lifetime.ts';
@@ -56,7 +57,7 @@ declare module '@deepseek-ai/cordis' {
 export class SwarmService extends Service {
   static inject = [
     'storageDomain', 'agents', 'subagents', 'worktrees', 'workingDirectory',
-    'commands', 'jobs', 'tools', 'fs', 'sandbox', 'sandboxPolicy', 'subprocess', 'sessionProjections',
+    'commands', 'jobs', 'tools', 'fs', 'sandbox', 'sandboxPolicy', 'subprocess', 'sessionProjections', 'systemPrompt',
   ];
 
   static Config = Schema.object({
@@ -125,9 +126,11 @@ export class SwarmService extends Service {
     const runtime = new SwarmRuntime(store, host, workspace, artifacts, { eventPageSize: config.eventPageSize });
     this.artifactsValue = artifacts;
     let disposeOwnerTools: (() => void) | undefined;
+    let disposeOwnerContext: (() => void) | undefined;
     let progress: { dispose(): Promise<void> } | undefined;
     this.closeResources = async () => {
       await this.headlessDrivers.close();
+      disposeOwnerContext?.();
       disposeOwnerTools?.();
       await progress?.dispose();
       await runtime.dispose();
@@ -140,6 +143,7 @@ export class SwarmService extends Service {
       registerSwarmCommand(this.ctx, runtime, workspace);
       // Owner-only model control surface; the worker preset never loads this module.
       disposeOwnerTools = registerOwnerTools(this.ctx, runtime);
+      disposeOwnerContext = registerOwnerContext(this.ctx, runtime);
       // Read-only progress service used by the browser panel and headless observer.
       progress = registerProgress(this.ctx, runtime, store);
       return runtime;

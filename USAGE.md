@@ -14,10 +14,16 @@
 
 ## 让 Agent 启动与控制
 
-在聊天里描述目标**不会**自动后台开跑。两条显式入口：
+**默认直接和前台 Agent 对话，不需要输入命令或编写 JSON。**
 
-- 人类：`/swarm start --spec <绝对路径>`，以及 `/swarm status|append|continue|pause|resume|stop`。
-- 模型/Agent：`swarm_manage` 工具，`action=start|status|append|continue|pause|resume|stop`。start 需要内联 `spec` 对象或 `spec_path`。身份取自真实 `exec.agent`；子会话与 worker 一律被拒绝，不能递归控制包含自己的 run。
+- “用 Swarm 帮我做这个应用”：Agent 澄清必要的产品决定、读取项目并准备启动配置。
+- “再加一个导出功能”：Agent 将明确的新需求追加到当前 Swarm，并说明它已开始处理还是正在等待。
+- “现在进展怎么样”“暂停一下”“继续工作”：Agent 查询状态或执行相应控制，不把命令教程交给你。
+- 前台 Agent 组织共同目标、用户决策和交付；worker 自主拆分/认领/协商，前台不逐个派工。
+
+这些动作仍需 Agent 实际调用 `swarm_manage`，不是关键词匹配的隐藏后台程序；咨询、讨论或未确定的想法不会被当成已授权工作。插件向普通 owner Agent 提供简洁的当前 run/目标状态，worker 和子会话不获得这套控制指令。暂停和已停止状态仍受原有授权约束。
+
+高级/备用入口是 `/swarm start --spec <路径>` 与 `/swarm status|append|continue|pause|resume|stop`；用户可以不用它们。
 - Web 对话页的“协作群”标签位于“对话”和“轨迹”之间。新版将整体流程、任务/验证/预算指标、每个 worker 的当前任务与工具活动放在首屏，下面是任务板、最近公开活动和结果分支详情。切换或关闭标签只取消读取，不停止 run。
 - worker 的任务归属、协作等待、提案集成与原生 running/inactive/unavailable 分开显示；inactive 不表示完成。工具仅显示名称、时间和返回状态，不显示参数、输出、命令正文、推理、私信或 finding 正文。
 - 新版 Host 的会话级订阅在 run 结束后继续等待下一次 run；状态变化由事件推送，预算倒计时在浏览器本地计算，不轮询模型。连接中断保留最后快照但标为非实时，可手动重新连接。
