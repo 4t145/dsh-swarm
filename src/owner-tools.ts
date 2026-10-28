@@ -90,7 +90,7 @@ export interface SwarmManageReceipt {
   reason: string | null;
   acceptedHead: string;
   resultRef: string;
-  deadline: number;
+  deadline: number | null;
   specPath?: string;
 }
 
@@ -301,7 +301,7 @@ const INLINE_SPEC_PROPERTIES: Record<string, JsonSchemaNode> = {
   goal: { type: 'string', description: 'Goal statement shared with every worker.' },
   acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'Checkable requirements.' },
   workers: { type: 'integer', description: 'Worker count, 2–4.' },
-  budgetMinutes: { type: 'integer', description: 'Wall-clock budget in minutes.' },
+  budgetMinutes: { type: 'integer', description: 'Optional explicit time limit in minutes. Omit or use 0 for no deadline; do not choose a limit unless the user asks.' },
   allowDirtyBaseline: { type: 'boolean', description: 'Allow an uncommitted source worktree.' },
   verification: {
     type: 'object',

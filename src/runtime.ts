@@ -141,7 +141,7 @@ export interface RunStatus {
   phase: RunPhase;
   reason: string | null;
   quiesceTarget: QuiesceTarget | null;
-  deadline: number;
+  deadline: number | null;
   now: number;
   budgetExpired: boolean;
   baseCommit: CommitSha;
@@ -339,7 +339,7 @@ export class SwarmRuntime {
         verification: spec.verification,
         baseCommit: info.baseCommit,
         resultRef: `refs/heads/swarm-${runId}-result`,
-        deadline: now + spec.budgetMinutes * 60_000,
+        deadline: spec.budgetMinutes === 0 ? null : now + spec.budgetMinutes * 60_000,
         specPath: spec.specPath,
         budgetMinutes: spec.budgetMinutes,
         allowDirtyBaseline: spec.allowDirtyBaseline,
@@ -406,7 +406,7 @@ export class SwarmRuntime {
       quiesceTarget: run.quiesceTarget,
       deadline: run.deadline,
       now,
-      budgetExpired: run.budgetExpiredAt !== null || (run.phase === 'paused' && now >= run.deadline),
+      budgetExpired: run.budgetExpiredAt !== null || (run.phase === 'paused' && (run.deadline !== null && now >= run.deadline)),
       baseCommit: run.baseCommit,
       acceptedHead: run.acceptedHead,
       resultRef: run.resultRef,
@@ -467,7 +467,7 @@ export class SwarmRuntime {
     }
 
     const now = this.clock.now();
-    if (budgetMinutes === undefined && now >= run.deadline) {
+    if (budgetMinutes === undefined && (run.deadline !== null && now >= run.deadline)) {
       // paused 不跑截止 timer，所以“已过期”这个事实在用户尝试 resume 时才落盘；
       // run 保持 paused，明确追加预算才能恢复。
       if (run.budgetExpiredAt === null) {
@@ -915,7 +915,7 @@ export class SwarmRuntime {
             quiesceTarget: null,
             reason,
             budgetExpiredAt:
-              state.budgetExpiredAt ?? (now >= state.deadline ? now : null),
+              state.budgetExpiredAt ?? (state.deadline !== null && now >= state.deadline ? now : null),
             workers,
           },
           [{ kind: 'run', phase: 'paused', target: null, reason, authorWorkerId: null, audience: { kind: 'all' } }],
@@ -1021,7 +1021,7 @@ export class SwarmRuntime {
         details: { runId, workerId, phase: run.phase },
       });
     }
-    if (this.clock.now() >= run.deadline) {
+    if ((run.deadline !== null && this.clock.now() >= run.deadline)) {
       throw new SwarmError('SWARM_BUDGET_EXHAUSTED', 'run budget expired', {
         details: { runId, workerId, deadline: run.deadline },
       });
@@ -1064,7 +1064,7 @@ export class SwarmRuntime {
             details: { runId, phase: run.phase },
           });
         }
-        if (this.clock.now() >= run.deadline) {
+        if ((run.deadline !== null && this.clock.now() >= run.deadline)) {
           throw new SwarmError('SWARM_BUDGET_EXHAUSTED', 'run budget expired', {
             details: { runId, deadline: run.deadline },
           });
@@ -1224,7 +1224,7 @@ export class SwarmRuntime {
         const budgetExpired =
           run.budgetExpiredAt ??
           (target === 'stopped' && run.reason === 'budget_exhausted' ? now : null) ??
-          (target === 'paused' && now >= run.deadline ? now : null);
+          (target === 'paused' && (run.deadline !== null && now >= run.deadline) ? now : null);
         return this.finalizeChange(
           {
             ...run,
@@ -1346,6 +1346,7 @@ export class SwarmRuntime {
   /** 活动 run 的 deadline timer；paused 不排 timer，但绝对 deadline 数值照常推进。 */
   private armDeadline(run: Run): void {
     this.clearDeadline(run.id);
+    if (run.deadline === null) return;
     const delay = Math.max(0, run.deadline - this.clock.now());
     const cancel = this.clock.setTimeout(() => {
       this.control(run.id).timer = null;
@@ -1379,13 +1380,17 @@ export class SwarmRuntime {
       }
       return;
     }
-    if (isTerminalRunPhase(run.phase)) {
+    if (isTerminalRunPhase(run.phase) || run.deadline === null) {
       return;
     }
     const now = this.clock.now();
+    if (now < run.deadline) {
+      if (run.phase !== 'paused') this.armDeadline(run);
+      return;
+    }
     try {
       if (run.phase === 'paused') {
-        if (now >= run.deadline && run.budgetExpiredAt === null) {
+        if ((run.deadline !== null && now >= run.deadline) && run.budgetExpiredAt === null) {
           await this.store.update(runId, (current) => {
             if (current.phase !== 'paused' || current.budgetExpiredAt !== null) {
               return current;
@@ -1762,7 +1767,7 @@ export class SwarmRuntime {
         details: { runId: run.id, phase: run.phase },
       });
     }
-    if (this.clock.now() >= run.deadline) {
+    if ((run.deadline !== null && this.clock.now() >= run.deadline)) {
       throw new SwarmError('SWARM_BUDGET_EXHAUSTED', 'run budget expired', {
         details: { runId: run.id, deadline: run.deadline },
       });
@@ -2060,8 +2065,8 @@ function validateStartInput(ownerSessionId: string, spec: RunSpec): void {
   if (!Number.isInteger(spec.workers) || spec.workers < 2 || spec.workers > 4) {
     issues.push({ path: 'workers', message: 'workers must be an integer between 2 and 4' });
   }
-  if (!Number.isInteger(spec.budgetMinutes) || spec.budgetMinutes <= 0) {
-    issues.push({ path: 'budgetMinutes', message: 'budgetMinutes must be a positive integer' });
+  if (!Number.isInteger(spec.budgetMinutes) || spec.budgetMinutes < 0) {
+    issues.push({ path: 'budgetMinutes', message: 'budgetMinutes must be a non-negative integer (0 means no deadline)' });
   }
   if (typeof spec.repository !== 'string' || !spec.repository.startsWith('/')) {
     issues.push({ path: 'repository', message: 'repository must be an absolute path' });

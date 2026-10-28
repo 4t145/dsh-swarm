@@ -323,7 +323,7 @@ const runShape = z.strictObject({
   acceptanceCriteria: z.array(z.string().min(1)).min(1),
   verification: verificationConfigSchema,
   budgetMinutes: z.number().int().min(0),
-  deadline: millisSchema,
+  deadline: millisSchema.nullable(),
   budgetExpiredAt: millisSchema.nullable(),
   allowDirtyBaseline: z.boolean(),
 

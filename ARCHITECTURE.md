@@ -73,7 +73,7 @@
 - 单进程 Host 服务集中保存协作数据、串行更新和串行集成。这不违反“无经理 LLM”。
 - 首版面向有本地 Git 基线、可配置验证命令的编码任务，不面向任意非编码研究任务。
 - run 的目标、验收项和验证配置在启动后固定。修改目标需要停止旧 run 后启动新 run；普通父会话聊天不会被默认为修改运行中的目标。
-- 首版硬预算是墙钟截止时间；记录 token 使用量，但不承诺精确美元费用或硬 token 限额。
+- 工程 run 默认不设墙钟截止：省略 budgetMinutes 或设为 0 时，deadline=null，不启动到期 timer；持续至目标完成、用户停止，或因故障/无进展暂停。只有用户明确要求限时，才接受正整数 budgetMinutes；以下预算到期规则仅适用于这种显式限时运行。单条命令的 timeoutMs 保留。
 - 暂停期间截止时间仍然推进，但已暂停的 run 不因时间经过自动变成 stopped。恢复过期的 paused run 必须明确追加预算；completed/stopped/failed 都是终态，不能 resume。预算已耗尽而进入 stopped 的工作，要以当前 acceptedHead 为基线新建 run。
 
 ### 1.3 不在 v0.1 做
@@ -200,7 +200,7 @@ Event
 
 - goal：完整目标；acceptanceCriteria：可检查的交付要求。
 - repository：本地仓库；baseCommit：明确的本地 commit SHA。
-- workers：2–4；budget：截止时间预算。
+- workers：2–4；budgetMinutes：可选，默认 0（不限时），正整数仅用于用户明确要求的限时运行。
 - verificationConfig：用户或项目配置提供的 setup 与 test 命令及超时。
 
 验证命令不是从 worker 消息中随意挑选执行。setup 用于在独立 checkout 安装依赖，test 用于决定候选是否能发布。所有命令沿用 DSH 的权限与 sandbox，不保证任意依赖都自动存在。
@@ -576,7 +576,6 @@ F1 如果有误，B 追加 FAIL 并建立修复任务；不覆盖 F1，更不把
   "goal": "为项目增加 CSV 导入和对应 CLI",
   "acceptanceCriteria": ["CSV 导入结果正确", "CLI 可调用导入并报告错误"],
   "workers": 2,
-  "budgetMinutes": 30,
   "allowDirtyBaseline": false,
   "verification": {
     "setup": [{"argv": ["npm", "ci"], "timeoutMs": 300000}],
@@ -585,7 +584,7 @@ F1 如果有误，B 追加 FAIL 并建立修复任务；不覆盖 F1，更不把
 }
 ```
 
-这些顶层字段均须显式提供；setup 可为空数组，test 必须非空；命令使用 argv 数组且 timeoutMs 为正整数。命令 cwd 由插件固定为待验证 worktree，不从 worker 消息取得。worker 模型路由默认继承原 owner 当前模型，独立 preset 决定其工具。
+上述顶层字段均须显式提供；可选 budgetMinutes 省略时不限时，只有用户要求限时才填写正整数分钟。setup 可为空数组，test 必须非空；命令使用 argv 数组且 timeoutMs 为正整数。命令 cwd 由插件固定为待验证 worktree，不从 worker 消息取得。worker 模型路由默认继承原 owner 当前模型，独立 preset 决定其工具。
 
 start 将 baseRef 解析为一次固定的本地 baseCommit SHA；后续 HEAD 变化不改变基线。`allowDirtyBaseline=false` 时脏工作区拒绝；用户明确设置 true 才表示接受“忽略所有未提交改动、仅从提交创建”，启动回执必须重复显示这条边界。验证失败或必填项缺失直接返回字段诊断，不调用模型猜配置。
 

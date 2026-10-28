@@ -141,10 +141,10 @@ export interface ProgressSnapshot {
   readonly reason: string | null;
   readonly quiesceTarget: RunStatus['quiesceTarget'];
   readonly budgetExpired: boolean;
-  readonly deadline: number;
+  readonly deadline: number | null;
   readonly now: number;
-  /** `max(0, deadline - now)`；不做百分比推算。 */
-  readonly remainingMs: number;
+  /** 无截止时间时为 null，否则 `max(0, deadline - now)`。 */
+  readonly remainingMs: number | null;
   readonly tasks: ProgressTaskCounts;
   readonly workers: readonly ProgressWorker[];
   readonly proposals: ProgressProposalCounts;
@@ -363,7 +363,7 @@ export function toProgressSnapshot(
     budgetExpired: status.budgetExpired,
     deadline: status.deadline,
     now,
-    remainingMs: Math.max(0, status.deadline - now),
+    remainingMs: status.deadline === null ? null : Math.max(0, status.deadline - now),
     tasks: countTasks(status.tasks),
     workers: status.workers.slice(0, PROGRESS_LIMITS.workers).map((worker) => ({
       id: worker.id,

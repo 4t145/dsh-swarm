@@ -96,7 +96,7 @@ export interface SwarmRunView {
   readonly id: string;
   readonly phase: string;
   readonly reason: string | null;
-  readonly deadline: number;
+  readonly deadline: number | null;
   readonly baseCommit: string;
   readonly acceptedHead: string;
   readonly resultRef: string;
@@ -136,7 +136,7 @@ export interface SwarmRunStatusView {
   readonly ownerSessionId: string;
   readonly phase: string;
   readonly reason: string | null;
-  readonly deadline: number;
+  readonly deadline: number | null;
   readonly now: number;
   readonly budgetExpired: boolean;
   readonly baseCommit: string;
@@ -736,7 +736,8 @@ function appendBounded(
   }
 }
 
-function formatTime(value: number): string {
+function formatTime(value: number | null): string {
+  if (value === null) return 'none (no time limit)';
   if (!Number.isFinite(value)) {
     return String(value);
   }

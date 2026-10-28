@@ -61,6 +61,7 @@ export interface RunSpec {
   readonly goal: string;
   readonly acceptanceCriteria: string[];
   readonly workers: number;
+  /** 规范化后的显式时限；0（默认）表示不限时。 */
   readonly budgetMinutes: number;
   readonly allowDirtyBaseline: boolean;
   readonly verification: VerificationConfig;
@@ -417,10 +418,10 @@ export interface Run {
   goal: string;
   acceptanceCriteria: string[];
   verification: VerificationConfig;
-  /** 原始预算（分钟），只用于展示；权威上限是 deadline。 */
+  /** 原始显式时限（分钟）；0 表示默认不限时，权威截止是 deadline。 */
   budgetMinutes: number;
-  /** 绝对截止时间（毫秒时间戳）。暂停期间照常推进。 */
-  deadline: Millis;
+  /** null 表示不限时；显式截止时间为毫秒时间戳，暂停期间照常推进。 */
+  deadline: Millis | null;
   /** paused 且已过期时写入时间戳；resume 必须明确追加预算。 */
   budgetExpiredAt: Millis | null;
   allowDirtyBaseline: boolean;
@@ -471,7 +472,7 @@ export interface CreateRunInput {
   verification: VerificationConfig;
   baseCommit: CommitSha;
   resultRef: string;
-  deadline: Millis;
+  deadline: Millis | null;
   specPath?: string | null;
   budgetMinutes?: number;
   allowDirtyBaseline?: boolean;

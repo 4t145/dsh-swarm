@@ -76,7 +76,7 @@ export interface HeadlessProgressLine {
   revision: number;
   phase: RunPhase;
   reason: string | null;
-  deadline: Millis;
+  deadline: Millis | null;
   now: Millis;
   budgetExpired: boolean;
   quiesceTarget: string | null;
@@ -340,7 +340,7 @@ export function runSwarmHeadless(
       reason: run.reason,
       deadline: run.deadline,
       now: timestamp,
-      budgetExpired: run.budgetExpiredAt !== null || (run.phase === 'paused' && timestamp >= run.deadline),
+      budgetExpired: run.budgetExpiredAt !== null || (run.phase === 'paused' && run.deadline !== null && timestamp >= run.deadline),
       quiesceTarget: run.quiesceTarget,
       tasks: countTasks(run),
       workers: workerRows(run),

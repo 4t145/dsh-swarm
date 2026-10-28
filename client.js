@@ -40,7 +40,7 @@ window.__ModuleLoader__.load({
 			"workflow": "全局工作流程", "stage.prepare": "准备环境", "stage.collaborate": "协作实现", "stage.integrate": "集成验证", "stage.deliver": "交付结果",
 			"stage.prepare.count": "{ready}/{total} 成员已就绪", "stage.collaborate.count": "{claimed} 进行中 · {open} 待认领", "stage.integrate.count": "{accepted} 已集成 · {pending} 待处理", "stage.deliver.count": "{done}/{total} 任务完成",
 			"stage.active": "当前有工作", "stage.complete": "已就绪", "stage.pending": "等待", "tasks.kpi": "已完成任务", "tasks.note": "{blocked} 阻塞 · {cancelled} 取消（不计完成）",
-			"verification.kpi": "已通过验证", "verification.note": "{running} 执行中 · {failed} 失败 · {interrupted} 中断", "budget.kpi": "预算剩余", "budget.ended": "结束时预算剩余", "budget.snapshot": "快照时预算剩余", "budget.expired": "预算已耗尽", "elapsed": "墙钟时长 {duration}", "elapsed.unknown": "Host 未提供起始时间",
+			"verification.kpi": "已通过验证", "verification.note": "{running} 执行中 · {failed} 失败 · {interrupted} 中断", "budget.kpi": "预算剩余", "budget.unlimited": "运行时长", "budget.noDeadline": "无截止时间", "budget.ended": "结束时预算剩余", "budget.snapshot": "快照时预算剩余", "budget.expired": "预算已耗尽", "elapsed": "墙钟时长 {duration}", "elapsed.unknown": "Host 未提供起始时间",
 			"workers.title": "成员此刻的工作", "workers.note": "任务归属与原生运行状态分别展示", "worker.name": "成员 {number}", "worker.noTask": "尚未持有任务", "worker.native": "原生状态：{status}", "worker.inactiveNote": "inactive 不代表任务完成",
 			"work.initializing": "准备工作区", "work.failed": "初始化失败", "work.assigned": "持有任务", "work.coordinating": "协作与选取工作", "work.waiting": "等待协作更新", "work.integration": "等待集成结果", "work.integrating": "候选正在集成", "work.unassigned": "没有当前任务",
 			"activity.running": "Turn 执行中", "activity.executing": "工具调用中 · {count} 项", "activity.executingOmitted": "工具调用中 · 部分调用未展示", "activity.idle": "当前无执行中的 turn", "activity.unavailable": "执行活动不可用", "activity.legacy": "Host 未提供执行活动", "activity.stale": "最后记录：{activity}",
@@ -65,7 +65,7 @@ window.__ModuleLoader__.load({
 			"workflow": "Overall workflow", "stage.prepare": "Prepare", "stage.collaborate": "Collaborate", "stage.integrate": "Integrate & verify", "stage.deliver": "Deliver",
 			"stage.prepare.count": "{ready}/{total} workers ready", "stage.collaborate.count": "{claimed} claimed · {open} open", "stage.integrate.count": "{accepted} accepted · {pending} pending", "stage.deliver.count": "{done}/{total} tasks done",
 			"stage.active": "Work in progress", "stage.complete": "Ready", "stage.pending": "Waiting", "tasks.kpi": "Tasks completed", "tasks.note": "{blocked} blocked · {cancelled} cancelled (not done)",
-			"verification.kpi": "Verifications passed", "verification.note": "{running} running · {failed} failed · {interrupted} interrupted", "budget.kpi": "Budget remaining", "budget.ended": "Budget remaining at end", "budget.snapshot": "Budget at last snapshot", "budget.expired": "Budget exhausted", "elapsed": "Wall-clock time {duration}", "elapsed.unknown": "Start time unavailable from Host",
+			"verification.kpi": "Verifications passed", "verification.note": "{running} running · {failed} failed · {interrupted} interrupted", "budget.kpi": "Budget remaining", "budget.unlimited": "Elapsed time", "budget.noDeadline": "No deadline", "budget.ended": "Budget remaining at end", "budget.snapshot": "Budget at last snapshot", "budget.expired": "Budget exhausted", "elapsed": "Wall-clock time {duration}", "elapsed.unknown": "Start time unavailable from Host",
 			"workers.title": "What workers are doing", "workers.note": "Task ownership and native execution are separate", "worker.name": "Worker {number}", "worker.noTask": "No task currently held", "worker.native": "Native status: {status}", "worker.inactiveNote": "inactive does not mean the task is done",
 			"work.initializing": "Preparing workspace", "work.failed": "Initialization failed", "work.assigned": "Task held", "work.coordinating": "Coordinating / selecting work", "work.waiting": "Waiting for collaboration", "work.integration": "Waiting for integration", "work.integrating": "Candidate being integrated", "work.unassigned": "No current task",
 			"activity.running": "Turn running", "activity.executing": "Tool calls in progress · {count}", "activity.executingOmitted": "Tool calls in progress · some calls omitted", "activity.idle": "No turn currently executing", "activity.unavailable": "Execution activity unavailable", "activity.legacy": "Host does not expose execution activity", "activity.stale": "Last recorded: {activity}",
@@ -109,7 +109,7 @@ window.__ModuleLoader__.load({
 			const p = item?.progress;
 			if (!object(item) || !count(item.seq) || !(p === null || object(p))) throw new TypeError("Invalid Swarm progress frame");
 			if (p === null) return null;
-			if (typeof p.runId !== "string" || typeof p.phase !== "string" || !validTime(p.now) || !validTime(p.deadline) || !validTime(p.updatedAt) || !finite(p.remainingMs)
+			if (typeof p.runId !== "string" || typeof p.phase !== "string" || !validTime(p.now) || !timeOrNull(p.deadline) || !validTime(p.updatedAt) || !(p.remainingMs === null || finite(p.remainingMs)) || ((p.deadline === null) !== (p.remainingMs === null))
 				|| !textOrNull(p.reason) || !textOrNull(p.detailError) || !textOrNull(p.quiesceTarget)
 				|| ![p.acceptedHead, p.baseCommit, p.resultRef].every((value) => typeof value === "string")
 				|| !(p.finishRequest === null || (object(p.finishRequest) && typeof p.finishRequest.id === "string" && typeof p.finishRequest.acceptedHead === "string" && textOrNull(p.finishRequest.verificationId)))
@@ -226,7 +226,7 @@ window.__ModuleLoader__.load({
 			const endEvent = terminal(p.phase) ? (p.recentEvents ?? []).filter((e) => e.kind === "run" && e.status === p.phase).at(-1) : null;
 			const end = endEvent?.createdAt ?? p.now;
 			const clockNow = terminal(p.phase) ? end : p.now + Math.max(0, (state.status === "live" ? localNow : state.stoppedAt ?? state.receivedAt) - state.receivedAt);
-			return { remainingMs: Math.max(0, p.deadline - clockNow), elapsedMs: finite(p.createdAt) ? Math.max(0, clockNow - p.createdAt) : null };
+			return { remainingMs: p.deadline === null ? null : Math.max(0, p.deadline - clockNow), elapsedMs: finite(p.createdAt) ? Math.max(0, clockNow - p.createdAt) : null };
 		}
 		/** One presentation timer only; it never reads Host state or reconnects. */
 		function startClock(state, onTick) {
@@ -236,6 +236,7 @@ window.__ModuleLoader__.load({
 			return () => clearInterval(timer);
 		}
 		function budgetKey(p) {
+			if (p.deadline === null) return "budget.unlimited";
 			if (!terminal(p.phase)) return "budget.kpi";
 			return (p.recentEvents ?? []).some((event) => event.kind === "run" && event.status === p.phase) ? "budget.ended" : "budget.snapshot";
 		}
@@ -360,7 +361,7 @@ window.__ModuleLoader__.load({
 				p.goal ? h("details", { className: "dshSwarm_goalBox" }, h("summary", {}, t("overview.goal", {}), h("span", { className: "dshSwarm_goalPreview" }, p.goal)), h("p", { className: "dshSwarm_goalFull" }, p.goal)) : h("p", { className: "dshSwarm_subtle" }, t("overview.goalMissing", {})),
 				p.reason ? notice(t("reason", { reason: p.reason }), p.phase === "quiescing" && p.quiesceTarget ? label(t, "phase", p.quiesceTarget) : null) : null,
 				h("ol", { className: "dshSwarm_workflow", "aria-label": t("workflow", {}) }, deriveWorkflow(p).map((stage, index) => h("li", { key: stage.id, className: "dshSwarm_step", "data-state": stage.state, "aria-label": t("stage." + stage.id, {}) + ": " + t("stage." + stage.state, {}) }, h("div", { className: "dshSwarm_stepName" }, h("span", { className: "dshSwarm_stepIndex", "aria-hidden": true }, String(index + 1).padStart(2, "0")), t("stage." + stage.id, {})), h("div", { className: "dshSwarm_stepCount" }, t("stage." + stage.id + ".count", stage.counts))))),
-				h("dl", { className: "dshSwarm_kpis" }, kpi(t("tasks.kpi", {}), p.tasks.done + " / " + p.tasks.total, p.tasks.blocked + p.tasks.cancelled ? t("tasks.note", p.tasks) : null), kpi(t("verification.kpi", {}), p.verifications.passed, p.verifications.running + p.verifications.failed + p.verifications.interrupted ? t("verification.note", p.verifications) : null), kpi(t(budgetKey(p), {}), duration(clock.remainingMs), clock.elapsedMs === null ? t("elapsed.unknown", {}) : t("elapsed", { duration: duration(clock.elapsedMs) }))),
+				h("dl", { className: "dshSwarm_kpis" }, kpi(t("tasks.kpi", {}), p.tasks.done + " / " + p.tasks.total, p.tasks.blocked + p.tasks.cancelled ? t("tasks.note", p.tasks) : null), kpi(t("verification.kpi", {}), p.verifications.passed, p.verifications.running + p.verifications.failed + p.verifications.interrupted ? t("verification.note", p.verifications) : null), kpi(t(budgetKey(p), {}), p.deadline === null ? (clock.elapsedMs === null ? "—" : duration(clock.elapsedMs)) : duration(clock.remainingMs), p.deadline === null ? t("budget.noDeadline", {}) : clock.elapsedMs === null ? t("elapsed.unknown", {}) : t("elapsed", { duration: duration(clock.elapsedMs) }))),
 				clock.remainingMs === 0 && !terminal(p.phase) ? h("p", { className: "dshSwarm_subtle dshSwarm_warn" }, t("budget.expired", {})) : null,
 				h(DeliveryCard, { t, progress: p }),
 				h(WorkersSection, { t, progress: p, stale: state.status !== "live" }),

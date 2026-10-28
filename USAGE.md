@@ -26,9 +26,9 @@
 
 可以直接对普通 owner 会话中的 Agent 说：
 
-> 用 Swarm，在当前仓库安排 2 个 Agent，30 分钟内实现 X。验收是 Y；不要合入主分支。先整理配置给我确认，再启动。
+> 用 Swarm，在当前仓库启动 2 个 Agent 自主实现 X。验收是 Y；不限时，不要合入主分支。先整理配置给我确认，再启动。
 
-之后可以说“查看 Swarm 状态”“暂停，保留任务”“继续并追加 15 分钟预算”“停止并给我结果分支”。Agent 使用上述 `swarm_manage` 工具，而不是靠聊天文本触发隐藏后台任务。`stopped` 是终态，不能直接继续，须以已接受的 SHA 开新 run。需要 DeepSeek 时先在 owner 会话选择该模型；当前同一次 run 的 worker 都继承 owner 模型，不能在 spec 中指定不同模型。
+之后可以说“查看 Swarm 状态”“暂停，保留任务”“继续 Swarm”“停止并给我结果分支”。Agent 使用上述 `swarm_manage` 工具，而不是靠聊天文本触发隐藏后台任务。`stopped` 是终态，不能直接继续，须以已接受的 SHA 开新 run。需要 DeepSeek 时先在 owner 会话选择该模型；当前同一次 run 的 worker 都继承 owner 模型，不能在 spec 中指定不同模型。
 
 ## 无 GUI / CI：headless 驱动
 
@@ -62,7 +62,9 @@ overlay 禁用 `headless-startup`/`headless-runner`、挂载 Agent preset regist
 /swarm status --details
 ```
 
-`--spec` 路径相对 owner 的当前 cwd 解析；JSON 内 `repository` 相对 spec 所在目录解析。`baseRef` 在启动时固定为一次 SHA，后续 HEAD 变化不改变这次基线。所有示例顶层字段都必须提供；workers 为 2–4，budgetMinutes 为正整数，setup 可以为空数组，test 必须非空。
+`--spec` 路径相对 owner 的当前 cwd 解析；JSON 内 `repository` 相对 spec 所在目录解析。`baseRef` 在启动时固定为一次 SHA。workers 为 2–4，setup 可以为空数组，test 必须非空。
+
+**工程任务默认不限时**：省略 `budgetMinutes` 或设为 `0`，不会因墙钟时间到期被停止。面板显示运行时长而非倒计时。只有你明确要求限时，才填写正整数分钟数；Agent 不应自行选择 20/30 分钟截止。单条命令的 `timeoutMs` 仍用于避免卡死，和整个 run 的时限是两件事。
 
 `allowDirtyBaseline: true` 只表示明确接受“未提交内容不进入 worker”；不复制这些修改。命令是 argv 数组，不经 shell 拼接。setup/test 在集成工作区运行，验证前不假定已安装依赖。需要 `$HOME` 外部缓存、网络或额外系统依赖的命令可能被当前 sandbox 拒绝，应调整项目配置或由用户选择适当权限，不让 worker 绕过策略。
 
@@ -98,7 +100,7 @@ git show <acceptedHead>
 
 - pause/stop 先关闭新工作入口，再取消并等待本 run 的资源静止；`quiescing` 表示仍在停止，不能视为已经停干净。
 - 暂停不释放任务。原 owner 只能在 paused 且已静止时 release/cancel；release 不保证换人，原 worker 也能以新版本再次认领。
-- 暂停期间 deadline 数值照常推进；过期 paused run 必须显式追加预算才能恢复。
+- 默认不限时的 run 暂停后可直接恢复。仅显式限时 run 的 deadline 在暂停期间仍推进；已过期时需明确追加时限才能恢复。
 - `completed/stopped/failed` 为终态，不能 resume。要继续，以当前 acceptedHead 重新提供完整 spec 新建 run；不隐式继承旧目标、任务或预算。
 - 一个仓库最多一个非终态 run，paused 也占名额；保留原 owner Session 才能续跑。
 - worktree 和分支保留，不自动删除。若未能确认资源停止，保留现场并报告，不宣称可以安全清理。

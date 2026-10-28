@@ -8,7 +8,6 @@
     "现有测试与新增功能测试通过"
   ],
   "workers": 2,
-  "budgetMinutes": 30,
   "allowDirtyBaseline": false,
   "verification": {
     "setup": [{ "argv": ["npm", "ci"], "timeoutMs": 300000 }],

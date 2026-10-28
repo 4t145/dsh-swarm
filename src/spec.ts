@@ -17,7 +17,7 @@ export const MIN_WORKERS = 2;
 export const MAX_WORKERS = 4;
 
 /**
- * spec 文件结构。顶层字段全部必填；未知字段视为笔误直接拒绝；
+ * spec 文件结构。budgetMinutes 可省略（默认不限时）；其他顶层字段必填。未知字段拒绝；
  * `verification.setup` 可为空数组，`verification.test` 必须非空。
  */
 export const runSpecSchema = z.strictObject({
@@ -32,7 +32,7 @@ export const runSpecSchema = z.strictObject({
     .int()
     .min(MIN_WORKERS, `workers must be between ${MIN_WORKERS} and ${MAX_WORKERS}`)
     .max(MAX_WORKERS, `workers must be between ${MIN_WORKERS} and ${MAX_WORKERS}`),
-  budgetMinutes: z.number().int().positive('budgetMinutes must be a positive integer'),
+  budgetMinutes: z.number().int().nonnegative('budgetMinutes must be non-negative').default(0),
   allowDirtyBaseline: z.boolean(),
   verification: verificationConfigSchema,
 });

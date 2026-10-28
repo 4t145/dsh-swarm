@@ -225,7 +225,7 @@ export class IntegrationQueue {
   /** 执行一步可做的集成工作；返回 true 表示状态有推进、应继续扫描。 */
   private async step(runId: RunId, signal: AbortSignal): Promise<boolean> {
     const run = this.store.get(runId);
-    if (signal.aborted || this.now() >= run.deadline) {
+    if (signal.aborted || (run.deadline !== null && this.now() >= run.deadline)) {
       return false;
     }
     if (run.phase === 'running') {
@@ -534,7 +534,7 @@ export class IntegrationQueue {
     if (verification === undefined || verification.status !== 'passed') {
       return 'interrupted_before_publish';
     }
-    if (this.now() >= run.deadline) {
+    if ((run.deadline !== null && this.now() >= run.deadline)) {
       return 'interrupted_by_budget';
     }
     return null;
@@ -896,7 +896,7 @@ export class IntegrationQueue {
         ) {
           return run;
         }
-        if (now >= run.deadline) {
+        if (run.deadline !== null && now >= run.deadline) {
           return run;
         }
         run.phase = 'quiescing';
