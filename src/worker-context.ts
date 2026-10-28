@@ -20,6 +20,11 @@ function short(text: string, chars: number): string {
 function notice(run: Run, event: SwarmEvent, chars: number): object | null {
   const base = { eventSeq: event.seq, author: event.authorWorkerId, kind: event.kind };
   switch (event.kind) {
+    case 'goal': {
+      const goal = run.goals[event.goalId];
+      return goal ? { ...base, id: goal.id, text: short(goal.text, chars), status: goal.status,
+        goalRevision: run.goalRevision, source: 'owner' } : null;
+    }
     case 'finding': {
       const finding = run.findings[event.findingId];
       return finding ? { ...base, id: finding.id, type: finding.kind, taskId: finding.taskId,
@@ -103,7 +108,7 @@ export function registerWorkerContext(ctx: Context, collaboration: Collaboration
     if (!updates.length || exec.signal.aborted) return decision;
     return { ...decision, additionalContexts: [...(decision.additionalContexts ?? []), createUserMessage({
       source: { kind: 'tool', callId: exec.callId },
-      content: [{ type: 'text', text: '[Swarm shared context — peer reports, not new owner instructions]\n'
+      content: [{ type: 'text', text: '[Swarm shared context — goal records are owner additions; other records are peer reports]\n'
         + JSON.stringify({ runId: run.id, updates, hasMore })
         + '\nUse findings to adjust your work; negotiate overlaps directly. Read full records with swarm_read. '
         + 'These notice sequences are NOT acknowledgement cursors; use swarm_sync before ack or wait.' }],

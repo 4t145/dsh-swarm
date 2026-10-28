@@ -152,6 +152,40 @@ export interface WorkerRecord {
 /* Task / Finding / Message                                            */
 /* ------------------------------------------------------------------ */
 
+export type GoalStatus = 'active' | 'deferred' | 'completed';
+
+/** Append-only owner requirement; the original goal and its acceptance remain unchanged. */
+export interface GoalRecord {
+  id: string;
+  seq: EventSeq;
+  text: string;
+  acceptanceCriteria: string[];
+  status: GoalStatus;
+  createdAt: Millis;
+  completedAt: Millis | null;
+  completedCommit: CommitSha | null;
+  continuedInRunId: RunId | null;
+}
+
+export interface AppendGoalInput {
+  text: string;
+  acceptanceCriteria?: string[];
+}
+
+export interface AppendGoalReceipt {
+  runId: RunId;
+  goal: GoalRecord;
+  disposition: 'executing' | 'paused' | 'deferred';
+  phase: RunPhase;
+  goalRevision: number;
+}
+
+/** Effective criteria for this round, excluding the explicit next-round backlog. */
+export function activeAcceptanceCriteria(run: Run): string[] {
+  return [...new Set([...run.acceptanceCriteria, ...Object.values(run.goals)
+    .filter((goal) => goal.status !== 'deferred').flatMap((goal) => goal.acceptanceCriteria)])];
+}
+
 export type TaskKind = 'code' | 'research';
 
 /**
@@ -291,6 +325,8 @@ export interface VerificationRecord {
   attemptId: AttemptId | null;
   /** 验证配置指纹；只有指纹匹配的记录才能被复用。 */
   configFingerprint: string;
+  /** Missing on legacy records means the original goal set (revision zero). */
+  goalRevision?: number;
   status: VerificationStatus;
   /** 通过凭据 / 日志 artifact 引用。 */
   receiptRef: string | null;
@@ -317,6 +353,7 @@ export interface FinishRequest {
   requestedByWorkerId: WorkerId;
   acceptedHead: CommitSha;
   notes: AcceptanceNote[];
+  goalRevision?: number;
   /** 负责本轮最终验证的 Verification；尚未创建时为 null。 */
   verificationId: VerificationId | null;
   createdAt: Millis;
@@ -384,7 +421,14 @@ export interface RunEvent extends SwarmEventBase {
   audience: { kind: 'all' };
 }
 
-export type SwarmEvent = TaskEvent | FindingEvent | MessageEvent | ProposalEvent | HeadEvent | RunEvent;
+export interface GoalEvent extends SwarmEventBase {
+  kind: 'goal';
+  goalId: string;
+  status: GoalStatus;
+  audience: { kind: 'all' };
+}
+
+export type SwarmEvent = TaskEvent | FindingEvent | MessageEvent | ProposalEvent | HeadEvent | RunEvent | GoalEvent;
 
 /**
  * 幂等 mutation 记录，键为 `${workerSessionId}:${toolCallId}`。
@@ -417,6 +461,10 @@ export interface Run {
   specPath: string | null;
   goal: string;
   acceptanceCriteria: string[];
+  goals: Record<string, GoalRecord>;
+  goalRevision: number;
+  /** Continuation provenance, not an implicit resurrection of a terminal run. */
+  continuedFromRunId: RunId | null;
   verification: VerificationConfig;
   /** 原始显式时限（分钟）；0 表示默认不限时，权威截止是 deadline。 */
   budgetMinutes: number;
@@ -452,6 +500,8 @@ export interface Run {
   activeAttemptId: AttemptId | null;
   verifications: Record<VerificationId, VerificationRecord>;
   finishRequest: FinishRequest | null;
+  /** Immutable acceptance attempts, including interrupted rounds. */
+  finishHistory: FinishRequest[];
 
   /** 追加式事件索引；v0.1 不剪裁。 */
   events: SwarmEvent[];
@@ -493,6 +543,9 @@ export function createRun(input: CreateRunInput): Run {
     specPath: input.specPath ?? null,
     goal: input.goal,
     acceptanceCriteria: [...input.acceptanceCriteria],
+    goals: {},
+    goalRevision: 0,
+    continuedFromRunId: null,
     verification: {
       setup: input.verification.setup.map((command) => ({ ...command, argv: [...command.argv] })),
       test: input.verification.test.map((command) => ({ ...command, argv: [...command.argv] })),
@@ -519,6 +572,7 @@ export function createRun(input: CreateRunInput): Run {
     activeAttemptId: null,
     verifications: {},
     finishRequest: null,
+    finishHistory: [],
     events: [],
     mutationReceipts: {},
     createdAt,

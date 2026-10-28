@@ -121,6 +121,18 @@ export const workerRecordSchema = z.strictObject({
 
 /* --------------------------- 协作实体 --------------------------- */
 
+export const goalRecordSchema = z.strictObject({
+  id: idSchema,
+  seq: seqSchema,
+  text: z.string().min(1),
+  acceptanceCriteria: z.array(z.string().min(1)).min(1),
+  status: z.enum(['active', 'deferred', 'completed']),
+  createdAt: millisSchema,
+  completedAt: millisSchema.nullable(),
+  completedCommit: commitSchema.nullable(),
+  continuedInRunId: idSchema.nullable(),
+});
+
 export const taskRecordSchema = z.strictObject({
   id: idSchema,
   revision: countSchema,
@@ -201,6 +213,7 @@ export const verificationRecordSchema = z.strictObject({
   proposalId: idSchema.nullable(),
   attemptId: idSchema.nullable(),
   configFingerprint: z.string().min(1),
+  goalRevision: countSchema.default(0),
   status: verificationStatusSchema,
   receiptRef: z.string().nullable(),
   diagnosticsRef: z.string().nullable(),
@@ -223,6 +236,7 @@ export const finishRequestSchema = z.strictObject({
   requestedByWorkerId: idSchema,
   acceptedHead: commitSchema,
   notes: z.array(acceptanceNoteSchema).min(1),
+  goalRevision: countSchema.default(0),
   verificationId: idSchema.nullable(),
   createdAt: millisSchema,
 });
@@ -293,7 +307,18 @@ const runEventSchema = z.strictObject({
   audience: audienceAllSchema,
 });
 
+const goalEventSchema = z.strictObject({
+  kind: z.literal('goal'),
+  seq: seqSchema,
+  createdAt: millisSchema,
+  authorWorkerId: idSchema.nullable(),
+  goalId: idSchema,
+  status: z.enum(['active', 'deferred', 'completed']),
+  audience: audienceAllSchema,
+});
+
 export const swarmEventSchema = z.discriminatedUnion('kind', [
+  goalEventSchema,
   taskEventSchema,
   findingEventSchema,
   messageEventSchema,
@@ -321,6 +346,9 @@ const runShape = z.strictObject({
   specPath: z.string().min(1).nullable(),
   goal: z.string().min(1),
   acceptanceCriteria: z.array(z.string().min(1)).min(1),
+  goals: z.record(z.string(), goalRecordSchema).default({}),
+  goalRevision: countSchema.default(0),
+  continuedFromRunId: idSchema.nullable().default(null),
   verification: verificationConfigSchema,
   budgetMinutes: z.number().int().min(0),
   deadline: millisSchema.nullable(),
@@ -348,6 +376,7 @@ const runShape = z.strictObject({
   activeAttemptId: idSchema.nullable(),
   verifications: z.record(z.string(), verificationRecordSchema),
   finishRequest: finishRequestSchema.nullable(),
+  finishHistory: z.array(finishRequestSchema).default([]),
 
   events: z.array(swarmEventSchema),
   mutationReceipts: z.record(z.string(), mutationReceiptSchema),
@@ -373,6 +402,7 @@ export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
     }
   };
 
+  checkKeys('goals', Object.entries(run.goals));
   checkKeys('workers', Object.entries(run.workers));
   checkKeys('tasks', Object.entries(run.tasks));
   checkKeys('findings', Object.entries(run.findings));

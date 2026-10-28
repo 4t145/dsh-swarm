@@ -68,6 +68,9 @@ export function matchesWait(run: Run, worker: WorkerRecord, event: SwarmEvent): 
   const isAny = wait.mode === 'any';
 
   switch (event.kind) {
+    case 'goal':
+      // Owner additions matter even to workers waiting on selected peer tasks.
+      return event.status === 'active';
     case 'finding':
       // 其他作者的 finding：any 恒匹配；selected 仅 taskId 在列表内。
       return isAny || (event.taskId !== null && wait.taskIds.includes(event.taskId));
@@ -110,7 +113,7 @@ export function appendEvent(run: Run, event: EventInput, now: number): SwarmEven
   run.events.push(appended);
 
   for (const worker of Object.values(run.workers)) {
-    if (!matchesWait(run, worker, appended)) continue;
+    if (!(appended.kind === 'goal' && appended.status === 'active') && !matchesWait(run, worker, appended)) continue;
     worker.wakeTargetSeq = Math.max(worker.wakeTargetSeq, seq);
   }
 

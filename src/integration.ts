@@ -349,6 +349,7 @@ export class IntegrationQueue {
       proposalId,
       attemptId,
       configFingerprint: verificationFingerprint(run.verification),
+      goalRevision: run.goalRevision,
       status: 'running',
       receiptRef: null,
       diagnosticsRef: null,
@@ -798,6 +799,8 @@ export class IntegrationQueue {
       finish === null ||
       finish.verificationId !== verificationId ||
       finish.acceptedHead !== snapshot.acceptedHead ||
+      (finish.goalRevision ?? 0) !== snapshot.goalRevision ||
+      (record.goalRevision ?? 0) !== snapshot.goalRevision ||
       record.commit !== snapshot.acceptedHead
     ) {
       // 失配的 finish 验证不会执行；标记 interrupted 以免永久排队。
@@ -892,6 +895,8 @@ export class IntegrationQueue {
         if (
           activeFinish.verificationId !== verificationId ||
           activeFinish.acceptedHead !== run.acceptedHead ||
+          (activeFinish.goalRevision ?? 0) !== run.goalRevision ||
+          (current.goalRevision ?? 0) !== run.goalRevision ||
           current.commit !== run.acceptedHead
         ) {
           return run;
@@ -1270,7 +1275,7 @@ export function selectPassedVerification(
     if (verification.status !== 'passed' || verification.commit !== commit) {
       continue;
     }
-    if (verification.configFingerprint !== fingerprint) {
+    if (verification.configFingerprint !== fingerprint || (verification.goalRevision ?? 0) !== run.goalRevision) {
       continue;
     }
     if (best === null) {

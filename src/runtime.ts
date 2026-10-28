@@ -32,7 +32,11 @@ import { KeyedSerialQueue } from './serial.ts';
 import type { StateStore } from './store.ts';
 import {
   createRun,
+  activeAcceptanceCriteria,
   isTerminalRunPhase,
+  type GoalRecord,
+  type AppendGoalInput,
+  type AppendGoalReceipt,
   type AcceptanceNote,
   type CommitSha,
   type FinishRequest,
@@ -115,6 +119,7 @@ export interface WorkerCursorDetail {
 /** `--details` 的附加字段；每页最多 `eventPageSize` 项，不给完整日志。 */
 export interface RunStatusDetails {
   workers: WorkerCursorDetail[];
+  goalRecords: GoalRecord[];
   integrationAttempts: {
     id: string;
     proposalId: string;
@@ -149,6 +154,8 @@ export interface RunStatus {
   resultRef: string;
   integrationWorktree: string | null;
   tasks: TaskCounts;
+  goalRevision: number;
+  goals: { active: number; deferred: number; completed: number; total: number };
   workers: WorkerStatusSummary[];
   proposals: { queued: number; integrating: number; accepted: number; rejected: number };
   verifications: { queued: number; running: number; passed: number; failed: number; interrupted: number };
@@ -238,6 +245,8 @@ export class SwarmRuntime {
   private readonly clock: Clock;
   private readonly makeId: () => string;
   private readonly eventPageSize: number;
+  /** Serialize owner goal intake with an explicit next-round transfer. */
+  private readonly goalIntake = new KeyedSerialQueue();
 
   /** 发布临界区与控制临界区共用的短门禁；长测试必须在门禁之外。 */
   private readonly publicationGate: KeyedSerialQueue;
@@ -313,6 +322,10 @@ export class SwarmRuntime {
    * @throws SwarmError 参数非法、owner 离线、仓库脏、同仓库已有非终态 run、初始化失败。
    */
   async start(ownerSessionId: string, spec: RunSpec): Promise<Run> {
+    return this.startRun(ownerSessionId, spec);
+  }
+
+  private async startRun(ownerSessionId: string, spec: RunSpec, continuation?: { source: Run; goals: GoalRecord[] }): Promise<Run> {
     this.assertUsable('start');
     validateStartInput(ownerSessionId, spec);
     if (!this.host.isOwnerLive(ownerSessionId)) {
@@ -345,11 +358,29 @@ export class SwarmRuntime {
         allowDirtyBaseline: spec.allowDirtyBaseline,
         createdAt: now,
       });
+      if (continuation) {
+        run.continuedFromRunId = continuation.source.id;
+        run.goalRevision = continuation.goals.length;
+        for (const goal of continuation.goals) {
+          run.goals[goal.id] = { ...goal, seq: run.nextSeq, status: 'active', continuedInRunId: null };
+          appendEvent(run, { kind: 'goal', goalId: goal.id, status: 'active', authorWorkerId: null, audience: { kind: 'all' } }, now);
+        }
+      }
       await this.repositoryAdmissions.run(info.gitCommonDir, async () => {
         operation.controller.signal.throwIfAborted();
         this.assertRepositoryIdle(info.gitCommonDir);
         await this.store.create({ ...run, workers: reserveWorkers(run, spec.workers, now) });
         persisted = true;
+        if (continuation) {
+          await this.store.update(continuation.source.id, (source) => {
+            const goals = { ...source.goals };
+            for (const goal of continuation.goals) {
+              const previous = goals[goal.id];
+              if (previous) goals[goal.id] = { ...previous, continuedInRunId: run.id };
+            }
+            return this.finalizeChange({ ...source, goals }, [], now);
+          });
+        }
       });
       await this.workspace.initializeResult(this.store.get(runId), operation.controller.signal);
       this.armDeadline(this.store.get(runId));
@@ -382,6 +413,71 @@ export class SwarmRuntime {
     }
   }
 
+  /** Persist an owner addition; closing/terminal rounds retain it as explicit next-round backlog. */
+  async appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt> {
+    this.assertUsable('appendGoal');
+    if (!input || typeof input.text !== 'string' || !input.text.trim() || input.text.length > 16_000
+      || typeof callId !== 'string' || !callId.trim()
+      || (input.acceptanceCriteria !== undefined && (!Array.isArray(input.acceptanceCriteria)
+        || input.acceptanceCriteria.length === 0 || input.acceptanceCriteria.length > 32
+        || input.acceptanceCriteria.some((criterion) => typeof criterion !== 'string' || !criterion.trim() || criterion.length > 2_000)))) {
+      throw new SwarmError('SWARM_INVALID_INPUT', 'a goal needs non-empty text and optional non-empty acceptance criteria');
+    }
+    return this.goalIntake.run(ownerSessionId, async () => {
+      this.assertUsable('appendGoal');
+      if (!this.host.isOwnerLive(ownerSessionId)) throw new SwarmError('SWARM_FORBIDDEN', 'owner session is not live');
+      const run = this.runForStatus(ownerSessionId);
+      const key = receiptKeyFor(ownerSessionId, callId);
+      // Lookup spans rounds so a retried tool call cannot duplicate an addition after continuation.
+      for (const owned of this.store.list().filter((candidate) => candidate.ownerSessionId === ownerSessionId)) {
+        const prior = owned.mutationReceipts[key];
+        if (prior?.method === 'appendGoal' && typeof prior.result === 'string') return JSON.parse(prior.result) as AppendGoalReceipt;
+      }
+      let result: AppendGoalReceipt | null = null;
+      await this.publicationGate.run(run.id, async () => {
+        await this.store.update(run.id, (current) => {
+          const active = current.phase === 'preparing' || current.phase === 'running' || current.phase === 'paused';
+          const now = this.clock.now();
+          const goal: GoalRecord = { id: this.makeId(), seq: current.nextSeq, text: input.text.trim(),
+            acceptanceCriteria: (input.acceptanceCriteria ?? [input.text]).map((criterion) => criterion.trim()),
+            status: active ? 'active' : 'deferred', createdAt: now, completedAt: null,
+            completedCommit: null, continuedInRunId: null };
+          const goalRevision = current.goalRevision + (active ? 1 : 0);
+          result = { runId: current.id, goal, phase: current.phase, goalRevision,
+            disposition: !active ? 'deferred' : current.phase === 'paused' ? 'paused' : 'executing' };
+          return this.finalizeChange({ ...current, goals: { ...current.goals, [goal.id]: goal }, goalRevision,
+            mutationReceipts: { ...current.mutationReceipts,
+              [key]: this.receipt(key, ownerSessionId, callId, 'appendGoal', JSON.stringify(result)) } },
+            [{ kind: 'goal', goalId: goal.id, status: goal.status, authorWorkerId: null, audience: { kind: 'all' } }], now);
+        });
+      });
+      if (result === null) throw new SwarmError('SWARM_INTERNAL', 'goal intake produced no receipt');
+      return result;
+    });
+  }
+
+  /** Explicitly start a fresh round for pending additions; never resumes a stopped/failed run. */
+  async continueGoals(ownerSessionId: string): Promise<Run> {
+    this.assertUsable('continueGoals');
+    return this.goalIntake.run(ownerSessionId, async () => {
+      this.assertUsable('continueGoals');
+      const source = this.runForStatus(ownerSessionId);
+      if (!isTerminalRunPhase(source.phase)) {
+        throw new SwarmError('SWARM_INVALID_STATE', 'continue requires a terminal run; use resume for a paused run');
+      }
+      const goals = Object.values(source.goals).filter((goal) => goal.status !== 'completed' && goal.continuedInRunId === null);
+      if (goals.length === 0) throw new SwarmError('SWARM_INVALID_STATE', 'no pending goals to continue');
+      return this.startRun(ownerSessionId, {
+        specPath: source.specPath ?? source.repositoryRoot,
+        repository: source.repositoryRoot, baseRef: source.acceptedHead,
+        goal: goals.map((goal) => goal.text).join('\n\n'),
+        acceptanceCriteria: [...new Set(goals.flatMap((goal) => goal.acceptanceCriteria))],
+        workers: Object.keys(source.workers).length,
+        budgetMinutes: 0, allowDirtyBaseline: source.allowDirtyBaseline, verification: source.verification,
+      }, { source, goals });
+    });
+  }
+
   /**
    * 只读状态。摘要总是可用；`details` 追加 cursor、attempt 与诊断，不触发模型或测试。
    *
@@ -412,6 +508,8 @@ export class SwarmRuntime {
       resultRef: run.resultRef,
       integrationWorktree: run.integrationWorktree,
       tasks: countTasks(run),
+      goalRevision: run.goalRevision,
+      goals: { ...countByStatus(Object.values(run.goals), ['active', 'deferred', 'completed']), total: Object.keys(run.goals).length },
       workers: Object.values(run.workers).map((worker) => this.workerSummary(worker)),
       proposals: countByStatus(Object.values(run.proposals), ['queued', 'integrating', 'accepted', 'rejected']),
       verifications: countByStatus(
@@ -505,6 +603,9 @@ export class SwarmRuntime {
         }
         const deadline =
           budgetMinutes === undefined ? current.deadline : now + budgetMinutes * 60_000;
+        const pending = Object.values(current.goals).filter((goal) => goal.status === 'deferred' && goal.continuedInRunId === null);
+        const goals = { ...current.goals };
+        for (const goal of pending) goals[goal.id] = { ...goal, status: 'active' };
         return this.finalizeChange(
           {
             ...current,
@@ -513,8 +614,11 @@ export class SwarmRuntime {
             quiesceTarget: null,
             budgetExpiredAt: null,
             deadline,
+            goals,
+            goalRevision: current.goalRevision + pending.length,
           },
-          [{ kind: 'run', phase: 'running', target: null, reason: null, authorWorkerId: null, audience: { kind: 'all' } }],
+          [{ kind: 'run', phase: 'running', target: null, reason: null, authorWorkerId: null, audience: { kind: 'all' } },
+            ...pending.map((goal): EventInput => ({ kind: 'goal', goalId: goal.id, status: 'active', authorWorkerId: null, audience: { kind: 'all' } }))],
           now,
         );
       });
@@ -705,7 +809,7 @@ export class SwarmRuntime {
    */
   async finish(
     workerSessionId: string,
-    input: { acceptedCommit: string; notes: AcceptanceNote[] },
+    input: { acceptedCommit: string; notes: AcceptanceNote[]; goalRevision?: number },
     callId: string,
   ): Promise<FinishDecision> {
     this.assertUsable('finish');
@@ -750,6 +854,7 @@ export class SwarmRuntime {
       id: finishRequestId,
       requestedByWorkerId: worker.id,
       acceptedHead: run.acceptedHead,
+      goalRevision: run.goalRevision,
       notes: input.notes.map((note) => ({ criterion: note.criterion, evidence: [...note.evidence] })),
       verificationId,
       createdAt: now,
@@ -765,6 +870,7 @@ export class SwarmRuntime {
             proposalId: null,
             attemptId: null,
             configFingerprint: fingerprint,
+            goalRevision: run.goalRevision,
             status: 'queued',
             receiptRef: null,
             diagnosticsRef: null,
@@ -782,7 +888,7 @@ export class SwarmRuntime {
       if (current.phase !== 'running' || current.finishRequest !== null) {
         return current;
       }
-      if (current.acceptedHead !== run.acceptedHead) {
+      if (current.acceptedHead !== run.acceptedHead || current.goalRevision !== run.goalRevision) {
         return current;
       }
       // 结构条件必须在同一次写内复查：前置检查之后其它写入可能又开了任务/提交。
@@ -797,6 +903,7 @@ export class SwarmRuntime {
           phase: 'draining',
           quiesceTarget: null,
           finishRequest,
+          finishHistory: [...current.finishHistory, finishRequest],
           verifications:
             verification === null
               ? current.verifications
@@ -1231,6 +1338,10 @@ export class SwarmRuntime {
             phase: target,
             quiesceTarget: null,
             budgetExpiredAt: budgetExpired,
+            goals: Object.fromEntries(Object.entries(run.goals).map(([id, goal]) => [id,
+              target === 'completed' && goal.status === 'active'
+                ? { ...goal, status: 'completed' as const, completedAt: now, completedCommit: run.acceptedHead }
+                : goal])),
           },
           [
             {
@@ -1253,7 +1364,7 @@ export class SwarmRuntime {
   private async enterQuiescingCompleted(runId: RunId): Promise<void> {
     await this.publicationGate.run(runId, async () => {
       await this.store.update(runId, (run) => {
-        if (run.phase !== 'draining' || run.finishRequest === null) {
+        if (run.phase !== 'draining' || run.finishRequest === null || (run.finishRequest.goalRevision ?? 0) !== run.goalRevision) {
           return run;
         }
         const now = this.clock.now();
@@ -1709,6 +1820,7 @@ export class SwarmRuntime {
   private statusDetails(run: Run, control: RunControlState): RunStatusDetails {
     const page = this.eventPageSize;
     return {
+      goalRecords: Object.values(run.goals).slice(-page),
       workers: Object.values(run.workers)
         .slice(0, page)
         .map((worker) => ({
@@ -1842,7 +1954,7 @@ export class SwarmRuntime {
   private assertFinishCallerAllowed(
     run: Run,
     worker: WorkerRecord,
-    input: { acceptedCommit: string; notes: AcceptanceNote[] },
+    input: { acceptedCommit: string; notes: AcceptanceNote[]; goalRevision?: number },
   ): void {
     if (isTerminalRunPhase(run.phase)) {
       throw new SwarmError('SWARM_NOT_RUNNING', `run is ${run.phase}; it is terminal`, {
@@ -1857,6 +1969,11 @@ export class SwarmRuntime {
     if (worker.initializationState !== 'ready') {
       throw new SwarmError('SWARM_INVALID_STATE', 'worker is not ready', {
         details: { runId: run.id, workerId: worker.id },
+      });
+    }
+    if ((input.goalRevision ?? 0) !== run.goalRevision) {
+      throw new SwarmError('SWARM_INVALID_STATE', 'goals changed; sync and finish with the current goalRevision', {
+        details: { runId: run.id, requestedGoalRevision: input.goalRevision ?? 0, goalRevision: run.goalRevision },
       });
     }
     if (input.acceptedCommit !== run.acceptedHead) {
@@ -2001,7 +2118,7 @@ function finishGaps(
   notes: readonly AcceptanceNote[],
   inFlightOperations: number,
 ): FinishGaps {
-  const criteria = run.acceptanceCriteria;
+  const criteria = activeAcceptanceCriteria(run);
   const noteByCriterion = new Map<string, AcceptanceNote>();
   const unknownCriteria: string[] = [];
   for (const note of notes) {
@@ -2114,7 +2231,7 @@ function validateSubmitInput(
 
 function validateFinishInput(
   workerSessionId: string,
-  input: { acceptedCommit: string; notes: AcceptanceNote[] },
+  input: { acceptedCommit: string; notes: AcceptanceNote[]; goalRevision?: number },
   callId: string,
 ): void {
   const issues: { path: string; message: string }[] = [];
@@ -2126,6 +2243,9 @@ function validateFinishInput(
   }
   if (typeof input.acceptedCommit !== 'string' || input.acceptedCommit.trim() === '') {
     issues.push({ path: 'acceptedCommit', message: 'acceptedCommit must be a non-empty string' });
+  }
+  if (input.goalRevision !== undefined && (!Number.isSafeInteger(input.goalRevision) || input.goalRevision < 0)) {
+    issues.push({ path: 'goalRevision', message: 'goalRevision must be a non-negative integer' });
   }
   if (!Array.isArray(input.notes) || input.notes.length === 0) {
     issues.push({ path: 'notes', message: 'at least one acceptance note is required' });
@@ -2207,7 +2327,8 @@ function findReusableVerification(run: Run, fingerprint: string): VerificationRe
     if (
       verification.status === 'passed' &&
       verification.commit === run.acceptedHead &&
-      verification.configFingerprint === fingerprint
+      verification.configFingerprint === fingerprint &&
+      (verification.goalRevision ?? 0) === run.goalRevision
     ) {
       return verification;
     }
