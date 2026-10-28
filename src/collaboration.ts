@@ -8,6 +8,7 @@
 
 import { appendEvent, isEventVisible, matchesWait } from './events.ts';
 import { SwarmError } from './errors.ts';
+import { activeAcceptanceCriteria, type GoalRecord } from './types.ts';
 import type { StateStore } from './store.ts';
 import type {
   EventSeq,
@@ -142,12 +143,17 @@ export interface SyncEventItem {
   finding: FindingRecord | null;
   message: MessageRecord | null;
   proposal: ProposalRecord | null;
+  goal: GoalRecord | null;
 }
 
 export interface SyncResult {
   runId: RunId;
   goal: string;
   acceptanceCriteria: string[];
+  originalAcceptanceCriteria: string[];
+  goalRevision: number;
+  goals: GoalRecord[];
+  goalsTotal: number;
   acceptedHead: string;
   worker: WorkerSummary;
   tasks: TaskSummary[];
@@ -159,7 +165,8 @@ export interface SyncResult {
 }
 
 export interface ReadItem {
-  kind: 'task' | 'finding' | 'message';
+  kind: 'task' | 'finding' | 'message' | 'goal';
+  goal?: GoalRecord;
   task: TaskRecord | null;
   finding: FindingRecord | null;
   message: MessageRecord | null;
@@ -996,8 +1003,12 @@ export class Collaboration {
       finding: null,
       message: null,
       proposal: null,
+      goal: null,
     };
     switch (event.kind) {
+      case 'goal':
+        item.goal = run.goals[event.goalId] ?? null;
+        break;
       case 'task':
         item.task = run.tasks[event.taskId] ?? null;
         break;
@@ -1052,7 +1063,11 @@ export class Collaboration {
     return {
       runId: run.id,
       goal: run.goal,
-      acceptanceCriteria: [...run.acceptanceCriteria],
+      acceptanceCriteria: activeAcceptanceCriteria(run),
+      originalAcceptanceCriteria: [...run.acceptanceCriteria],
+      goalRevision: run.goalRevision,
+      goals: Object.values(run.goals).slice(-this.eventPageSize),
+      goalsTotal: Object.keys(run.goals).length,
       acceptedHead: run.acceptedHead,
       worker: summarizeWorker(worker),
       tasks: Object.values(run.tasks)
@@ -1067,6 +1082,8 @@ export class Collaboration {
   }
 
   private findReadable(run: Run, workerId: WorkerId, id: string): ReadItem | null {
+    const goal = run.goals[id];
+    if (goal) return { kind: 'goal', goal, task: null, finding: null, message: null };
     const task = run.tasks[id];
     if (task !== undefined) {
       return { kind: 'task', task, finding: null, message: null };
@@ -1087,6 +1104,10 @@ export class Collaboration {
 
   private readableItems(run: Run, workerId: WorkerId, query: string | null): ReadItem[] {
     const items: ReadItem[] = [];
+    for (const goal of Object.values(run.goals)) {
+      if (query !== null && ![goal.text, ...goal.acceptanceCriteria].join('\n').toLowerCase().includes(query)) continue;
+      items.push({ kind: 'goal', goal, task: null, finding: null, message: null });
+    }
     for (const task of Object.values(run.tasks)) {
       if (query !== null) {
         const haystack = [task.subject, task.acceptance, ...task.scope].join('\n').toLowerCase();

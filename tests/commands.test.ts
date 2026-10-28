@@ -10,7 +10,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { CommandRuntime } from '@deepseek-ai/dsh-commands';
 import type { FileSystem } from '@deepseek-ai/dsh-fs';
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
-import { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session';
 import type { WorkingDirectoryService } from '@deepseek-ai/dsh-working-directory';
 
 import {
@@ -28,7 +28,7 @@ import {
 } from '../src/commands.ts';
 import { SwarmError } from '../src/errors.ts';
 import type { SwarmRuntime } from '../src/runtime.ts';
-import type { Run, RunSpec } from '../src/types.ts';
+import type { AppendGoalInput, AppendGoalReceipt, Run, RunSpec } from '../src/types.ts';
 import type { GitWorkspace } from '../src/workspace.ts';
 
 /** Real Host services must satisfy the narrow command context. */
@@ -177,6 +177,26 @@ class FakeRuntime implements SwarmRuntimePort {
   readonly pauseCalls: string[] = [];
   readonly resumeCalls: Array<{ ownerSessionId: string; budgetMinutes: number | undefined }> = [];
   readonly stopCalls: string[] = [];
+  readonly appendCalls: Array<{ ownerSessionId: string; input: AppendGoalInput; callId: string }> = [];
+  readonly continueCalls: string[] = [];
+  disposition: AppendGoalReceipt['disposition'] = 'executing';
+
+  async appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt> {
+    this.appendCalls.push({ ownerSessionId, input, callId });
+    if (this.failure !== undefined) throw this.failure;
+    return {
+      runId: 'run-1', phase: this.run.phase, goalRevision: 2, disposition: this.disposition,
+      goal: { id: 'goal-2', seq: 2, text: input.text, acceptanceCriteria: input.acceptanceCriteria ?? [input.text],
+        status: this.disposition === 'deferred' ? 'deferred' : 'active', createdAt: 1,
+        completedAt: null, completedCommit: null, continuedInRunId: null },
+    };
+  }
+
+  async continueGoals(ownerSessionId: string): Promise<SwarmRunView> {
+    this.continueCalls.push(ownerSessionId);
+    if (this.failure !== undefined) throw this.failure;
+    return { ...this.run, id: 'run-2', phase: 'running' };
+  }
   readonly controlCalls: Array<{
     runId: string;
     ownerSessionId: string;
@@ -463,6 +483,67 @@ describe('start', () => {
   });
 });
 
+describe('append and continue', () => {
+  it('preserves arbitrary prose and accepts structured goals without shell tokenization', () => {
+    const goal = `Don't remove "existing" goals\n也支持换行 \\ path`;
+    expect(parseSwarmCommand(`append ${goal}`)).toEqual({ kind: 'append', input: { text: goal }, json: false });
+    expect(parseSwarmCommand(`append --json ${JSON.stringify({ goal, acceptanceCriteria: ['保留历史'] })}`)).toEqual({
+      kind: 'append', input: { text: goal, acceptanceCriteria: ['保留历史'] }, json: true,
+    });
+    expect(parseSwarmCommand('continue')).toEqual({ kind: 'continue' });
+    for (const invalid of ['append', 'append   ', 'append --json', 'append --json {', 'append --json {"goal":" "}', 'append --json {"goal":"x","acceptanceCriteria":[]}', 'append --json {"goal":"x","ownerSessionId":"forged"}', 'continue now']) {
+      expect(() => parseSwarmCommand(invalid)).toThrow();
+    }
+  });
+
+  it('routes panel JSON to the same owner Host operation with a bounded receipt', async () => {
+    const { runtime, ctx, result } = await runCommand('append --json {"goal":"new feature","acceptanceCriteria":["works"]}');
+    expect(runtime.appendCalls).toEqual([{ ownerSessionId: 'owner-1', input: { text: 'new feature', acceptanceCriteria: ['works'] }, callId: expect.any(String) }]);
+    expect(ctx.resolveCalls).toEqual([]);
+    expect(result.kind).toBe('success');
+    if (result.kind === 'success') expect(JSON.parse(result.text ?? '')).toEqual({ runId: 'run-1', goalId: 'goal-2', phase: 'running', goalRevision: 2, disposition: 'executing' });
+  });
+
+  it.each(['paused', 'deferred'] as const)('shows %s without silently waking or continuing', async (disposition) => {
+    const runtime = new FakeRuntime();
+    runtime.disposition = disposition;
+    const { result } = await runCommand('append next change', { runtime });
+    expect(result.kind).toBe('success');
+    if (result.kind === 'success') expect(result.text).toContain(disposition === 'paused' ? 'still paused' : 'not executing');
+    expect(runtime.resumeCalls).toEqual([]);
+    expect(runtime.continueCalls).toEqual([]);
+  });
+
+  it.each(['append next', 'continue'])('refuses read-only, cancelled and delegated %s calls before the Host', async (command) => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    ctx.mode = 'read-only';
+    expect((await runCommand(command, { ctx, runtime })).result.kind).toBe('error');
+    ctx.mode = 'workspace-write';
+    const controller = new AbortController();
+    controller.abort();
+    expect((await runCommand(command, { ctx, runtime, signal: controller.signal })).result.kind).toBe('error');
+    const workerSession = Session.create(SessionId('worker'), undefined, {
+      version: SESSION_FORMAT_VERSION, id: SessionId('worker'), createdAt: 0, isSeeded: false, origin: 'subagent', delegationDepth: 1,
+    });
+    const result = await ctx.definitions[0]?.handler({ ...invocation(command), agent: { id: workerSession.id, session: workerSession } });
+    expect(result).toMatchObject({ kind: 'error', text: expect.stringContaining('SWARM_FORBIDDEN') });
+    expect(runtime.appendCalls).toEqual([]);
+    expect(runtime.continueCalls).toEqual([]);
+  });
+
+  it('continues explicitly and never turns Host rejection into success', async () => {
+    const runtime = new FakeRuntime();
+    const continued = await runCommand('continue', { runtime });
+    expect(runtime.continueCalls).toEqual(['owner-1']);
+    expect(continued.result).toMatchObject({ kind: 'success', text: expect.stringContaining('run id: run-2') });
+    runtime.failure = new SwarmError('SWARM_INVALID_STATE', 'cleanup in progress');
+    for (const command of ['continue', 'append next']) {
+      expect((await runCommand(command, { runtime })).result).toEqual({ kind: 'error', text: 'SWARM_INVALID_STATE: cleanup in progress' });
+    }
+  });
+});
+
 describe('status', () => {
   it('reports status without starting a model or a run', async () => {
     const { runtime, result } = await runCommand('status --details');
@@ -476,6 +557,14 @@ describe('status', () => {
       expect(result.text).toContain('events=12');
       expect(result.text).toContain('result check: unverified');
     }
+  });
+
+  it('shows active, completed and deferred goal counts in status', async () => {
+    const runtime = new FakeRuntime();
+    runtime.statusView = { ...BASE_STATUS, goalRevision: 2, goals: { total: 3, active: 1, completed: 1, deferred: 1 } };
+    const { result } = await runCommand('status', { runtime });
+    expect(result).toMatchObject({ kind: 'success', text: expect.stringContaining('active=1 deferred=1 completed=1') });
+    expect(result).toMatchObject({ text: expect.stringContaining('saved, not executing') });
   });
 
   it('omits details for a plain status request', async () => {
