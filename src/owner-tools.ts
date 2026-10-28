@@ -3,8 +3,8 @@
  *
  * This is the explicit model/Agent entry point for controlling the user's own
  * swarm run: no ordinary chat message starts a run in the background, and the
- * tool does nothing unless the model calls it with an explicit action and
- * either an inline spec or a path to a configured spec file.
+ * tool does nothing unless the model calls it with an explicit action. Start
+ * requires an inline spec or configured spec path; append preserves that spec.
  *
  * Ownership is taken from the real `exec.agent` session id, never from model
  * arguments. Subagent and delegated sessions (worker children, debug probes)
@@ -33,12 +33,12 @@ import type {
 } from './commands.ts';
 import { SwarmError, normalizeError } from './errors.ts';
 import { parseRunSpec, runSpecSchema } from './spec.ts';
-import type { RunSpec } from './types.ts';
+import type { AppendGoalReceipt, RunSpec } from './types.ts';
 
 /** Runtime calls the owner tool needs; the real `SwarmRuntime` satisfies this. */
 export type SwarmOwnerRuntimePort = Pick<
   SwarmRuntimePort,
-  'start' | 'status' | 'pause' | 'resume' | 'stop'
+  'start' | 'status' | 'pause' | 'resume' | 'stop' | 'appendGoal' | 'continueGoals'
 >;
 
 /**
@@ -62,10 +62,12 @@ export interface SwarmOwnerAgent {
 export interface SwarmOwnerInvocation {
   readonly agent: SwarmOwnerAgent;
   readonly signal: AbortSignal;
+  /** Native tool-call identity; not supplied in model arguments. */
+  readonly callId: string;
 }
 
 /** Actions exposed to the model. `task` mutation stays on the `/swarm` command. */
-export type SwarmManageAction = 'start' | 'status' | 'pause' | 'resume' | 'stop';
+export type SwarmManageAction = 'start' | 'status' | 'pause' | 'resume' | 'stop' | 'append' | 'continue';
 
 /** Validated `swarm_manage` input. */
 export type SwarmManageInput = z.output<typeof manageInput>;
@@ -75,7 +77,9 @@ const inlineSpecSchema = runSpecSchema;
 
 /** Wire schema: snake_case top level, spec file fields keep their file names. */
 const manageInput = z.strictObject({
-  action: z.enum(['start', 'status', 'pause', 'resume', 'stop']),
+  action: z.enum(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue']),
+  goal: z.string().trim().min(1).optional(),
+  acceptance_criteria: z.array(z.string().trim().min(1)).min(1).optional(),
   spec_path: z.string().min(1).optional(),
   spec: inlineSpecSchema.optional(),
   details: z.boolean().optional(),
@@ -228,11 +232,31 @@ export async function handleSwarmManage(
   runtime: SwarmOwnerRuntimePort,
   invocation: SwarmOwnerInvocation,
   input: SwarmManageInput,
-): Promise<SwarmManageReceipt | SwarmManageStatus> {
+): Promise<SwarmManageReceipt | SwarmManageStatus | (AppendGoalReceipt & { action: 'append' })> {
   assertOwnerSession(invocation.agent);
   const ownerSessionId = invocation.agent.id;
 
   switch (input.action) {
+    case 'append':
+    case 'continue': {
+      if (invocation.signal.aborted) {
+        throw new SwarmError('SWARM_INVALID_STATE', 'swarm_manage was cancelled; no goal action was applied');
+      }
+      if (ctx.sandboxPolicy.resolve({ session: invocation.agent.session }).mode === 'read-only') {
+        throw new SwarmError('SWARM_FORBIDDEN', 'session sandbox mode is read-only; changing swarm goals requires a writable session');
+      }
+      if (input.action === 'continue') {
+        return receipt('continue', await runtime.continueGoals(ownerSessionId));
+      }
+      if (input.goal === undefined) {
+        throw new SwarmError('SWARM_INVALID_INPUT', 'action=append requires goal');
+      }
+      const result = await runtime.appendGoal(ownerSessionId, {
+        text: input.goal,
+        ...(input.acceptance_criteria === undefined ? {} : { acceptanceCriteria: input.acceptance_criteria }),
+      }, invocation.callId);
+      return { action: 'append', ...result };
+    }
     case 'status': {
       const status = runtime.status(ownerSessionId, input.details ?? false);
       if (status.ownerSessionId !== ownerSessionId) {
@@ -282,9 +306,11 @@ export async function handleSwarmManage(
  * Kept as a constant so USAGE and tests can quote the same text.
  */
 export const SWARM_MANAGE_DESCRIPTION =
-  'Start, inspect or control the caller\'s own swarm run. Requires an explicit action and either '
-  + 'an inline `spec` object or `spec_path`. Ownership comes from the current Agent session; subagent '
-  + 'and worker sessions are refused. Never starts a run from ordinary chat text.';
+  'Start, inspect, append goals to or control the caller\'s own swarm run in this owner session/repository. '
+  + '`start` requires spec or spec_path; `append` saves a concrete goal without replacing history. '
+  + 'Check its disposition: executing, paused, or deferred. `continue` explicitly starts a new round '
+  + 'for deferred goals after the old run ends; paused runs use resume. Subagent and worker sessions '
+  + 'are refused. Never starts a run from ordinary chat text.';
 
 /** Tool properties mirroring {@link manageInput}. */
 const COMMAND_PROPERTIES: Record<string, JsonSchemaNode> = {
@@ -317,8 +343,13 @@ const INLINE_SPEC_PROPERTIES: Record<string, JsonSchemaNode> = {
 const MANAGE_PROPERTIES: Record<string, JsonSchemaNode> = {
   action: {
     type: 'string',
-    enum: ['start', 'status', 'pause', 'resume', 'stop'],
-    description: 'Control action. `start` requires spec or spec_path.',
+    enum: ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue'],
+    description: 'Control action. start requires spec/spec_path; append requires goal; continue starts deferred goals in a new round after termination.',
+  },
+  goal: { type: 'string', description: 'For append: concrete additional goal; existing goals and acceptance history stay unchanged.' },
+  acceptance_criteria: {
+    type: 'array', items: { type: 'string' },
+    description: 'For append: non-empty checkable requirements. Omit to use the goal itself as its requirement.',
   },
   spec_path: {
     type: 'string',
@@ -372,7 +403,7 @@ export function registerOwnerTools(
         return await handleSwarmManage(
           ctx,
           runtime,
-          { agent, signal: exec.signal },
+          { agent, signal: exec.signal, callId: String(exec.callId) },
           parsed,
         );
       } catch (error) {
