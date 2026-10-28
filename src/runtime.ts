@@ -654,6 +654,16 @@ export class SwarmRuntime {
         if (current.phase !== 'paused') {
           return current;
         }
+        const stranded = Object.values(current.workers).filter((worker) =>
+          worker.initializationState === 'failed' || worker.initializationState === 'initializing');
+        if (stranded.length) {
+          throw new SwarmError('SWARM_INVALID_STATE',
+            'worker initialization is incomplete or failed; inspect member diagnostics and worktrees before stopping and starting a new run', {
+              details: { runId: current.id, workers: stranded.map((worker) => ({
+                workerId: worker.id, state: worker.initializationState, diagnostic: worker.initializationError,
+              })) },
+            });
+        }
         const deadline =
           budgetMinutes === undefined ? current.deadline : now + budgetMinutes * 60_000;
         const pending = Object.values(current.goals).filter((goal) => goal.status === 'deferred' && goal.continuedInRunId === null);

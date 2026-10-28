@@ -54,6 +54,11 @@ interface AgentCreatedPayload {
   readonly signal?: AbortSignal;
 }
 
+/** False while native creation may have produced an unrecorded worktree. */
+interface InitializationAttempt {
+  safeToRetry: boolean;
+}
+
 /** 一次 worker 启动请求；字段与原生 `SubagentActivationSpec` 对齐。 */
 interface SubagentStartSpec {
   readonly provider: string;
@@ -451,17 +456,26 @@ export class DshWorkerHost implements WorkerHost {
           details: { runId, workerId, sessionId },
         });
       }
+      const previous = this.store.get(runId).workers[workerId];
+      if (previous?.initializationState === 'failed') {
+        throw new SwarmError('SWARM_INVALID_STATE', `worker ${workerId} initialization failed; inspect its worktree before retrying`, {
+          details: { runId, workerId, diagnostic: previous.initializationError },
+        });
+      }
+      const attempt: InitializationAttempt = { safeToRetry: true };
       try {
-        await this.initializeWorker(runId, workerId, agent, signal);
+        await this.initializeWorker(runId, workerId, agent, signal, attempt);
         this.failedSessions.delete(sessionId);
       } catch (error) {
-        this.failedSessions.add(sessionId);
+        const retryable = signal?.aborted === true && attempt.safeToRetry;
+        if (retryable) this.failedSessions.delete(sessionId);
+        else this.failedSessions.add(sessionId);
         const message = describe(error);
         await this.persistWorker(runId, workerId, (worker) => ({
           ...worker,
-          initializationState: 'failed',
-          initializationError: message,
-          unavailableReason: 'initialization_failed',
+          initializationState: retryable ? 'pending' : 'failed',
+          initializationError: retryable ? `initialization interrupted: ${message}` : message,
+          unavailableReason: retryable ? null : 'initialization_failed',
         })).catch((recordError: unknown) => {
           console.error('[swarm] could not persist worker initialization failure', recordError);
         });
@@ -476,7 +490,9 @@ export class DshWorkerHost implements WorkerHost {
     workerId: WorkerId,
     agent: Agent,
     signal: AbortSignal | undefined,
+    attempt: InitializationAttempt,
   ): Promise<void> {
+    signal?.throwIfAborted();
     const run = this.store.get(runId);
     const worker = run.workers[workerId];
     if (worker === undefined) {
@@ -492,8 +508,9 @@ export class DshWorkerHost implements WorkerHost {
       unavailableReason: null,
     }));
 
-    await this.ensureIntegrationWorktree(run, agent, signal);
-    const worktreePath = await this.ensureWorkerWorktree(run, worker, agent, signal);
+    await this.ensureIntegrationWorktree(run, agent, signal, attempt);
+    const worktreePath = await this.ensureWorkerWorktree(run, worker, agent, signal, attempt);
+    signal?.throwIfAborted();
     if (this.disposed) {
       throw new SwarmError('SWARM_INVALID_STATE', 'worker host was disposed during initialization', {
         details: { runId, workerId },
@@ -517,12 +534,15 @@ export class DshWorkerHost implements WorkerHost {
     run: Run,
     agent: Agent,
     signal: AbortSignal | undefined,
+    attempt: InitializationAttempt,
   ): Promise<void> {
     if (run.integrationWorktree !== null) {
       await requireDirectory(run.integrationWorktree, 'integration worktree');
       return;
     }
 
+    signal?.throwIfAborted();
+    attempt.safeToRetry = false;
     const created = await this.requireService('worktrees').create(
       agent,
       { name: `swarm-${run.id}-build`, from: run.baseCommit },
@@ -533,6 +553,7 @@ export class DshWorkerHost implements WorkerHost {
     await this.persistRun(run.id, (current) =>
       current.integrationWorktree === null ? { ...current, integrationWorktree: integrationPath } : current,
     );
+    attempt.safeToRetry = true; // The created tree is now owned by a persisted record.
     // 回到源仓库；worker 自己的 cwd 必须最终落在私有树。
     await this.requireService('workingDirectory').set(agent, run.repositoryRoot, signal);
   }
@@ -547,6 +568,7 @@ export class DshWorkerHost implements WorkerHost {
     worker: WorkerRecord,
     agent: Agent,
     signal: AbortSignal | undefined,
+    attempt: InitializationAttempt,
   ): Promise<string> {
     if (worker.worktreePath !== null) {
       const existing = await requireDirectory(worker.worktreePath, `worker ${worker.id} worktree`);
@@ -554,6 +576,8 @@ export class DshWorkerHost implements WorkerHost {
       return existing;
     }
 
+    signal?.throwIfAborted();
+    attempt.safeToRetry = false;
     const created = await this.requireService('worktrees').create(
       agent,
       { name: worker.branch, from: run.acceptedHead },
@@ -566,6 +590,9 @@ export class DshWorkerHost implements WorkerHost {
     }
     await assertSameRepository(created.repositoryRoot, run.repositoryRoot);
     const worktreePath = await requireDirectory(created.path, `worker ${worker.id} worktree`);
+    // Persist the verified location before a cancellable cwd switch. A resume reuses it.
+    await this.persistWorker(run.id, worker.id, (current) => ({ ...current, worktreePath }));
+    attempt.safeToRetry = true;
     await this.requireService('workingDirectory').set(agent, worktreePath, signal);
     return worktreePath;
   }
