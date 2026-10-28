@@ -11,6 +11,7 @@ interface ViewProps {
   progressError: string | null;
   watchProgress(sessionId: string, signal?: AbortSignal): Stream;
   watchSessionProgress(sessionId: string, signal?: AbortSignal): Stream;
+  executeCommand(sessionId: string, line: string, attachments: readonly unknown[], signal?: AbortSignal): Promise<unknown>;
 }
 interface Registration {
   name: string;
@@ -110,6 +111,33 @@ describe('client.js with the real Remote client', () => {
       expect(rawSignal?.aborted).toBe(true);
       expect((await iterator.next()).done).toBe(true);
       expect(ctx.get('remote.swarmProgress')).toBeUndefined();
+    } finally {
+      await ctx.fiber.dispose();
+    }
+  });
+
+  it('resolves the native commands namespace through Cordis without inventing a write remote', async () => {
+    const ctx = new Context();
+    const execute = vi.fn(async () => ({ ok: true, value: { result: { kind: 'success', text: 'saved' } } }));
+    try {
+      ctx.provide('connection', {
+        interactions: 'none', isLoopback: true,
+        generation: { getSnapshot: () => undefined },
+        rpc: { call: async () => ({ ok: true, value: null }) },
+      });
+      await ctx.plugin(registry);
+      await ctx.plugin(gateway);
+      ctx.provide('remote.commands', { execute });
+      const view = viewServices(ctx);
+      const panel = await ctx.plugin(load());
+      const props = view.registration()?.inject();
+      if (!props) throw new Error('missing view');
+      const signal = new AbortController().signal;
+      await expect(props.executeCommand('owner-session', '/swarm append --json {"goal":"CSV"}', [], signal))
+        .resolves.toMatchObject({ ok: true, value: { result: { kind: 'success' } } });
+      expect(execute).toHaveBeenCalledExactlyOnceWith('owner-session', '/swarm append --json {"goal":"CSV"}', [], signal);
+      expect(view.registration()?.inject().executeCommand).toBe(props.executeCommand);
+      await panel.dispose();
     } finally {
       await ctx.fiber.dispose();
     }
