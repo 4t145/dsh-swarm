@@ -17,6 +17,12 @@ window.__ModuleLoader__.load({
 .dshSwarm_section{margin-top:24px}.dshSwarm_sectionHead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}.dshSwarm_sectionTitle{font-size:13px;font-weight:650}.dshSwarm_workers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.dshSwarm_worker{min-width:0;padding:16px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_workerTop{display:flex;align-items:center;gap:8px;margin-bottom:12px}.dshSwarm_avatar{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600}.dshSwarm_workerName{font-size:12px;font-weight:650}.dshSwarm_workerTop .dshSwarm_badge{margin-inline-start:auto}.dshSwarm_taskTitle{font-size:16px;font-weight:600;line-height:1.4;overflow-wrap:anywhere;min-height:2.8em}.dshSwarm_workState{margin-top:10px;font-size:12px}.dshSwarm_tools{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}.dshSwarm_tool{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;border:1px solid var(--dsw-alias-border-l1);border-radius:4px;padding:2px 6px;overflow-wrap:anywhere;max-width:100%}.dshSwarm_native{display:flex;flex-wrap:wrap;gap:5px 10px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px;margin-top:14px;font-size:11px;color:var(--dsw-alias-label-secondary)}
 .dshSwarm_details{margin-top:10px;font-size:12px;color:var(--dsw-alias-label-secondary)}.dshSwarm_details summary{cursor:pointer;width:fit-content}.dshSwarm_details[open] summary{margin-bottom:10px}.dshSwarm_facts{display:grid;grid-template-columns:minmax(85px,auto) minmax(0,1fr);gap:6px 12px;margin:0}.dshSwarm_facts dt{color:var(--dsw-alias-label-secondary)}.dshSwarm_facts dd{margin:0;overflow-wrap:anywhere}.dshSwarm_root code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}
 .dshSwarm_board{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden}.dshSwarm_taskRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;padding:11px 13px;align-items:center;border-bottom:1px solid var(--dsw-alias-border-l1)}.dshSwarm_taskRow:last-child{border:0}.dshSwarm_taskSubject{font-size:12px;overflow-wrap:anywhere}.dshSwarm_taskMeta{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-secondary);margin-top:2px}.dshSwarm_countRow{display:flex;flex-wrap:wrap;gap:5px 12px;font-size:11px;color:var(--dsw-alias-label-secondary);margin-bottom:10px}.dshSwarm_timeline{border-inline-start:1px solid var(--dsw-alias-border-l1);margin-inline-start:4px!important;padding-inline-start:15px!important}.dshSwarm_event{position:relative;padding:0 0 12px;font-size:12px;overflow-wrap:anywhere}.dshSwarm_event:before{content:"";position:absolute;inset-inline-start:-19px;top:7px;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-border-l2)}.dshSwarm_event time{font-variant-numeric:tabular-nums;font-size:11px;color:var(--dsw-alias-label-secondary);margin-inline-end:10px}.dshSwarm_result{border-top:1px solid var(--dsw-alias-border-l1);padding-top:16px;margin-top:24px}.dshSwarm_empty{padding:24px 0;color:var(--dsw-alias-label-secondary)}.dshSwarm_empty h3{color:var(--dsw-alias-label-primary);font-size:14px;margin-bottom:6px}
+/* Overview, delivery and read-only collaboration controls. */
+.dshSwarm_goalBox{margin-top:18px;padding:16px 18px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_goalBox summary{cursor:pointer;font-size:11px;color:var(--dsw-alias-label-secondary)}.dshSwarm_goalPreview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin-top:7px;font-size:17px;font-weight:600;line-height:1.5;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}.dshSwarm_goalBox[open] .dshSwarm_goalPreview{display:none}.dshSwarm_goalFull{margin-top:10px!important;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-primary)}
+.dshSwarm_filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.dshSwarm_filter{font:inherit;font-size:11px;padding:4px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);cursor:pointer}.dshSwarm_filter:hover{background:var(--dsw-alias-bg-layer-2)}.dshSwarm_filter[aria-pressed=true]{color:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-2)}.dshSwarm_filterCount{font-variant-numeric:tabular-nums;margin-inline-start:6px}.dshSwarm_taskEntry{border-bottom:1px solid var(--dsw-alias-border-l1)}.dshSwarm_taskEntry:last-child{border-bottom:0}.dshSwarm_taskEntry summary{padding:12px 14px;cursor:pointer}.dshSwarm_taskEntry summary::marker{color:var(--dsw-alias-label-secondary)}.dshSwarm_taskEntry .dshSwarm_taskSubject{font-weight:600;margin-inline-end:10px}.dshSwarm_taskEntry .dshSwarm_taskMeta{margin-inline-start:14px}.dshSwarm_taskFacts{padding:0 14px 14px 28px;font-size:11px}.dshSwarm_taskEntry details[open]{background:var(--dsw-alias-bg-layer-2)}
+.dshSwarm_delivery{border:1px solid var(--dsw-alias-border-l1);border-radius:9px;padding:16px;margin:18px 0 24px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_deliveryTop{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.dshSwarm_deliveryRevision{display:flex;align-items:baseline;gap:8px 14px;flex-wrap:wrap;overflow-wrap:anywhere}.dshSwarm_deliveryRevision>code{font-size:18px;font-weight:600}.dshSwarm_deliveryChecks{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:10px;font-size:11px;color:var(--dsw-alias-label-secondary)}.dshSwarm_collaboration{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:24px;align-items:start}.dshSwarm_collaboration>.dshSwarm_section{min-width:0}.dshSwarm_scopeNote{font-size:11px;color:var(--dsw-alias-label-secondary);margin-bottom:10px!important}.dshSwarm_kpis{gap:12px;margin:14px 0}.dshSwarm_kpi dd{font-size:20px}.dshSwarm_kpiNote:empty{display:none}.dshSwarm_workflow{margin-top:16px!important}.dshSwarm_step{padding:11px 12px}
+@container(max-width:760px){.dshSwarm_collaboration{grid-template-columns:1fr;gap:0}}
+@media(max-width:760px){.dshSwarm_collaboration{grid-template-columns:1fr;gap:0}}
 @container(max-width:620px){.dshSwarm_workers{grid-template-columns:1fr}.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr))}.dshSwarm_step:nth-child(2){border-inline-end:0}.dshSwarm_step:nth-child(-n+2){border-bottom:1px solid var(--dsw-alias-border-l1)}.dshSwarm_kpis{gap:8px}.dshSwarm_kpi dd{font-size:21px}}
 @media(max-width:540px){.dshSwarm_root{padding:16px 12px 28px}.dshSwarm_workers{grid-template-columns:1fr}.dshSwarm_header{gap:12px}.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr))}.dshSwarm_step:nth-child(2){border-inline-end:0}.dshSwarm_step:nth-child(-n+2){border-bottom:1px solid var(--dsw-alias-border-l1)}.dshSwarm_taskRow{grid-template-columns:minmax(0,1fr)}.dshSwarm_taskRow>.dshSwarm_badge{justify-self:start}.dshSwarm_kpis{gap:8px}.dshSwarm_kpi dd{font-size:20px}}
 @media(prefers-reduced-motion:reduce){.dshSwarm_root *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
@@ -36,10 +42,13 @@ window.__ModuleLoader__.load({
 			"work.initializing": "准备工作区", "work.failed": "初始化失败", "work.assigned": "持有任务", "work.coordinating": "协作与选取工作", "work.waiting": "等待协作更新", "work.integration": "等待集成结果", "work.integrating": "候选正在集成", "work.unassigned": "没有当前任务",
 			"activity.running": "模型 / 执行准备中", "activity.executing": "工具调用中 · {count} 项", "activity.executingOmitted": "工具调用中 · 部分调用未展示", "activity.idle": "当前无执行中的 turn", "activity.unavailable": "执行活动不可用", "activity.legacy": "Host 未提供执行活动", "activity.stale": "最后记录：{activity}",
 			"worker.details": "执行与协作细节", "worker.id": "成员 ID", "worker.initialization": "初始化", "worker.turnStep": "Turn {turn} · Step {step}", "worker.wait": "等待条件", "wait.any": "任意匹配的协作更新", "wait.selected": "指定任务 / 提案更新", "wait.after": "已读至事件 {seq}", "worker.proposal": "当前提案", "tools.recent": "最近工具（非执行中）", "tool.executing": "调用中", "tool.completed": "已返回", "tool.failed": "失败", "tool.interrupted": "已中断",
-			"init.pending": "待准备", "init.initializing": "准备中", "init.ready": "就绪", "init.failed": "失败", "task.open": "待认领", "task.claimed": "进行中", "task.proposed": "待集成", "task.done": "已完成", "task.blocked": "阻塞", "task.cancelled": "已取消",
+			"init.pending": "待准备", "init.initializing": "准备中", "init.ready": "就绪", "init.failed": "失败", "task.open": "待认领", "task.claimed": "已认领", "task.proposed": "待集成", "task.done": "已完成", "task.blocked": "阻塞", "task.cancelled": "已取消",
 			"tasks.title": "任务板", "tasks.empty": "尚未创建任务。", "tasks.missing": "当前 Host 未提供任务板。", "tasks.more": "显示 {shown}/{total} 项（优先展示活跃任务）", "tasks.unowned": "未分配", "tasks.details": "更多任务（{count}）",
 			"events.title": "公开活动", "events.note": "仅任务、提案、结果与运行状态；不含私信或推理", "events.empty": "暂无公开状态变更。", "events.missing": "当前 Host 未提供公开活动。", "events.more": "更早活动（{count}）", "event.task": "任务", "event.proposal": "提案", "event.head": "结果版本", "event.run": "运行", "event.updated": "已更新", "proposal.queued": "排队中", "proposal.integrating": "集成中", "proposal.accepted": "已接受", "proposal.rejected": "已拒绝",
 			"result.title": "结果与运行细节", "result.ref": "结果分支", "result.head": "已接受 SHA", "result.base": "基线 SHA", "result.run": "运行 ID", "result.verification": "验证计数", "result.proposals": "提案计数", "result.finish": "交付验证请求", "result.noFinish": "尚未请求", "result.note": "已接受版本不等于整个目标已验收；仅运行状态为“已完成”时表示交付完成。", "reason": "当前原因：{reason}", "detail.error": "部分详情不可用：{message}",
+			"overview.goal": "本轮目标 · 展开全文", "overview.goalMissing": "Host 未提供目标", "filter.all": "全部", "tasks.flow": "任务认领与推进", "tasks.noMatch": "本快照中没有此状态的任务。", "task.revision": "修订", "task.owner": "当前成员", "task.identity": "任务 ID", "task.proposal": "关联提案", "tasks.snapshot": "Host 仅提供 {shown}/{total} 项；筛选限于当前快照。",
+			"events.recent": "最近公开活动", "events.scope": "最近 {count} 条", "events.noMatch": "最近活动中没有此类记录。", "events.source": "活动范围", "events.sourceNote": "仅 Host 提供的最近公开状态变更，不含完整历史、私信或推理。", "events.revision": "结果",
+			"delivery.title": "当前交付", "delivery.baseline": "仍为基线", "delivery.integrated": "已集成 · 待整体验收", "delivery.verifying": "整体验证中", "delivery.closing": "交付收尾中", "delivery.completed": "交付完成", "delivery.stopped": "运行已停止", "delivery.failed": "运行失败", "delivery.accepted": "已集成 {count} 个提案", "delivery.pending": "待集成 {count}", "delivery.checks": "验证通过 {count}", "delivery.errors": "验证失败 {failed} · 中断 {interrupted}", "delivery.details": "版本与验证详情",
 			"verification.summary": "排队 {queued} · 执行 {running} · 通过 {passed} · 失败 {failed} · 中断 {interrupted}", "proposal.summary": "排队 {queued} · 集成 {integrating} · 接受 {accepted} · 拒绝 {rejected}"
 		};
 		const en = {
@@ -61,6 +70,9 @@ window.__ModuleLoader__.load({
 			"tasks.title": "Task board", "tasks.empty": "No tasks created yet.", "tasks.missing": "Task board is unavailable from this Host.", "tasks.more": "Showing {shown}/{total} tasks (active first)", "tasks.unowned": "Unassigned", "tasks.details": "More tasks ({count})",
 			"events.title": "Public activity", "events.note": "Task, proposal, result and run states only; no private messages or reasoning", "events.empty": "No public state changes yet.", "events.missing": "Public activity is unavailable from this Host.", "events.more": "Earlier activity ({count})", "event.task": "Task", "event.proposal": "Proposal", "event.head": "Result revision", "event.run": "Run", "event.updated": "Updated", "proposal.queued": "Queued", "proposal.integrating": "Integrating", "proposal.accepted": "Accepted", "proposal.rejected": "Rejected",
 			"result.title": "Result & run details", "result.ref": "Result branch", "result.head": "Accepted SHA", "result.base": "Base SHA", "result.run": "Run ID", "result.verification": "Verification counts", "result.proposals": "Proposal counts", "result.finish": "Finish verification", "result.noFinish": "Not requested", "result.note": "An accepted revision is not acceptance of the whole goal. Delivery is complete only when the run is Completed.", "reason": "Current reason: {reason}", "detail.error": "Some details are unavailable: {message}",
+			"overview.goal": "Run goal · Expand", "overview.goalMissing": "Goal unavailable from Host", "filter.all": "All", "tasks.flow": "Task ownership & progress", "tasks.noMatch": "No tasks with this status in the snapshot.", "task.revision": "Revision", "task.owner": "Current worker", "task.identity": "Task ID", "task.proposal": "Linked proposal", "tasks.snapshot": "Host provides {shown}/{total} tasks; filters use this snapshot only.",
+			"events.recent": "Recent public activity", "events.scope": "Latest {count} events", "events.noMatch": "No matching events in recent activity.", "events.source": "Activity scope", "events.sourceNote": "Recent public state changes from Host only, not full history, private messages or reasoning.", "events.revision": "Results",
+			"delivery.title": "Current delivery", "delivery.baseline": "Baseline only", "delivery.integrated": "Integrated · Delivery pending", "delivery.verifying": "Verifying delivery", "delivery.closing": "Closing delivery resources", "delivery.completed": "Delivery complete", "delivery.stopped": "Run stopped", "delivery.failed": "Run failed", "delivery.accepted": "{count} proposals accepted", "delivery.pending": "{count} pending integration", "delivery.checks": "{count} verifications passed", "delivery.errors": "{failed} failed · {interrupted} interrupted", "delivery.details": "Revision & verification details",
 			"verification.summary": "Queued {queued} · running {running} · passed {passed} · failed {failed} · interrupted {interrupted}", "proposal.summary": "Queued {queued} · integrating {integrating} · accepted {accepted} · rejected {rejected}"
 		};
 
@@ -248,14 +260,32 @@ window.__ModuleLoader__.load({
 					worker.activity?.recentTools.length ? h("div", { className: "dshSwarm_section" }, h("p", {}, t("tools.recent", {})), h("div", { className: "dshSwarm_tools" }, tools(worker.activity.recentTools))) : null));
 		}
 
+		const taskFilters = ["all", "open", "claimed", "proposed", "blocked", "done", "cancelled"];
+		function filterTasks(progress, status) {
+			return (progress.taskBoard?.items ?? []).filter((task) => status === "all" || task.status === status);
+		}
+		function filterEvents(progress, kind) {
+			return [...(progress.recentEvents ?? [])].reverse().filter((event) => kind === "all" || event.kind === kind);
+		}
+		function filterButton(key, name, selected, onSelect, count) {
+			return h("button", { key, type: "button", className: "dshSwarm_filter", "aria-pressed": selected, onClick: () => onSelect(key) }, name, count == null ? null : h("span", { className: "dshSwarm_filterCount" }, count));
+		}
 		function TaskBoard({ t, progress }) {
+			const [status, setStatus] = React.useState("all");
 			const board = progress.taskBoard;
 			const names = new Map(progress.workers.map((worker, index) => [worker.id, t("worker.name", { number: index + 1 })]));
-			const rows = (items) => h("ul", { className: "dshSwarm_board" }, items.map((task) => h("li", { key: task.id, className: "dshSwarm_taskRow" }, h("div", {}, h("div", { className: "dshSwarm_taskSubject" }, task.subject), h("div", { className: "dshSwarm_taskMeta" }, h("code", {}, task.id), h("span", {}, names.get(task.ownerWorkerId) ?? task.ownerWorkerId ?? t("tasks.unowned", {})))), badge(label(t, "task", task.status), tone(task.status)))));
-			return h("section", { className: "dshSwarm_section", "aria-label": t("tasks.title", {}) }, h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("tasks.title", {})), h("span", { className: "dshSwarm_subtle" }, progress.tasks.done + " / " + progress.tasks.total)),
-				h("div", { className: "dshSwarm_countRow" }, ["open", "claimed", "proposed", "blocked", "cancelled"].map((status) => h("span", { key: status }, label(t, "task", status), " ", progress.tasks[status]))),
-				!board ? h("p", { className: "dshSwarm_subtle" }, t("tasks.missing", {})) : !board.items.length ? h("p", { className: "dshSwarm_subtle" }, t("tasks.empty", {})) : h(React.Fragment, {}, rows(board.items.slice(0, 6)), board.items.length > 6 ? h("details", { className: "dshSwarm_details" }, h("summary", {}, t("tasks.details", { count: board.items.length - 6 })), rows(board.items.slice(6))) : null,
-					board.truncated ? h("p", { className: "dshSwarm_subtle" }, t("tasks.more", { shown: board.items.length, total: board.total })) : null));
+			const items = filterTasks(progress, status);
+			const rows = (tasks) => h("ul", { className: "dshSwarm_board" }, tasks.map((task) => {
+				const owner = names.get(task.ownerWorkerId) ?? task.ownerWorkerId ?? t("tasks.unowned", {});
+				return h("li", { key: task.id, className: "dshSwarm_taskEntry" }, h("details", {},
+					h("summary", {}, h("span", { className: "dshSwarm_taskSubject" }, task.subject), badge(label(t, "task", task.status), tone(task.status)), h("span", { className: "dshSwarm_taskMeta" }, owner)),
+					h("dl", { className: "dshSwarm_facts dshSwarm_taskFacts" }, fact(t("task.identity", {}), h("code", {}, task.id)), fact(t("task.owner", {}), owner), fact(t("task.revision", {}), task.revision), task.proposalId ? fact(t("task.proposal", {}), h("code", {}, task.proposalId)) : null)));
+			}));
+			return h("section", { className: "dshSwarm_section", "aria-label": t("tasks.flow", {}) },
+				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("tasks.flow", {}))),
+				board ? h("div", { className: "dshSwarm_filters", role: "group", "aria-label": t("tasks.title", {}) }, taskFilters.map((key) => filterButton(key, key === "all" ? t("filter.all", {}) : label(t, "task", key), status === key, setStatus, key === "all" ? progress.tasks.total : progress.tasks[key]))) : null,
+				board?.truncated ? h("p", { className: "dshSwarm_scopeNote dshSwarm_warn", role: "status" }, t("tasks.snapshot", { shown: board.items.length, total: board.total })) : null,
+				!board ? h("p", { className: "dshSwarm_subtle" }, t("tasks.missing", {})) : !items.length ? h("p", { className: "dshSwarm_subtle" }, t(board.total === 0 ? "tasks.empty" : "tasks.noMatch", {})) : h(React.Fragment, { key: status }, rows(items.slice(0, 6)), items.length > 6 ? h("details", { className: "dshSwarm_details" }, h("summary", {}, t("tasks.details", { count: items.length - 6 })), rows(items.slice(6))) : null));
 		}
 		function describeEvent(progress, event) {
 			const tasks = [...(progress.taskBoard?.items ?? []), ...progress.workers.map((worker) => worker.currentTask).filter(Boolean)];
@@ -263,32 +293,50 @@ window.__ModuleLoader__.load({
 			return { subject: task?.subject ?? (event.kind === "run" ? null : event.objectId.slice(0, 12)), workerNumber: progress.workers.findIndex((worker) => worker.id === event.authorWorkerId) + 1 };
 		}
 		function Timeline({ t, progress }) {
+			const [kind, setKind] = React.useState("all");
 			const events = progress.recentEvents;
 			const rows = (items) => h("ol", { className: "dshSwarm_timeline" }, items.map((event) => {
 				const description = describeEvent(progress, event);
 				return h("li", { className: "dshSwarm_event", key: event.seq }, timeElement(event.createdAt), label(t, "event", event.kind), " · ", description.subject ? h("span", { title: event.objectId }, description.subject, " · ") : null,
 					event.kind === "head" ? t("event.updated", {}) : label(t, event.kind === "run" ? "phase" : event.kind, event.status), description.workerNumber ? h("span", { className: "dshSwarm_subtle" }, " · ", t("worker.name", { number: description.workerNumber })) : null);
 			}));
-			const newest = events ? [...events].reverse() : [];
-			return h("section", { className: "dshSwarm_section", "aria-label": t("events.title", {}) }, h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("events.title", {}))), h("p", { className: "dshSwarm_subtle", style: { marginBottom: 12 } }, t("events.note", {})),
-				!events || !events.length ? h("p", { className: "dshSwarm_subtle" }, t(events ? "events.empty" : "events.missing", {})) : h(React.Fragment, {}, rows(newest.slice(0, 6)), newest.length > 6 ? h("details", { className: "dshSwarm_details" }, h("summary", {}, t("events.more", { count: newest.length - 6 })), rows(newest.slice(6))) : null));
+			const newest = filterEvents(progress, kind);
+			return h("section", { className: "dshSwarm_section", "aria-label": t("events.recent", {}) },
+				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("events.recent", {})), events ? h("span", { className: "dshSwarm_subtle" }, t("events.scope", { count: events.length })) : null),
+				events ? h("div", { className: "dshSwarm_filters", role: "group", "aria-label": t("events.title", {}) }, ["all", "task", "proposal", "head", "run"].map((key) => filterButton(key, t(key === "all" ? "filter.all" : key === "head" ? "events.revision" : "event." + key, {}), kind === key, setKind))) : null,
+				!events || !newest.length ? h("p", { className: "dshSwarm_subtle" }, t(!events ? "events.missing" : events.length ? "events.noMatch" : "events.empty", {})) : h(React.Fragment, { key: kind }, rows(newest.slice(0, 6)), newest.length > 6 ? h("details", { className: "dshSwarm_details" }, h("summary", {}, t("events.more", { count: newest.length - 6 })), rows(newest.slice(6))) : null),
+				events ? h("details", { className: "dshSwarm_details" }, h("summary", {}, t("events.source", {})), h("p", {}, t("events.sourceNote", {}))) : null);
+		}
+		function deliveryState(progress) {
+			if (["completed", "stopped", "failed"].includes(progress.phase)) return progress.phase;
+			if (progress.phase === "quiescing" && progress.quiesceTarget === "completed") return "closing";
+			if (progress.phase === "draining") return "verifying";
+			return progress.acceptedHead === progress.baseCommit ? "baseline" : "integrated";
+		}
+		function DeliveryCard({ t, progress: p }) {
+			const delivery = deliveryState(p);
+			return h("section", { className: "dshSwarm_delivery", "aria-label": t("delivery.title", {}) },
+				h("div", { className: "dshSwarm_deliveryTop" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("delivery.title", {})), badge(t("delivery." + delivery, {}), tone(delivery))),
+				h("div", { className: "dshSwarm_deliveryRevision" }, h("code", { title: p.acceptedHead, "aria-label": t("result.head", {}) + ": " + p.acceptedHead }, p.acceptedHead.slice(0, 12)), h("span", { className: "dshSwarm_subtle" }, t("result.ref", {}), " · ", h("code", {}, p.resultRef))),
+				h("div", { className: "dshSwarm_deliveryChecks" }, h("span", {}, t("delivery.accepted", { count: p.proposals.accepted })), p.proposals.queued + p.proposals.integrating ? h("span", { className: "dshSwarm_active" }, t("delivery.pending", { count: p.proposals.queued + p.proposals.integrating })) : null, h("span", {}, t("delivery.checks", { count: p.verifications.passed })), p.verifications.failed + p.verifications.interrupted ? h("span", { className: "dshSwarm_warn" }, t("delivery.errors", p.verifications)) : null),
+				h("details", { className: "dshSwarm_details" }, h("summary", {}, t("delivery.details", {})), h("dl", { className: "dshSwarm_facts" },
+					fact(t("result.head", {}), h("code", {}, p.acceptedHead)), fact(t("result.base", {}), h("code", {}, p.baseCommit)), fact(t("result.run", {}), h("code", {}, p.runId)), fact(t("result.proposals", {}), t("proposal.summary", p.proposals)), fact(t("result.verification", {}), t("verification.summary", p.verifications)), fact(t("result.finish", {}), p.finishRequest?.verificationId ?? (p.finishRequest ? p.finishRequest.id : t("result.noFinish", {}))))));
 		}
 		function RunBody({ t, state, now }) {
 			const p = state.progress;
 			const clock = deriveClock(state, now);
 			const kpi = (name, value, note) => h("div", { className: "dshSwarm_kpi" }, h("dt", {}, name), h("dd", {}, value, h("span", { className: "dshSwarm_kpiNote" }, note)));
 			return h(React.Fragment, {},
-				p.goal ? h("p", { className: "dshSwarm_goal" }, p.goal) : null,
+				p.goal ? h("details", { className: "dshSwarm_goalBox" }, h("summary", {}, t("overview.goal", {}), h("span", { className: "dshSwarm_goalPreview" }, p.goal)), h("p", { className: "dshSwarm_goalFull" }, p.goal)) : h("p", { className: "dshSwarm_subtle" }, t("overview.goalMissing", {})),
 				p.reason ? notice(t("reason", { reason: p.reason }), p.phase === "quiescing" && p.quiesceTarget ? label(t, "phase", p.quiesceTarget) : null) : null,
 				h("ol", { className: "dshSwarm_workflow", "aria-label": t("workflow", {}) }, deriveWorkflow(p).map((stage, index) => h("li", { key: stage.id, className: "dshSwarm_step", "data-state": stage.state, "aria-label": t("stage." + stage.id, {}) + ": " + t("stage." + stage.state, {}) }, h("div", { className: "dshSwarm_stepName" }, h("span", { className: "dshSwarm_stepIndex", "aria-hidden": true }, String(index + 1).padStart(2, "0")), t("stage." + stage.id, {})), h("div", { className: "dshSwarm_stepCount" }, t("stage." + stage.id + ".count", stage.counts))))),
-				h("dl", { className: "dshSwarm_kpis" }, kpi(t("tasks.kpi", {}), p.tasks.done + " / " + p.tasks.total, t("tasks.note", p.tasks)), kpi(t("verification.kpi", {}), p.verifications.passed, t("verification.note", p.verifications)), kpi(t(budgetKey(p), {}), duration(clock.remainingMs), clock.elapsedMs === null ? t("elapsed.unknown", {}) : t("elapsed", { duration: duration(clock.elapsedMs) }))),
+				h("dl", { className: "dshSwarm_kpis" }, kpi(t("tasks.kpi", {}), p.tasks.done + " / " + p.tasks.total, p.tasks.blocked + p.tasks.cancelled ? t("tasks.note", p.tasks) : null), kpi(t("verification.kpi", {}), p.verifications.passed, p.verifications.running + p.verifications.failed + p.verifications.interrupted ? t("verification.note", p.verifications) : null), kpi(t(budgetKey(p), {}), duration(clock.remainingMs), clock.elapsedMs === null ? t("elapsed.unknown", {}) : t("elapsed", { duration: duration(clock.elapsedMs) }))),
 				clock.remainingMs === 0 && !terminal(p.phase) ? h("p", { className: "dshSwarm_subtle dshSwarm_warn" }, t("budget.expired", {})) : null,
+				h(DeliveryCard, { t, progress: p }),
 				h("section", { "aria-label": t("workers.title", {}) }, h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("workers.title", {}))), h("ul", { className: "dshSwarm_workers" }, p.workers.map((worker, index) => h(WorkerCard, { key: worker.id, worker, number: index + 1, t, stale: state.status !== "live" }))), h("p", { className: "dshSwarm_subtle", style: { marginTop: 8 } }, t("workers.note", {}))),
 				p.detailError ? notice(t("unavailable", {}), t("detail.error", { message: p.detailError })) : null,
-				h(TaskBoard, { t, progress: p }), h(Timeline, { t, progress: p }),
-				h("details", { className: "dshSwarm_details dshSwarm_result" }, h("summary", {}, t("result.title", {})), h("dl", { className: "dshSwarm_facts" },
-					fact(t("result.ref", {}), h("code", {}, p.resultRef)), fact(t("result.head", {}), h("code", {}, p.acceptedHead)), fact(t("result.base", {}), h("code", {}, p.baseCommit)), fact(t("result.run", {}), h("code", {}, p.runId)),
-					fact(t("result.proposals", {}), t("proposal.summary", p.proposals)), fact(t("result.verification", {}), t("verification.summary", p.verifications)), fact(t("result.finish", {}), p.finishRequest?.verificationId ?? (p.finishRequest ? p.finishRequest.id : t("result.noFinish", {})))), h("p", { style: { marginTop: 12 } }, t("result.note", {}))));
+				h("div", { className: "dshSwarm_collaboration" }, h(TaskBoard, { t, progress: p }), h(Timeline, { t, progress: p })));
+
 		}
 
 		function SwarmProgressView(props) {
@@ -313,7 +361,7 @@ window.__ModuleLoader__.load({
 				current.status !== "live" && current.hasSnapshot ? notice(t("stale.title", {}), t(current.status === "ended" ? "ended.body" : "stale.body", {})) : null,
 				current.message || (!available && props.progressError) ? h("p", { role: "alert", className: "dshSwarm_notice" }, current.message || props.progressError) : null,
 				current.legacy ? notice(t("legacy.title", {}), t("legacy.body", {})) : null,
-				current.progress ? h(RunBody, { t, state: current, now }) : current.hasSnapshot ? h("div", { className: "dshSwarm_empty" }, h("h3", {}, t("noRun.title", {})), h("p", {}, t("noRun.body", {}))) : h("p", { className: "dshSwarm_empty" }, t(current.status === "loading" ? "loading" : "unavailable", {})));
+				current.progress ? h(RunBody, { key: sessionId + ":" + current.progress.runId, t, state: current, now }) : current.hasSnapshot ? h("div", { className: "dshSwarm_empty" }, h("h3", {}, t("noRun.title", {})), h("p", {}, t("noRun.body", {}))) : h("p", { className: "dshSwarm_empty" }, t(current.status === "loading" ? "loading" : "unavailable", {})));
 		}
 
 		async function apply(ctx) {
@@ -348,6 +396,6 @@ window.__ModuleLoader__.load({
 			}, "dsh-swarm: progress panel");
 		}
 		// Pure derivations and the stream owner are also exercised without emulating a browser.
-		return { apply, inject: ["slots", "locale", "remote"], progressClient: { readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, deriveClock, startClock, budgetKey, describeEvent, duration, dictionaries: { zh, en } } };
+		return { apply, inject: ["slots", "locale", "remote"], progressClient: { readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, dictionaries: { zh, en } } };
 	}
 });
