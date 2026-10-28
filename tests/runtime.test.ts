@@ -745,6 +745,30 @@ describe('pause / resume / stop 与预算', () => {
     expect(harness.delivery.kicks).toContain(run.id);
   });
 
+  it.each(['failed', 'initializing'] as const)('resume 拒绝 %s 初始化，不静默遗留无法运行的成员', async (initializationState) => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await h.runtime.pause(OWNER);
+    const workerId = workerIds(run)[0];
+    if (!workerId) throw new Error('missing worker');
+    await h.store.update(run.id, (current) => {
+      const worker = current.workers[workerId];
+      if (!worker) throw new Error('missing worker');
+      return { ...current, workers: { ...current.workers, [workerId]: {
+        ...worker, initializationState, initializationError: 'unknown partial worktree',
+      } } };
+    });
+    const before = h.store.get(run.id);
+    const starts = harness.delivery.starts.length;
+    await expect(h.runtime.resume(OWNER)).rejects.toMatchObject({
+      code: 'SWARM_INVALID_STATE',
+      details: { workers: [{ workerId, state: initializationState, diagnostic: 'unknown partial worktree' }] },
+    });
+    expect(h.store.get(run.id)).toEqual(before);
+    expect(h.clock.pendingTimers()).toBe(0);
+    expect(harness.delivery.starts).toHaveLength(starts);
+  });
+
   it('终态 run 不能 resume', async () => {
     const h = createHarness();
     const run = await startRun(h);
