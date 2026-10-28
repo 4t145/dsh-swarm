@@ -291,7 +291,6 @@ window.__ModuleLoader__.load({
 				h("div", { className: "dshSwarm_native" }, h("span", { className: worker.nativeStatus === "unavailable" ? "dshSwarm_warn" : "" }, t("worker.native", { status: worker.nativeStatus })), worker.activity?.turn != null ? h("span", {}, t("worker.turnStep", { turn: worker.activity.turn, step: worker.activity.step ?? "—" })) : null),
 				diagnostics.map((diagnostic) => h("p", { key: diagnostic, className: "dshSwarm_subtle dshSwarm_warn" }, diagnostic)),
 				h("details", { className: "dshSwarm_details" }, h("summary", {}, t("worker.details", {})),
-					worker.nativeStatus === "inactive" ? h("p", {}, t("worker.inactiveNote", {})) : null,
 					h("dl", { className: "dshSwarm_facts" }, fact(t("worker.id", {}), h("code", {}, worker.id)), fact(t("worker.initialization", {}), label(t, "init", worker.initializationState)),
 						view.task ? fact(t("worker.task", {}), h("code", {}, view.task.id)) : null,
 						worker.wait ? fact(t("worker.wait", {}), h("div", {}, t("wait." + worker.wait.mode, {}), h("div", {}, t("wait.after", { seq: worker.wait.afterSeq })), h("code", {}, [...worker.wait.taskIds, ...worker.wait.proposalIds].join(" · ")))) : null,

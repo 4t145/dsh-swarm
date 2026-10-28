@@ -50,6 +50,8 @@ function status(overrides: Partial<RunStatus> = {}): RunStatus {
     deadline: 10_000,
     now: 4_000,
     budgetExpired: false,
+    goalRevision: 0,
+    goals: { total: 0, active: 0, deferred: 0, completed: 0 },
     baseCommit: 'a'.repeat(40),
     acceptedHead: 'b'.repeat(40),
     resultRef: 'refs/dsh-swarm/result',
@@ -968,7 +970,11 @@ describe('client.js progress panel rendering', () => {
     for (const native of ['running', 'inactive', 'unavailable']) {
       expect(text).toContain(zh('worker.native').replace('{status}', native));
     }
-    expect(text).toContain(zh('worker.inactiveNote'));
+    // The member view states facts instead of a blanket completion disclaimer.
+    // Inactivity is rendered as idle/unassigned, never as completed work.
+    expect(text).toContain(zh('work.unassigned'));
+    expect(text).toContain(zh('activity.idle'));
+    expect(text).not.toContain(zh('worker.inactiveNote'));
     expect(text).toContain(zh('stale.title'));
     expect(text).toContain('provider missing');
     expect(text).toContain('Implement progress DTO');
