@@ -122,3 +122,13 @@
 - 用户指出实验预算不应成为工程任务的默认生命周期。现改为省略 budgetMinutes 或设为 0 时 deadline=null，不注册到期 timer，启动/恢复/提交/集成/最终验证都不因墙钟截止被拒绝；正整数时限仅供用户明确选择及兼容历史记录。单命令 timeoutMs、用户停止、故障/无进展处理保持原规则。
 - null 截止贯穿持久 schema、status、headless、命令和进度 DTO；Client 在不限时模式显示运行时长/无截止时间，不显示虚假的 0 秒或过期提示。旧 numeric deadline 记录不被迁移或复活，已 stopped 的历史 run 仍为终态。
 - 默认示例去掉分钟数，owner 工具参数明确不让模型自行选择时限。本轮仅执行 JS 语法检查、源码构建及 diff 检查，没有新增模型 run 或运行全套测试。
+
+## 持续追加目标与品牌入口
+
+- 本轮由四个对等 Swarm worker 自主协商接口与写范围：Host/持久协议、owner 工具/命令、面板/图标、生命周期回归/说明。没有修改 DSH 源码、profile、凭据、依赖或 lockfile，也没有安装插件或启动服务器。
+- [Runtime](<src/runtime.ts>) 的 `appendGoal(ownerSessionId, input, callId)` 是共同业务入口；[owner 工具](<src/owner-tools.ts>) 的 `swarm_manage action=append`、[slash 命令](<src/commands.ts>) 和[面板](<client.js>) 复用它。面板通过真实 `commands.execute` 使用当前 Session；不是伪造 SessionEvent 或绕过 permission。owner 身份来自实际调用 Agent，worker/子会话不取得控制权。
+- 原始 `Run.goal` / `acceptanceCriteria` 不改写。新增目标有持久 ID、事件 seq、正文、验收项、状态与完成/后续 run 关联；缺省验收为正文。running/preparing 的追加进入本轮，paused 的追加已保存但不唤醒；draining/quiescing/终态收到的目标是 deferred，不混入旧 finish。工具与 UI 区分 executing / paused / deferred，失败直接报告，不将拒绝包装为成功。
+- active 目标形成当前验收集，finish 和 Verification 绑定 `goalRevision`；有追加目标时，worker 必须用 sync 返回的当前 revision 提交 `goal_revision`，即使新增验收文字与旧验收重复也不能沿用旧请求。旧 revision 的代码验证不可冒充新目标验收。收尾只完成 active 目标；deferred 保持待继续。明确 `continue` 才从旧 acceptedHead 开新 run，保留历史目标到新 run 的关联；停止/故障不隐式复活，默认仍不限时。
+- [协作同步](<src/collaboration.ts>) 支持目标的正常 sync/read/search；公开 goal 事件进入 worker 知识与唤醒路径，新增工作由 worker 自主组织，不需要 owner 给每个 worker 派单。旧记录通过 schema 默认值保持可读，原验收历史不被覆盖。
+- [品牌资源](<icon.svg>) 与面板使用原创 SVG；当前宿主 `CommandDefinition` 只有 name/description/input/handler，没有自定义 icon 字段。slash 描述使用简洁符号，未修改宿主 DOM，也不声称菜单左侧支持自定义 SVG。面板沿用中英文、主题 token 和原生可展开结构。
+- [目标回归](<tests/goals.test.ts>) 使用真实 Runtime、Store、Delivery、IntegrationQueue 与 fake effect ports；验证/停止竞态使用显式 Promise 屏障，不用真实模型、轮询或 sleep。16 项定向回归通过，覆盖所有追加阶段、暂停收尾后的显式恢复、continue/append 交错、旧验证与重复验收文字、持久历史和 worker wait/sync/read。此贡献同时通过 `node --check client.js`、`pnpm build` 与 `git diff --check`；未跑全项目测试或另开模型 run。原生 GUI 目视与当前进程部署仍由 Lead 另行完成，源码测试不等于已加载新 Host。
