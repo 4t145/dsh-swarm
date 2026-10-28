@@ -329,7 +329,7 @@ describe('wait → pending → settled', () => {
     expect(h.host.notifies).toHaveLength(1);
   });
 
-  it('新 settled 但未 ack 时允许重投同一上界，连续空转两次上报暂停建议', async () => {
+  it('连续空转两次上报暂停建议，不再唤醒且保留未确认 pending', async () => {
     const h = createHarness('running');
     addWorker(h, 'w1', { waitRegistration: wait('w1') });
     h.host.statuses.set('session-w1', 'running');
@@ -339,15 +339,44 @@ describe('wait → pending → settled', () => {
     await h.delivery.idle();
     expect(h.host.notifies.map((n) => n.throughSeq)).toEqual([seq]);
 
-    // activation 结束但没有 cursor/业务进展：允许重投同一个 ID。
+    // 第二轮没有 cursor/业务进展：暂停报告与再次唤醒互斥。
     h.host.emitSettled('session-w1', 'act-2');
     await h.delivery.idle();
-    expect(h.host.notifies.map((n) => n.throughSeq)).toEqual([seq, seq]);
-
+    expect(h.host.notifies.map((n) => n.throughSeq)).toEqual([seq]);
+    expect(worker(h.store.get(RUN_ID), 'w1')).toMatchObject({
+      observedSeq: 0, wakeTargetSeq: seq, notifiedSeq: seq,
+    });
+    expect(h.errors).toHaveLength(1);
     const error = h.errors[0]?.error;
     expect(error).toBeInstanceOf(SwarmError);
     expect((error as SwarmError).code).toBe('SWARM_WORKER_BUSY');
     expect((error as SwarmError).message).toContain('consider pausing');
+  });
+
+  it('有部分确认进展的新 settled 仍可重投未确认的同一上界', async () => {
+    const h = createHarness('running');
+    addWorker(h, 'w1', { waitRegistration: wait('w1') });
+    h.host.statuses.set('session-w1', 'running');
+    const acknowledged = await append(h, finding('w2', 'f1'));
+    const seq = await append(h, finding('w2', 'f2'));
+
+    h.host.emitSettled('session-w1', 'act-1');
+    await h.delivery.idle();
+    expect(h.host.notifies.map((n) => n.throughSeq)).toEqual([seq]);
+
+    // 仅确认第一条，未确认目标仍为 seq；进展不能被误判为空转。
+    await h.store.update(RUN_ID, (run) => ({
+      ...run,
+      revision: run.revision + 1,
+      workers: { ...run.workers, w1: { ...worker(run, 'w1'), observedSeq: acknowledged } },
+    }));
+    h.host.emitSettled('session-w1', 'act-2');
+    await h.delivery.idle();
+    expect(h.host.notifies.map((n) => n.throughSeq)).toEqual([seq, seq]);
+    expect(h.errors).toEqual([]);
+    expect(worker(h.store.get(RUN_ID), 'w1')).toMatchObject({
+      observedSeq: acknowledged, wakeTargetSeq: seq, notifiedSeq: seq,
+    });
   });
 
   it('failed activation 走上报通道且不清掉 pending', async () => {
