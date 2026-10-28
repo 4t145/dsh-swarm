@@ -119,6 +119,14 @@ describe('parseRunSpec 正常解析', () => {
     );
   });
 
+  it('省略或显式设为 0 的 budgetMinutes 表示不限时，不隐式添加截止', () => {
+    const omitted = validSpec();
+    delete omitted['budgetMinutes'];
+    expect(parseRunSpec(omitted, SPEC_PATH).budgetMinutes).toBe(0);
+    expect(parseRunSpec(specWith({ budgetMinutes: 0 }), SPEC_PATH).budgetMinutes).toBe(0);
+    expect(parseRunSpec(specWith({ budgetMinutes: 1 }), SPEC_PATH).budgetMinutes).toBe(1);
+  });
+
   it('不访问文件系统：不存在的目录也能解析出绝对路径', () => {
     const missing = '/definitely/not/here/spec.json';
     expect(parseRunSpec(specWith({ repository: './repo' }), missing).repository).toBe(
@@ -150,7 +158,6 @@ describe('parseRunSpec 必填字段', () => {
     'goal',
     'acceptanceCriteria',
     'workers',
-    'budgetMinutes',
     'allowDirtyBaseline',
     'verification',
   ] as const;
@@ -220,8 +227,8 @@ describe('parseRunSpec 字段约束', () => {
     }
   });
 
-  it('budgetMinutes 必须是正整数', () => {
-    for (const budgetMinutes of [0, -30, 1.5, '30']) {
+  it('显式 budgetMinutes 必须是非负整数，拒绝非法类型和非有限值', () => {
+    for (const budgetMinutes of [-30, 1.5, '30', null, false, NaN, Infinity]) {
       const error = captureError(() => parseRunSpec(specWith({ budgetMinutes }), SPEC_PATH));
       expect(issuePaths(error)).toContain('budgetMinutes');
     }

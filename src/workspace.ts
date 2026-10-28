@@ -26,6 +26,7 @@ import type {
   VerificationOutcome,
   WorkspacePort,
 } from './ports.ts';
+import type { WorktreeGitCommit } from './worktree-history.ts';
 import type {
   CommandSpec,
   CommitSha,
@@ -561,6 +562,57 @@ export class GitWorkspace implements WorkspacePort {
       'SWARM_INVALID_STATE',
       'diff result branch against the base commit',
     );
+  }
+
+  /** Read a live worker HEAD only after checking its recorded worktree and repository identity. */
+  async readWorktreeHead(run: Run, worker: WorkerRecord, signal?: AbortSignal): Promise<CommitSha> {
+    if (!worker.worktreePath) throw new SwarmError('SWARM_INVALID_STATE', 'Worker worktree is not prepared');
+    const path = await this.canonicalDirectory(worker.worktreePath, 'SWARM_INVALID_STATE', 'worker worktree');
+    const identity = await this.readIdentity(path, run.ownerSessionId, signal, 'SWARM_INVALID_STATE');
+    const common = await this.canonicalDirectory(run.gitCommonDir, 'SWARM_INVALID_STATE', 'run.gitCommonDir');
+    if (identity.root !== path || identity.commonDir !== common) {
+      throw new SwarmError('SWARM_INVALID_STATE', 'Worker worktree repository identity changed');
+    }
+    const expectedRef = worker.branch.startsWith('refs/heads/') ? worker.branch : `refs/heads/${worker.branch}`;
+    const actualRef = await this.gitLine(path, ['symbolic-ref', '--quiet', 'HEAD'], run.ownerSessionId, signal);
+    if (actualRef !== expectedRef) throw new SwarmError('SWARM_INVALID_STATE', 'Worker worktree is not on its recorded branch');
+    return normalizeSha(await this.gitLine(path, ['rev-parse', '--verify', 'HEAD'], run.ownerSessionId, signal), 'worker HEAD');
+  }
+
+  /** Traverse the pinned, deduplicated run DAG; never read other refs or pre-run history. */
+  async readWorktreeLog(run: Run, heads: readonly string[], offset: number, limit: number, signal?: AbortSignal): Promise<readonly WorktreeGitCommit[]> {
+    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 50 || heads.length > 17) {
+      throw new SwarmError('SWARM_INVALID_INPUT', 'Invalid Git history page bounds');
+    }
+    if (!heads.length) return [];
+    const pinned = [...new Set(heads.map((head) => normalizeSha(head, 'history head')))];
+    const repository = await this.assertRunRepository(run, signal);
+    const traversal = ['--date-order', `--skip=${offset}`, `--max-count=${limit}`, ...pinned, `^${normalizeSha(run.baseCommit, 'run.baseCommit')}`, '--'];
+    // The small SHA-only page detects even whole-record truncation by bounded Host output buffers.
+    const expectedText = await this.gitText(repository.root, ['rev-list', ...traversal], run.ownerSessionId, signal, 'SWARM_INVALID_STATE', 'enumerate worktree Git history');
+    const expected = expectedText.trim() ? expectedText.trim().split('\n').map((sha) => normalizeSha(sha, 'history commit')) : [];
+    const output = await this.gitText(repository.root, [
+      'log', '--no-patch', '--no-notes', '--no-show-signature', '--no-decorate', '--no-color', '--source', '-z',
+      '--format=format:%H%x00%P%x00%ct%x00%S%x00%<(240,trunc)%s', ...traversal,
+    ], run.ownerSessionId, signal, 'SWARM_INVALID_STATE', 'read worktree Git history');
+    if (!output && !expected.length) return [];
+    const fields = output.split('\0');
+    if (fields.length % 5 !== 0) throw new SwarmError('SWARM_INVALID_STATE', 'Git history output was incomplete or malformed');
+    const commits: WorktreeGitCommit[] = [];
+    for (let i = 0; i < fields.length; i += 5) {
+      const [sha, parentsText, seconds, sourceHead, subject] = fields.slice(i, i + 5);
+      const committedAt = Number(seconds) * 1000;
+      if (!sha || parentsText === undefined || !seconds || !/^-?\d+$/.test(seconds) || !sourceHead || subject === undefined
+        || !Number.isFinite(committedAt) || Math.abs(committedAt) > 8.64e15 || !pinned.includes(sourceHead)) {
+        throw new SwarmError('SWARM_INVALID_STATE', 'Git history returned invalid commit fields');
+      }
+      commits.push({ sha: normalizeSha(sha, 'history commit'), parents: parentsText ? parentsText.split(' ').map((parent) => normalizeSha(parent, 'history parent')) : [],
+        committedAt, sourceHead, subject: subject.trimEnd().slice(0, 240) });
+    }
+    if (commits.length !== expected.length || commits.some((commit, index) => commit.sha !== expected[index])) {
+      throw new SwarmError('SWARM_INVALID_STATE', 'Git history output was truncated; increase commandOutputBytes');
+    }
+    return commits;
   }
 
   /* ------------------------------ 仓库身份 ------------------------------ */

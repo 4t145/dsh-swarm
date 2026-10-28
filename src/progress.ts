@@ -27,6 +27,8 @@ import {
   type RemoteMethodOptions,
 } from '@deepseek-ai/dsh-typert-protocol';
 import { isSwarmError } from './errors.ts';
+import { WorktreeHistory, type WorktreeHistoryGitPort, type WorktreeHistoryPage } from './worktree-history.ts';
+import { workerDisplayName } from './worker-names.ts';
 import { isTerminalRunPhase } from './types.ts';
 import type { Run, RunPhase, RunId, WorkerInitializationState, SwarmEvent, WaitRegistration, ProposalRecord } from './types.ts';
 import { registerWorkerActivity, toWorkerActivity, type WorkerActivity, type WorkerActivitySource } from './worker-activity.ts';
@@ -96,6 +98,7 @@ export interface ProgressProposal {
 /** 一个 worker 的原生运行状态；`unavailable` 是插件诊断标签，不是 DSH 状态。 */
 export interface ProgressWorker {
   readonly id: string;
+  readonly displayName: string;
   readonly nativeStatus: NativeWorkerStatus;
   readonly initializationState: WorkerInitializationState;
   readonly currentTask: ProgressTask | null;
@@ -175,6 +178,7 @@ export interface ProgressSnapshot {
   readonly remainingMs: number | null;
   readonly tasks: ProgressTaskCounts;
   readonly workers: readonly ProgressWorker[];
+  readonly workerControls: { readonly canAdd: boolean; readonly maxWorkers: number } | null;
   readonly proposals: ProgressProposalCounts;
   readonly verifications: ProgressVerificationCounts;
   readonly finishRequest: RunStatus['finishRequest'];
@@ -430,8 +434,10 @@ export function toProgressSnapshot(
     now,
     remainingMs: status.deadline === null ? null : Math.max(0, status.deadline - now),
     tasks: countTasks(status.tasks),
+    workerControls: status.workerControls ?? null,
     workers: status.workers.slice(0, PROGRESS_LIMITS.workers).map((worker) => ({
       id: worker.id,
+      displayName: workerDisplayName(worker),
       nativeStatus: worker.nativeStatus,
       initializationState: worker.initializationState,
       currentTask: currentTask(worker, detail),
@@ -720,7 +726,7 @@ function markRemoteMethod(
 export class ProgressService extends TypertRemoteService<never> {
   private readonly feed: ProgressFeed;
 
-  constructor(ctx: Context, runtime: ProgressRuntimePort, options: ProgressFeedOptions) {
+  constructor(ctx: Context, runtime: ProgressRuntimePort, options: ProgressFeedOptions, private readonly history?: WorktreeHistory) {
     super(ctx, 'swarmProgress');
     this.feed = new ProgressFeed(runtime, options);
   }
@@ -740,14 +746,35 @@ export class ProgressService extends TypertRemoteService<never> {
     return this.feed.watchSession(sessionId, signal);
   }
 
-  /** 停止全部 watch；由 Host 卸载时调用。 */
+  /** A bounded page of the merged worker/result Git DAG; a null cursor captures fresh heads. */
+  async worktreeHistory(sessionId: string, cursor: string | null = null, signal?: AbortSignal): Promise<WorktreeHistoryPage | null> {
+    assertSessionId(sessionId);
+    if (!this.history) throw new RemoteError('gateway/internal', 'Worktree history is unavailable on this Host', {});
+    try { return await this.history.page(sessionId, cursor, signal); }
+    catch (error) {
+      if (isSwarmError(error)) {
+        if (error.code === 'SWARM_FORBIDDEN') {
+          throw new RemoteError('swarm-progress/forbidden', error.message, { sessionId, runId: '' });
+        }
+        if (error.code === 'SWARM_INVALID_INPUT') {
+          throw new RemoteError('gateway/bad-request', error.message, { issues: [{ path: 'cursor', message: error.message }] });
+        }
+        throw new RemoteError('gateway/internal', error.message, {});
+      }
+      throw error;
+    }
+  }
+
+  /** 停止全部 watch 和 Git 读取；由 Host 卸载时调用。 */
   async dispose(): Promise<void> {
     await this.feed.dispose();
+    await this.history?.dispose();
   }
 }
 
 // 模块加载时安装标记（幂等）。prototype 上的 SRC 方法名来自真实参数名，
 // 因此 snapshot/watch 必须保持简单的具名参数。
+markRemoteMethod(ProgressService.prototype, 'worktreeHistory');
 markRemoteMethod(ProgressService.prototype, 'snapshot');
 markRemoteMethod(ProgressService.prototype, 'watch', { mode: 'stream' });
 markRemoteMethod(ProgressService.prototype, 'watchSession', { mode: 'stream' });
@@ -760,7 +787,7 @@ export function registerProgress(
     get(id: RunId): Run;
     subscribe(listener: (run: Run) => void): () => void;
   },
-  options: { now?: () => number } = {},
+  options: { now?: () => number; git?: WorktreeHistoryGitPort } = {},
 ): ProgressService {
   const activity = registerWorkerActivity(ctx);
   try {
@@ -781,7 +808,7 @@ export function registerProgress(
         };
       },
       ...(options.now === undefined ? {} : { now: options.now }),
-    });
+    }, options.git ? new WorktreeHistory({ status: (sessionId) => runtime.status(sessionId), getRun: (runId) => store.get(runId), git: options.git }) : undefined);
   } catch (error) {
     activity.dispose();
     throw error;

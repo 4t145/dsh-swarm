@@ -28,6 +28,7 @@ import {
   type WorkspacePort,
 } from './ports.ts';
 import { DEFAULT_RUNTIME_CONFIG } from './schema.ts';
+import { randomWorkerName, workerDisplayName } from './worker-names.ts';
 import { KeyedSerialQueue } from './serial.ts';
 import type { StateStore } from './store.ts';
 import {
@@ -37,6 +38,7 @@ import {
   type GoalRecord,
   type AppendGoalInput,
   type AppendGoalReceipt,
+  type AddWorkerReceipt,
   type AcceptanceNote,
   type CommitSha,
   type FinishRequest,
@@ -85,6 +87,7 @@ export type NativeWorkerStatus = 'running' | 'inactive' | 'unavailable';
 
 export interface WorkerStatusSummary {
   id: WorkerId;
+  displayName?: string;
   sessionId: string;
   initializationState: WorkerInitializationState;
   nativeStatus: NativeWorkerStatus;
@@ -157,6 +160,7 @@ export interface RunStatus {
   goalRevision: number;
   goals: { active: number; deferred: number; completed: number; total: number };
   workers: WorkerStatusSummary[];
+  workerControls?: { canAdd: boolean; maxWorkers: number };
   proposals: { queued: number; integrating: number; accepted: number; rejected: number };
   verifications: { queued: number; running: number; passed: number; failed: number; interrupted: number };
   finishRequest: { id: string; acceptedHead: CommitSha; verificationId: string | null } | null;
@@ -413,6 +417,49 @@ export class SwarmRuntime {
     }
   }
 
+  /** Reserve one named member atomically; paused runs wait for explicit resume before creating it. */
+  async addWorker(ownerSessionId: string): Promise<AddWorkerReceipt> {
+    this.assertUsable('addWorker');
+    if (!this.host.isOwnerLive(ownerSessionId)) throw new SwarmError('SWARM_FORBIDDEN', 'owner session is not live');
+    const run = this.runForStatus(ownerSessionId);
+    const reservation = await this.publicationGate.run(run.id, async () => {
+      this.assertUsable('addWorker');
+      const current = this.requireRun(run.id);
+      if (current.phase !== 'running' && current.phase !== 'paused') {
+        throw new SwarmError('SWARM_NOT_RUNNING', `cannot add a worker while run is ${current.phase}`);
+      }
+      if (current.phase === 'running' && this.control(run.id).admissionClosed) {
+        throw new SwarmError('SWARM_NOT_RUNNING', 'run admission is closed');
+      }
+      if (current.phase === 'running' && current.deadline !== null && this.clock.now() >= current.deadline) {
+        throw new SwarmError('SWARM_BUDGET_EXHAUSTED', 'run budget expired');
+      }
+      if (Object.keys(current.workers).length >= DEFAULT_RUNTIME_CONFIG.workerCountMax) {
+        throw new SwarmError('SWARM_INVALID_STATE', `a run supports at most ${DEFAULT_RUNTIME_CONFIG.workerCountMax} workers`);
+      }
+      const now = this.clock.now();
+      const worker = reserveWorker(current, now);
+      const updated = await this.store.update(run.id, (latest) => this.finalizeChange(
+        { ...latest, workers: { ...latest.workers, [worker.id]: worker } },
+        [{ kind: 'run', phase: latest.phase, target: null, reason: 'worker_added', authorWorkerId: null, audience: { kind: 'all' } }], now));
+      return { worker, phase: updated.phase };
+    });
+    const { worker } = reservation;
+    if (reservation.phase === 'paused') {
+      return { runId: run.id, workerId: worker.id, displayName: workerDisplayName(worker), phase: 'paused', disposition: 'paused' };
+    }
+    try {
+      await this.delivery.start(run.id, worker.id);
+    } catch (error) {
+      // A concurrent pause/stop owns cleanup; never turn its cancellation into a failed run.
+      if (this.requireRun(run.id).phase === 'running') await this.failRun(run.id, 'worker_initialization_failed', error);
+      throw normalizeError(error, 'SWARM_INTERNAL', `worker ${worker.id} was reserved but could not start; inspect members before retrying`);
+    }
+    const phase = this.requireRun(run.id).phase;
+    if (phase !== 'running') throw new SwarmError('SWARM_NOT_RUNNING', `worker ${worker.id} was reserved; run is now ${phase}`);
+    return { runId: run.id, workerId: worker.id, displayName: workerDisplayName(worker), phase, disposition: 'started' };
+  }
+
   /** Persist an owner addition; closing/terminal rounds retain it as explicit next-round backlog. */
   async appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt> {
     this.assertUsable('appendGoal');
@@ -511,6 +558,12 @@ export class SwarmRuntime {
       goalRevision: run.goalRevision,
       goals: { ...countByStatus(Object.values(run.goals), ['active', 'deferred', 'completed']), total: Object.keys(run.goals).length },
       workers: Object.values(run.workers).map((worker) => this.workerSummary(worker)),
+      workerControls: {
+        canAdd: (run.phase === 'paused' || (run.phase === 'running' && !control.admissionClosed
+          && (run.deadline === null || now < run.deadline)))
+          && Object.keys(run.workers).length < DEFAULT_RUNTIME_CONFIG.workerCountMax,
+        maxWorkers: DEFAULT_RUNTIME_CONFIG.workerCountMax,
+      },
       proposals: countByStatus(Object.values(run.proposals), ['queued', 'integrating', 'accepted', 'rejected']),
       verifications: countByStatus(
         Object.values(run.verifications),
@@ -600,6 +653,16 @@ export class SwarmRuntime {
       const next = await this.store.update(run.id, (current) => {
         if (current.phase !== 'paused') {
           return current;
+        }
+        const stranded = Object.values(current.workers).filter((worker) =>
+          worker.initializationState === 'failed' || worker.initializationState === 'initializing');
+        if (stranded.length) {
+          throw new SwarmError('SWARM_INVALID_STATE',
+            'worker initialization is incomplete or failed; inspect member diagnostics and worktrees before stopping and starting a new run', {
+              details: { runId: current.id, workers: stranded.map((worker) => ({
+                workerId: worker.id, state: worker.initializationState, diagnostic: worker.initializationError,
+              })) },
+            });
         }
         const deadline =
           budgetMinutes === undefined ? current.deadline : now + budgetMinutes * 60_000;
@@ -1806,6 +1869,7 @@ export class SwarmRuntime {
     }
     return {
       id: worker.id,
+      displayName: workerDisplayName(worker),
       sessionId: worker.sessionId,
       initializationState: worker.initializationState,
       nativeStatus,
@@ -2278,26 +2342,34 @@ function receiptKeyFor(workerSessionId: string, callId: string): string {
   return `${workerSessionId}:${callId}`;
 }
 
+function reserveWorker(run: Run, now: number): WorkerRecord {
+  let index = Object.keys(run.workers).length + 1;
+  while (run.workers[`${run.id}-w${index}`]) index += 1;
+  const id = `${run.id}-w${index}`;
+  return {
+    id,
+    displayName: randomWorkerName(Object.values(run.workers).map(workerDisplayName)),
+    sessionId: `${id}-session`,
+    branch: id,
+    worktreePath: null,
+    initializationState: 'pending',
+    initializationError: null,
+    unavailableReason: null,
+    offeredSeq: 0,
+    observedSeq: 0,
+    notifiedSeq: 0,
+    wakeTargetSeq: 0,
+    waitRegistration: null,
+    currentTaskId: null,
+    createdAt: now,
+  };
+}
+
 function reserveWorkers(run: Run, count: number, now: number): Record<WorkerId, WorkerRecord> {
   const workers: Record<WorkerId, WorkerRecord> = {};
-  for (let index = 1; index <= count; index += 1) {
-    const id = `${run.id}-w${index}`;
-    workers[id] = {
-      id,
-      sessionId: `${id}-session`,
-      branch: `${run.id}-w${index}`,
-      worktreePath: null,
-      initializationState: 'pending',
-      initializationError: null,
-      unavailableReason: null,
-      offeredSeq: 0,
-      observedSeq: 0,
-      notifiedSeq: 0,
-      wakeTargetSeq: 0,
-      waitRegistration: null,
-      currentTaskId: null,
-      createdAt: now,
-    };
+  for (let index = 0; index < count; index += 1) {
+    const worker = reserveWorker({ ...run, workers }, now);
+    workers[worker.id] = worker;
   }
   return workers;
 }

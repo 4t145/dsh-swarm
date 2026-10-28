@@ -17,11 +17,11 @@ import type { Session } from '@deepseek-ai/dsh-session';
 
 import { SwarmError, normalizeError } from './errors.ts';
 import { parseRunSpec } from './spec.ts';
-import type { AppendGoalInput, AppendGoalReceipt, GoalRecord, Run, RunSpec } from './types.ts';
+import type { AddWorkerReceipt, AppendGoalInput, AppendGoalReceipt, GoalRecord, Run, RunSpec } from './types.ts';
 
 /** Fixed usage line repeated by parse diagnostics. */
 export const SWARM_USAGE =
-  'usage: start --spec <path> | append <goal text> | append --json <object> | continue | status [--details] | pause | resume [--budget <30m|1h>] | stop | task release|cancel <id> --revision <n> --reason <text>';
+  'usage: start --spec <path> | append <goal text> | append --json <object> | continue | worker add [--json] | status [--details] | pause | resume [--budget <30m|1h>] | stop | task release|cancel <id> --revision <n> --reason <text>';
 
 /** Maximum characters returned to the human UI for one command. */
 const MAX_RESULT_TEXT = 4000;
@@ -34,6 +34,7 @@ export type SwarmCommand =
   | { readonly kind: 'start'; readonly specPath: string }
   | { readonly kind: 'append'; readonly input: AppendGoalInput; readonly json: boolean }
   | { readonly kind: 'continue' }
+  | { readonly kind: 'worker'; readonly action: 'add'; readonly json: boolean }
   | { readonly kind: 'status'; readonly details: boolean }
   | { readonly kind: 'pause' }
   | { readonly kind: 'resume'; readonly budgetMinutes?: number }
@@ -199,6 +200,7 @@ export interface SwarmRuntimePort {
   start(ownerSessionId: string, spec: RunSpec): Promise<SwarmRunView>;
   appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt>;
   continueGoals(ownerSessionId: string): Promise<SwarmRunView>;
+  addWorker(ownerSessionId: string): Promise<AddWorkerReceipt>;
   status(ownerSessionId: string, details?: boolean): SwarmRunStatusView;
   runForOwner?(ownerSessionId: string): Run;
   pause(ownerSessionId: string): Promise<SwarmRunView>;
@@ -315,6 +317,11 @@ export function parseSwarmCommand(input: string): SwarmCommand {
     case 'stop':
       expectNoArguments('stop', args);
       return { kind: 'stop' };
+    case 'worker':
+      if (args[0] !== 'add' || args.length > 2 || (args[1] !== undefined && args[1] !== '--json')) {
+        throw invalidInput(`expected worker add [--json]; ${SWARM_USAGE}`);
+      }
+      return { kind: 'worker', action: 'add', json: args[1] === '--json' };
     case 'task':
       return parseTask(args);
     default:
@@ -404,6 +411,12 @@ export async function handleSwarmCommand(
         const run = await runtime.continueGoals(ownerSessionId);
         return { kind: 'success', text: formatStartReceipt(run) };
       }
+      case 'worker': {
+        assertWritableGoalAction(ctx, invocation);
+        const receipt = await runtime.addWorker(ownerSessionId);
+        return { kind: 'success', text: command.json ? JSON.stringify(receipt)
+          : `${receipt.displayName} (${receipt.workerId}): ${receipt.disposition === 'paused' ? 'reserved; resume the run to start' : 'started'}` };
+      }
       case 'status': {
         const status = runtime.status(ownerSessionId, command.details);
         let text = formatStatus(status, command.details);
@@ -466,10 +479,10 @@ export async function handleSwarmCommand(
 
 function assertWritableGoalAction(ctx: SwarmCommandContext, invocation: SwarmCommandInvocation): void {
   if (invocation.signal.aborted) {
-    throw new SwarmError('SWARM_INVALID_STATE', 'command was cancelled; no goal action was applied');
+    throw new SwarmError('SWARM_INVALID_STATE', 'command was cancelled; no control action was applied');
   }
   if (ctx.sandboxPolicy.resolve({ session: invocation.agent.session }).mode === 'read-only') {
-    throw new SwarmError('SWARM_FORBIDDEN', 'session sandbox mode is read-only; changing swarm goals requires a writable session');
+    throw new SwarmError('SWARM_FORBIDDEN', 'session sandbox mode is read-only; changing swarm goals or members requires a writable session');
   }
 }
 

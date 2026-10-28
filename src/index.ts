@@ -145,7 +145,7 @@ export class SwarmService extends Service {
       disposeOwnerTools = registerOwnerTools(this.ctx, runtime);
       disposeOwnerContext = registerOwnerContext(this.ctx, runtime);
       // Read-only progress service used by the browser panel and headless observer.
-      progress = registerProgress(this.ctx, runtime, store);
+      progress = registerProgress(this.ctx, runtime, store, { git: workspace });
       return runtime;
     } catch (error) {
       await this.closeResources();

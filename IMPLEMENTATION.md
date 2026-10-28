@@ -123,6 +123,13 @@
 - null 截止贯穿持久 schema、status、headless、命令和进度 DTO；Client 在不限时模式显示运行时长/无截止时间，不显示虚假的 0 秒或过期提示。旧 numeric deadline 记录不被迁移或复活，已 stopped 的历史 run 仍为终态。
 - 默认示例去掉分钟数，owner 工具参数明确不让模型自行选择时限。本轮仅执行 JS 语法检查、源码构建及 diff 检查，没有新增模型 run 或运行全套测试。
 
+## 动态成员与可读姓名
+
+- owner 的成员面板通过现有 `commands.execute` 调用 `/swarm worker add --json`；运行时在与停止/finish 共用的门禁内预约，保持每轮上限 4。运行中走现有 Delivery 创建/admission/取消路径；暂停中只保存，显式 resume 才创建。worker、子会话、只读和已取消的命令不能使用此控制入口。
+- 名字为随机英文形容词 + 动物词，保存于 WorkerRecord.displayName 并保证新成员在轮内不重名；进度 DTO 与原生子会话 label 使用同一个名字。历史记录无该字段时使用由稳定 ID 推导的可读后备名字，不修改身份或分支。新建 worktree 基于创建时的 acceptedHead，不从过期的原始基线开始。
+- 并发追加严格检查人数，pending 初始化阻止过早 finish；原生创建失败沿用既有 failed 收尾语义并保留成员/目录供诊断。暂停/停止中断新增不会被错误升级为失败。错误回执提示先核对成员列表，不建议盲目重试。
+- 回归覆盖名字碰撞/历史兼容、并发上限、暂停预约/恢复、owner 权限、失败和停止竞态；不声称这些 fake 测试等于当前 GUI 已部署或真实模型端到端验证。
+
 ## 持续追加目标与品牌入口
 
 - 本轮由四个对等 Swarm worker 自主协商接口与写范围：Host/持久协议、owner 工具/命令、面板/图标、生命周期回归/说明。没有修改 DSH 源码、profile、凭据、依赖或 lockfile，也没有安装插件或启动服务器。
