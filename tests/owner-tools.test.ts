@@ -30,7 +30,8 @@ import {
   type SwarmOwnerRuntimePort,
   type SwarmOwnerToolContext,
 } from '../src/owner-tools.ts';
-import type { RunSpec } from '../src/types.ts';
+import type { AppendGoalInput, AppendGoalReceipt, RunSpec } from '../src/types.ts';
+import { SwarmError } from '../src/errors.ts';
 
 /** The real Host services must satisfy the narrow owner-tool context. */
 interface RealOwnerServices {
@@ -185,6 +186,26 @@ class FakeRuntime implements SwarmOwnerRuntimePort {
   readonly pauseCalls: string[] = [];
   readonly resumeCalls: Array<{ ownerSessionId: string; budgetMinutes: number | undefined }> = [];
   readonly stopCalls: string[] = [];
+  readonly appendCalls: Array<{ ownerSessionId: string; input: AppendGoalInput; callId: string }> = [];
+  readonly continueCalls: string[] = [];
+  disposition: AppendGoalReceipt['disposition'] = 'executing';
+
+  async appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt> {
+    this.appendCalls.push({ ownerSessionId, input, callId });
+    if (this.failure !== undefined) throw this.failure;
+    return {
+      runId: 'run-1', phase: this.run.phase, goalRevision: 2, disposition: this.disposition,
+      goal: { id: 'goal-2', seq: 2, text: input.text, acceptanceCriteria: input.acceptanceCriteria ?? [input.text],
+        status: this.disposition === 'deferred' ? 'deferred' : 'active', createdAt: 1,
+        completedAt: null, completedCommit: null, continuedInRunId: null },
+    };
+  }
+
+  async continueGoals(ownerSessionId: string): Promise<SwarmRunView> {
+    this.continueCalls.push(ownerSessionId);
+    if (this.failure !== undefined) throw this.failure;
+    return { ...this.run, id: 'run-2', phase: 'running' };
+  }
 
   run: SwarmRunView = { ...BASE_RUN };
   statusView: SwarmRunStatusView = structuredClone(BASE_STATUS);
@@ -223,7 +244,7 @@ function invocation(
   agent: SwarmOwnerAgent = OWNER_AGENT,
   signal: AbortSignal = new AbortController().signal,
 ): SwarmOwnerInvocation {
-  return { agent, signal };
+  return { agent, signal, callId: 'native-call-1' };
 }
 
 async function call(
@@ -239,7 +260,7 @@ async function call(
 
 describe('parseManageInput', () => {
   it('accepts every action and rejects unknown actions or extra fields', () => {
-    for (const action of ['start', 'status', 'pause', 'resume', 'stop'] as const) {
+    for (const action of ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue'] as const) {
       expect(parseManageInput({ action }).action).toBe(action);
     }
     expect(parseManageInput({ action: 'resume', budget_minutes: 5 }).budget_minutes).toBe(5);
@@ -265,7 +286,7 @@ describe('registerOwnerTools', () => {
       additionalProperties: false,
     });
     const action = (definition?.parameters.properties as Record<string, { enum?: string[] }>)['action'];
-    expect(action?.enum).toEqual(['start', 'status', 'pause', 'resume', 'stop']);
+    expect(action?.enum).toEqual(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue']);
     // The Host accepts only its documented JSON Schema subset.
     expect(() => {
       if (definition !== undefined) assertObjectJsonSchema(definition.parameters);
@@ -406,6 +427,59 @@ describe('handleSwarmManage start', () => {
       call(ctx, runtime, { action: 'start', spec: SPEC_INPUT }, OWNER_AGENT, controller.signal),
     ).rejects.toMatchObject({ code: 'SWARM_INVALID_STATE' });
     expect(runtime.startCalls).toEqual([]);
+  });
+});
+
+describe('handleSwarmManage append and continue', () => {
+  it('passes the real owner and native call id without reading or rewriting a spec', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    const result = await call(ctx, runtime, { action: 'append', goal: '追加 "icon"', acceptance_criteria: ['中英主题可见'] });
+    expect(runtime.appendCalls).toEqual([{ ownerSessionId: 'owner-1', input: { text: '追加 "icon"', acceptanceCriteria: ['中英主题可见'] }, callId: 'native-call-1' }]);
+    expect(result).toMatchObject({ action: 'append', disposition: 'executing', goalRevision: 2, goal: { id: 'goal-2' } });
+    expect(ctx.resolveCalls).toEqual([]);
+    expect(runtime.startCalls).toEqual([]);
+  });
+
+  it.each(['paused', 'deferred'] as const)('preserves the %s receipt without implicitly resuming', async (disposition) => {
+    const runtime = new FakeRuntime();
+    runtime.disposition = disposition;
+    expect(await call(new FakeContext(), runtime, { action: 'append', goal: 'next change' })).toMatchObject({ disposition });
+    expect(runtime.resumeCalls).toEqual([]);
+    expect(runtime.continueCalls).toEqual([]);
+  });
+
+  it('rejects missing goals, blank requirements and spoofed owner/call identity', async () => {
+    const runtime = new FakeRuntime();
+    await expect(call(new FakeContext(), runtime, { action: 'append' })).rejects.toMatchObject({ code: 'SWARM_INVALID_INPUT' });
+    for (const extra of [{ goal: ' ' }, { goal: 'x', acceptance_criteria: [] }, { goal: 'x', acceptance_criteria: [' '] }, { goal: 'x', callId: 'forged' }, { goal: 'x', ownerSessionId: 'forged' }]) {
+      expect(() => parseManageInput({ action: 'append', ...extra })).toThrow();
+    }
+    expect(runtime.appendCalls).toEqual([]);
+  });
+
+  it.each(['append', 'continue'] as const)('refuses worker, read-only and cancelled %s calls before mutation', async (action) => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    const input = { action, goal: 'next change' };
+    await expect(call(ctx, runtime, input, SUBAGENT_AGENT)).rejects.toMatchObject({ code: 'SWARM_FORBIDDEN' });
+    ctx.mode = 'read-only';
+    await expect(call(ctx, runtime, input)).rejects.toMatchObject({ code: 'SWARM_FORBIDDEN' });
+    ctx.mode = 'workspace-write';
+    const controller = new AbortController();
+    controller.abort();
+    await expect(call(ctx, runtime, input, OWNER_AGENT, controller.signal)).rejects.toMatchObject({ code: 'SWARM_INVALID_STATE' });
+    expect(runtime.appendCalls).toEqual([]);
+    expect(runtime.continueCalls).toEqual([]);
+  });
+
+  it('uses explicit continue for a new round and preserves Host rejections', async () => {
+    const runtime = new FakeRuntime();
+    expect(await call(new FakeContext(), runtime, { action: 'continue' })).toMatchObject({ action: 'continue', runId: 'run-2' });
+    expect(runtime.continueCalls).toEqual(['owner-1']);
+    runtime.failure = new SwarmError('SWARM_INVALID_STATE', 'wait for resource cleanup');
+    await expect(call(new FakeContext(), runtime, { action: 'continue' })).rejects.toMatchObject({ code: 'SWARM_INVALID_STATE' });
+    await expect(call(new FakeContext(), runtime, { action: 'append', goal: 'next' })).rejects.toMatchObject({ code: 'SWARM_INVALID_STATE' });
   });
 });
 
