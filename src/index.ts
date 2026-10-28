@@ -141,7 +141,7 @@ export class SwarmService extends Service {
       // Owner-only model control surface; the worker preset never loads this module.
       disposeOwnerTools = registerOwnerTools(this.ctx, runtime);
       // Read-only progress service used by the browser panel and headless observer.
-      progress = registerProgress(this.ctx, runtime, store);
+      progress = registerProgress(this.ctx, runtime, store, { git: workspace });
       return runtime;
     } catch (error) {
       await this.closeResources();
