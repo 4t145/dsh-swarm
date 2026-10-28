@@ -50,6 +50,8 @@ function status(overrides: Partial<RunStatus> = {}): RunStatus {
     deadline: 10_000,
     now: 4_000,
     budgetExpired: false,
+    goalRevision: 0,
+    goals: { total: 0, active: 0, deferred: 0, completed: 0 },
     baseCommit: 'a'.repeat(40),
     acceptedHead: 'b'.repeat(40),
     resultRef: 'refs/dsh-swarm/result',
