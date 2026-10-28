@@ -65,7 +65,7 @@
 
 ### 1.2 v0.1 固定选择
 
-- 一台机器、一个 DSH Host 进程；默认 2 个 worker，允许配置 2–4 个。
+- 一台机器、一个 DSH Host 进程；默认 2 个 worker，允许配置 2–4 个。owner 可在成员页签或 `/swarm worker add` 动态追加至 4 个；running 立即走原生初始化，paused 仅预约并在显式 resume 后启动。准备/收尾/终态不接受新增成员。每个成员保存随机、可读且轮内不重复的名字，身份、Session ID 和 Git 分支仍使用稳定 ID。
 - 使用 DSH 原生、本地、可续跑的子会话。首版不支持外部 CLI worker。
 - 每个 worker 一个私有 worktree；另有一个插件专用集成 worktree。
 - 一个 run 只有一个 result 分支；以 gitCommonDir 标识仓库，同一仓库同时只允许一个非终态 run，paused 也占用此名额，必须 stop 后才能启动新的 run。
@@ -79,7 +79,7 @@
 
 ### 1.3 不在 v0.1 做
 
-不部署 Gitea、Mattermost、MySQL、Redis；不做多机、跨进程锁、动态扩容、递归子 Agent、向量检索、自动全量聊天总结、自动更新用户主分支、自动删除 worktree。
+不部署 Gitea、Mattermost、MySQL、Redis；不做多机、跨进程锁、worker 自主扩容、递归子 Agent、向量检索、自动全量聊天总结、自动更新用户主分支、自动删除 worktree。
 
 worktree 不是安全沙箱。worker 仍遵守 DSH 的权限与工具策略。首版是可信本地协作，不宣称能阻止恶意 worker 通过 Bash 改写其他分支或访问已有权限范围内的文件。
 

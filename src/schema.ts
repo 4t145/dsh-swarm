@@ -104,6 +104,7 @@ export const waitRegistrationSchema = z.strictObject({
 
 export const workerRecordSchema = z.strictObject({
   id: idSchema,
+  displayName: z.string().trim().min(1).max(80).optional(),
   sessionId: z.string().min(1),
   branch: z.string().min(1),
   worktreePath: z.string().min(1).nullable(),

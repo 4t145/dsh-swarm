@@ -89,6 +89,16 @@ function detail(): ProgressRunDetail {
 }
 
 describe('toProgressSnapshot', () => {
+  it('projects readable member names and authoritative addition capability', () => {
+    const snapshot = toProgressSnapshot(status({ workers: [worker({ displayName: 'Sunny Otter' })],
+      workerControls: { canAdd: true, maxWorkers: 4 } }), detail(), 4_500);
+    expect(snapshot.workers[0]?.displayName).toBe('Sunny Otter');
+    expect(snapshot.workerControls).toEqual({ canAdd: true, maxWorkers: 4 });
+    const legacy = toProgressSnapshot(status({ workers: [worker()] }), detail(), 4_500);
+    expect(legacy.workers[0]?.displayName).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/u);
+    expect(legacy.workerControls).toBeNull();
+  });
+
   it('projects append-only goals, full bounded criteria and distinct continuation states', () => {
     const base = detail();
     const goal = {
