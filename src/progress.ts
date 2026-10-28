@@ -27,6 +27,7 @@ import {
   type RemoteMethodOptions,
 } from '@deepseek-ai/dsh-typert-protocol';
 import { isSwarmError } from './errors.ts';
+import { workerDisplayName } from './worker-names.ts';
 import { isTerminalRunPhase } from './types.ts';
 import type { Run, RunPhase, RunId, WorkerInitializationState, SwarmEvent, WaitRegistration, ProposalRecord } from './types.ts';
 import { registerWorkerActivity, toWorkerActivity, type WorkerActivity, type WorkerActivitySource } from './worker-activity.ts';
@@ -96,6 +97,7 @@ export interface ProgressProposal {
 /** 一个 worker 的原生运行状态；`unavailable` 是插件诊断标签，不是 DSH 状态。 */
 export interface ProgressWorker {
   readonly id: string;
+  readonly displayName: string;
   readonly nativeStatus: NativeWorkerStatus;
   readonly initializationState: WorkerInitializationState;
   readonly currentTask: ProgressTask | null;
@@ -175,6 +177,7 @@ export interface ProgressSnapshot {
   readonly remainingMs: number | null;
   readonly tasks: ProgressTaskCounts;
   readonly workers: readonly ProgressWorker[];
+  readonly workerControls: { readonly canAdd: boolean; readonly maxWorkers: number } | null;
   readonly proposals: ProgressProposalCounts;
   readonly verifications: ProgressVerificationCounts;
   readonly finishRequest: RunStatus['finishRequest'];
@@ -430,8 +433,10 @@ export function toProgressSnapshot(
     now,
     remainingMs: status.deadline === null ? null : Math.max(0, status.deadline - now),
     tasks: countTasks(status.tasks),
+    workerControls: status.workerControls ?? null,
     workers: status.workers.slice(0, PROGRESS_LIMITS.workers).map((worker) => ({
       id: worker.id,
+      displayName: workerDisplayName(worker),
       nativeStatus: worker.nativeStatus,
       initializationState: worker.initializationState,
       currentTask: currentTask(worker, detail),
