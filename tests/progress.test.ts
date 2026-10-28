@@ -87,6 +87,51 @@ function detail(): ProgressRunDetail {
 }
 
 describe('toProgressSnapshot', () => {
+  it('projects append-only goals, full bounded criteria and distinct continuation states', () => {
+    const base = detail();
+    const goal = {
+      id: 'goal-1', seq: 10, text: 'Add export', acceptanceCriteria: ['CSV can be downloaded'],
+      status: 'active' as const, createdAt: 2_000, completedAt: null, completedCommit: null, continuedInRunId: null,
+    };
+    const snapshot = toProgressSnapshot(status(), {
+      ...base, goal: 'Initial import', acceptanceCriteria: ['Import works'], goalRevision: 3,
+      goals: {
+        'goal-1': goal,
+        'goal-2': { ...goal, id: 'goal-2', seq: 11, status: 'deferred' },
+        'goal-3': { ...goal, id: 'goal-3', seq: 12, status: 'completed', completedCommit: 'a'.repeat(40), completedAt: 3_000 },
+        'goal-4': { ...goal, id: 'goal-4', seq: 13, continuedInRunId: 'next-round' },
+      },
+    }, 4_500);
+    expect(snapshot.goal).toBe('Initial import');
+    expect(snapshot.acceptanceCriteria).toEqual(['Import works']);
+    expect(snapshot.goalBoard).toMatchObject({ total: 4, revision: 3, truncated: false,
+      counts: { active: 1, deferred: 1, completed: 1, continued: 1 } });
+    expect(snapshot.goalBoard?.items.map((item) => item.id)).toEqual(['goal-2', 'goal-1', 'goal-4', 'goal-3']);
+    expect(snapshot.goalBoard?.items.find((item) => item.id === 'goal-3')).toMatchObject({ completedCommit: 'a'.repeat(40), completedAt: 3_000 });
+    expect(snapshot.goalBoard?.items.find((item) => item.id === 'goal-4')).toMatchObject({ continuedInRunId: 'next-round' });
+    expect(toProgressSnapshot(status(), base, 4_500).goalBoard).toBeNull();
+  });
+
+  it('bounds goal history, counts every state and preserves the default whole-goal criterion', () => {
+    const text = 'x'.repeat(PROGRESS_LIMITS.goalChars);
+    const goals = Object.fromEntries(Array.from({ length: PROGRESS_LIMITS.goalBoard + 5 }, (_, index) => [String(index), {
+      id: String(index), seq: index, text, acceptanceCriteria: [text],
+      status: index === 0 ? 'deferred' as const : 'completed' as const,
+      createdAt: 1_000, completedAt: null, completedCommit: null, continuedInRunId: null,
+    }]));
+    const snapshot = toProgressSnapshot(status(), { ...detail(), goals, goalRevision: 1 }, 4_500);
+    expect(snapshot.goalBoard?.items).toHaveLength(PROGRESS_LIMITS.goalBoard);
+    expect(snapshot.goalBoard?.total).toBe(PROGRESS_LIMITS.goalBoard + 5);
+    expect(snapshot.goalBoard?.truncated).toBe(true);
+    expect(snapshot.goalBoard?.counts).toEqual({ active: 0, deferred: 1, completed: PROGRESS_LIMITS.goalBoard + 4, continued: 0 });
+    expect(snapshot.goalBoard?.items[0]).toMatchObject({ id: '0', text, acceptanceCriteria: [text], truncated: false });
+    const clipped = toProgressSnapshot(status(), { ...detail(), goal: text + 'x',
+      acceptanceCriteria: ['c'.repeat(PROGRESS_LIMITS.criterionChars + 1)] }, 4_500);
+    expect(clipped.originalGoalTruncated).toBe(true);
+    expect(clipped.goal).toHaveLength(PROGRESS_LIMITS.goalChars);
+    expect(clipped.acceptanceCriteria[0]).toHaveLength(PROGRESS_LIMITS.criterionChars);
+  });
+
   it('maps the bounded public facts without inventing percentages', () => {
     const snapshot = toProgressSnapshot(status(), detail(), 4_500);
 
@@ -407,7 +452,7 @@ describe('progress v2 public facts', () => {
       ownerWorkerId: 'w1', proposalId: null, acceptance: 'PRIVATE ACCEPTANCE',
     }]));
     const run = {
-      goal: 'g'.repeat(1_000), createdAt: 50, tasks,
+      goal: 'g'.repeat(PROGRESS_LIMITS.goalChars + 100), createdAt: 50, tasks,
       workers: { w1: { currentTaskId: 'task-59', waitRegistration: {
         mode: 'selected' as const, afterSeq: 10,
         taskIds: Array.from({ length: 30 }, (_, index) => `t${index}`), proposalIds: ['proposal-1'],
@@ -426,7 +471,8 @@ describe('progress v2 public facts', () => {
     expect(snapshot.workers[0]?.wait?.taskIds).toHaveLength(PROGRESS_LIMITS.waitIds);
     expect(snapshot.workers[0]?.currentProposal).toEqual({ id: 'proposal-1', taskId: 'task-59',
       status: 'integrating', createdAt: 200, updatedAt: 300 });
-    expect(JSON.stringify(snapshot)).not.toMatch(/PRIVATE|acceptance|diagnosticsRef|messages|findings/);
+    expect(JSON.stringify(snapshot)).not.toMatch(/PRIVATE|"acceptance":|diagnosticsRef|messages|findings/);
+    expect(snapshot.acceptanceCriteria).toEqual([]);
   });
 
   it('filters stale terminal task pointers in the DTO without rewriting completed history', () => {
@@ -928,6 +974,29 @@ describe('client.js progress panel rendering', () => {
     expect(text).toContain('Implement progress DTO');
     expect(text).toContain('3');
     expect(text).not.toContain('%');
+  });
+
+  it('renders the publishing entry and expandable pending/handled goals without claiming terminal work is executing', async () => {
+    const progress = toProgressSnapshot(status({ phase: 'stopped' }), {
+      ...detail(), goal: 'Initial import', acceptanceCriteria: ['Import works'], goalRevision: 2,
+      goals: {
+        pending: { id: 'pending', seq: 2, text: 'Add CSV export', acceptanceCriteria: ['CSV downloads'], status: 'active', createdAt: 100,
+          completedAt: null, completedCommit: null, continuedInRunId: null },
+        handled: { id: 'handled', seq: 1, text: 'Add preview', acceptanceCriteria: ['Preview works'], status: 'completed', createdAt: 50,
+          completedAt: 90, completedCommit: 'b'.repeat(40), continuedInRunId: null },
+      },
+    }, 4_500);
+    const plugin = await loadPlugin({ items: [{ seq: 1, progress }] });
+    plugin.render();
+    await flush();
+    const { text } = plugin.render();
+    for (const key of ['goals.add', 'goals.publish', 'goals.criteria', 'goals.continue', 'goal.deferred', 'goal.completed']) {
+      expect(text).toContain(plugin.locale.zh[key]);
+    }
+    expect(text).toContain('CSV downloads');
+    expect(text).toContain('Import works');
+    expect(text).not.toContain(plugin.locale.zh['goal.active']);
+    expect(text.indexOf(plugin.locale.zh['goals.publish']!)).toBeLessThan(text.indexOf('Add CSV export'));
   });
 
   it('shows a friendly start hint when the session has no run', async () => {
