@@ -54,7 +54,10 @@ export const PROGRESS_LIMITS = Object.freeze({
   reasonChars: 200,
   refChars: 200,
   workers: 8,
-  goalChars: 800,
+  goalChars: 16000,
+  goalBoard: 40,
+  goalCriteria: 32,
+  criterionChars: 2000,
   taskBoard: 40,
   recentEvents: 24,
   waitIds: 16,
@@ -129,10 +132,35 @@ export interface ProgressVerificationCounts {
   readonly interrupted: number;
 }
 
+/** Append-only owner goal facts; compatible with persisted GoalRecord. */
+export interface ProgressGoal {
+  readonly id: string;
+  readonly seq: number;
+  readonly text: string;
+  readonly acceptanceCriteria: readonly string[];
+  readonly status: 'active' | 'deferred' | 'completed';
+  readonly createdAt: number;
+  readonly completedAt: number | null;
+  readonly completedCommit: string | null;
+  readonly continuedInRunId: string | null;
+}
+
+export interface ProgressGoalBoard {
+  readonly items: readonly (ProgressGoal & { readonly truncated: boolean })[];
+  readonly total: number;
+  readonly truncated: boolean;
+  readonly revision: number;
+  readonly counts: { readonly active: number; readonly deferred: number; readonly completed: number; readonly continued: number };
+}
+
 /** 面板渲染所需的全部公开事实；不含私信、finding 正文或完整事件日志。 */
 export interface ProgressSnapshot {
   readonly protocolVersion: 2;
   readonly goal: string | null;
+  readonly acceptanceCriteria: readonly string[];
+  readonly originalGoalTruncated: boolean;
+  /** Null means unavailable, not an empty goal list. Additive v2 extension. */
+  readonly goalBoard: ProgressGoalBoard | null;
   readonly createdAt: number | null;
   readonly taskBoard: { readonly items: readonly ProgressBoardTask[]; readonly total: number; readonly truncated: boolean };
   readonly recentEvents: readonly ProgressEvent[];
@@ -175,6 +203,9 @@ export interface ProgressRuntimePort {
 export interface ProgressRunDetail {
   readonly ownerSessionId?: string;
   readonly goal?: string;
+  readonly acceptanceCriteria?: readonly string[];
+  readonly goals?: Readonly<Record<string, ProgressGoal>>;
+  readonly goalRevision?: number;
   readonly createdAt?: number;
   readonly updatedAt?: number;
   readonly tasks: Readonly<Record<string, ProgressTask & {
@@ -283,6 +314,37 @@ function taskBoard(detail: ProgressRunDetail | undefined): ProgressSnapshot['tas
   };
 }
 
+/** Keep the input's default criterion (the whole goal) without clipping it twice. */
+function goalCriteria(criteria: readonly string[], text: string): string[] {
+  return criteria.slice(0, PROGRESS_LIMITS.goalCriteria).map((criterion) =>
+    bounded(criterion, criterion === text ? PROGRESS_LIMITS.goalChars : PROGRESS_LIMITS.criterionChars) ?? '');
+}
+
+function goalTruncated(text: string, criteria: readonly string[]): boolean {
+  return text.length > PROGRESS_LIMITS.goalChars || criteria.length > PROGRESS_LIMITS.goalCriteria
+    || criteria.some((criterion) => criterion.length > (criterion === text ? PROGRESS_LIMITS.goalChars : PROGRESS_LIMITS.criterionChars));
+}
+
+function goalBoard(detail: ProgressRunDetail | undefined): ProgressGoalBoard | null {
+  if (!detail?.goals) return null;
+  const goals = Object.values(detail.goals);
+  const counts = { active: 0, deferred: 0, completed: 0, continued: 0 };
+  for (const goal of goals) counts[goal.continuedInRunId ? 'continued' : goal.status]++;
+  // Pending work stays visible even when completed history exceeds the bound.
+  const rank = (goal: ProgressGoal): number => goal.continuedInRunId || goal.status === 'completed' ? 1 : 0;
+  goals.sort((a, b) => rank(a) - rank(b) || b.seq - a.seq);
+  return {
+    items: goals.slice(0, PROGRESS_LIMITS.goalBoard).map((goal) => ({
+      id: goal.id, seq: goal.seq, text: bounded(goal.text, PROGRESS_LIMITS.goalChars) ?? '',
+      acceptanceCriteria: goalCriteria(goal.acceptanceCriteria, goal.text), status: goal.status,
+      createdAt: goal.createdAt, completedAt: goal.completedAt, completedCommit: goal.completedCommit,
+      continuedInRunId: goal.continuedInRunId, truncated: goalTruncated(goal.text, goal.acceptanceCriteria),
+    })),
+    total: goals.length, truncated: goals.length > PROGRESS_LIMITS.goalBoard,
+    revision: detail.goalRevision ?? 0, counts,
+  };
+}
+
 function recentEvents(detail: ProgressRunDetail | undefined, runId: string): ProgressEvent[] {
   const events = detail?.events ?? [];
   const result: ProgressEvent[] = [];
@@ -353,6 +415,9 @@ export function toProgressSnapshot(
   return {
     protocolVersion: 2,
     goal: bounded(detail?.goal, PROGRESS_LIMITS.goalChars),
+    acceptanceCriteria: goalCriteria(detail?.acceptanceCriteria ?? [], detail?.goal ?? ''),
+    originalGoalTruncated: goalTruncated(detail?.goal ?? '', detail?.acceptanceCriteria ?? []),
+    goalBoard: goalBoard(detail),
     createdAt: detail?.createdAt ?? null,
     taskBoard: taskBoard(detail),
     recentEvents: recentEvents(detail, status.runId),
