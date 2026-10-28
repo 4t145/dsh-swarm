@@ -7,7 +7,7 @@
 - 目标：DSH **0.2.1-rc.4**、Node **24.9+**、Linux、较新的 Git（建议 **2.46+**）。其他 DSH 版本或操作系统未验证。
 - 当前 `web` profile 已安装并启用 `@local/dsh-swarm`，链接到本 checkout。首次安装已 live 生效，用户刷新后确认“协作群”空态正常。**后续 Host/worker 代码更新需要按管理器提示重启 DSH**；仅刷新网页不能替换已加载的 Host 模块。Client 更新后刷新页面。
 - 依赖原生 `worktrees` 服务；当前 `web` profile 已启用 `@deepseek-ai/dsh-experimental-tool-worktree` bundle 提供它。本插件的 bundle 不再重复插入同一 provider；其他 profile 安装前须确认此服务已挂载（例如先启用该原生 bundle），否则 Swarm 将等待缺失依赖。独立 headless overlay 自带 provider，不要与 Web bundle 重复叠加。
-- 是 Host 插件＋命令界面，并在 Web 对话页提供一个只读的 Swarm 进度面板（`conversation.view`，order=5）。面板只读取有界公开 DTO，不另起 Web 服务器。
+- 是 Host 插件＋命令界面，并在 Web 对话页提供 Swarm 协作群面板（`conversation.view`，order=5）。进度读取有界公开 DTO；追加目标等写操作走原生命令和 owner 权限路径，不另起 Web 服务器。
 - 原生 worker 继承启动者的模型和权限。只支持本地 spawn，不支持 Codex/Claude Code 外部 worker。
 - worker 的审批策略是 `never`，不能在子会话内申请扩大权限。只读模式会拒绝启动；其他权限不足会明确失败，不自动改成 full access。
 - worktree 不是安全沙箱。当前 profile 的全局 MCP 工具仍可能被 worker 继承；Swarm 不提供针对恶意 worker 的文件或网络隔离保证。
@@ -16,8 +16,8 @@
 
 在聊天里描述目标**不会**自动后台开跑。两条显式入口：
 
-- 人类：`/swarm start --spec <绝对路径>`，以及 `/swarm status|pause|resume|stop`。
-- 模型/Agent：`swarm_manage` 工具，`action=start|status|pause|resume|stop`。start 需要内联 `spec` 对象或 `spec_path`。身份取自真实 `exec.agent`；子会话与 worker 一律被拒绝，不能递归控制包含自己的 run。
+- 人类：`/swarm start --spec <绝对路径>`，以及 `/swarm status|append|continue|pause|resume|stop`。
+- 模型/Agent：`swarm_manage` 工具，`action=start|status|append|continue|pause|resume|stop`。start 需要内联 `spec` 对象或 `spec_path`。身份取自真实 `exec.agent`；子会话与 worker 一律被拒绝，不能递归控制包含自己的 run。
 - Web 对话页的“协作群”标签位于“对话”和“轨迹”之间。新版将整体流程、任务/验证/预算指标、每个 worker 的当前任务与工具活动放在首屏，下面是任务板、最近公开活动和结果分支详情。切换或关闭标签只取消读取，不停止 run。
 - worker 的任务归属、协作等待、提案集成与原生 running/inactive/unavailable 分开显示；inactive 不表示完成。工具仅显示名称、时间和返回状态，不显示参数、输出、命令正文、推理、私信或 finding 正文。
 - 新版 Host 的会话级订阅在 run 结束后继续等待下一次 run；状态变化由事件推送，预算倒计时在浏览器本地计算，不轮询模型。连接中断保留最后快照但标为非实时，可手动重新连接。
@@ -29,6 +29,41 @@
 > 用 Swarm，在当前仓库启动 2 个 Agent 自主实现 X。验收是 Y；不限时，不要合入主分支。先整理配置给我确认，再启动。
 
 之后可以说“查看 Swarm 状态”“暂停，保留任务”“继续 Swarm”“停止并给我结果分支”。Agent 使用上述 `swarm_manage` 工具，而不是靠聊天文本触发隐藏后台任务。`stopped` 是终态，不能直接继续，须以已接受的 SHA 开新 run。需要 DeepSeek 时先在 owner 会话选择该模型；当前同一次 run 的 worker 都继承 owner 模型，不能在 spec 中指定不同模型。
+
+## 随时追加目标
+
+在**启动 run 的同一 owner 会话**发布下一条需求，不必停工或重写启动配置：
+
+- 面板：在“协作群”的追加目标输入框提交，查看回执与目标状态。
+- slash：`/swarm append 增加 CSV 导入的错误行号提示`。
+- Agent：调用 `swarm_manage`，参数例如：
+
+```json
+{
+  "action": "append",
+  "goal": "增加 CSV 导入的错误行号提示",
+  "acceptance_criteria": ["无效行的错误信息包含原文件行号"]
+}
+```
+
+省略验收项时，以目标正文作为验收项；需要多条验收时也可用：
+
+```text
+/swarm append --json {"goal":"增加 CSV 导入的错误行号提示","acceptanceCriteria":["无效行的错误信息包含原文件行号"]}
+```
+
+| 追加时的阶段 | 回执与后续操作 |
+|---|---|
+| preparing / running | `executing`：进入本轮目标；worker 经正常同步和通知自主组织工作，不表示需求已经完成 |
+| paused | `paused`：已保存，恢复后处理；追加不唤醒 worker，使用 `/swarm resume` |
+| draining / quiescing | `deferred`：进入下一轮待办，不计入正在收尾的旧验收；等收尾结束后再继续 |
+| completed / stopped / failed | `deferred`：已保存但不执行；明确 `/swarm continue` 或 `swarm_manage {action:"continue"}` 才新开一轮 |
+
+“继续”沿用旧 acceptedHead、仓库与验证配置启动**新 run**，只带入待继续目标，并保留旧 run 与目标的关联；不是把 stopped/failed 偷偷改回 running。若最终停在 paused，先恢复本轮。默认不限时，不因追加而引入新的截止时间。原始目标、验收、已完成记录和代码验证凭据均保留；旧完成凭据不能把后追加目标标为已处理。
+
+当前权限范围是同一 owner Session 和该 run 的仓库，不是跨任意会话发布。普通聊天仍需 Agent 实际调用工具；工具或命令拒绝时不会显示为已接收。无需主 Agent 给 worker 逐项派单。
+
+面板与插件资源使用原创 SVG 品牌图标。当前 DSH 的 slash 候选 API 没有自定义 SVG/icon 字段，因此命令描述仅使用简洁符号；没有伪造左侧图标槽或修改宿主 DOM。
 
 ## 无 GUI / CI：headless 驱动
 
@@ -101,7 +136,7 @@ git show <acceptedHead>
 - pause/stop 先关闭新工作入口，再取消并等待本 run 的资源静止；`quiescing` 表示仍在停止，不能视为已经停干净。
 - 暂停不释放任务。原 owner 只能在 paused 且已静止时 release/cancel；release 不保证换人，原 worker 也能以新版本再次认领。
 - 默认不限时的 run 暂停后可直接恢复。仅显式限时 run 的 deadline 在暂停期间仍推进；已过期时需明确追加时限才能恢复。
-- `completed/stopped/failed` 为终态，不能 resume。要继续，以当前 acceptedHead 重新提供完整 spec 新建 run；不隐式继承旧目标、任务或预算。
+- `completed/stopped/failed` 为终态，不能 resume。已追加下一轮目标时，明确使用 `/swarm continue` 新建关联 run；否则以当前 acceptedHead 提供完整 spec 新建 run。不隐式复活旧 run，也不把旧任务或消息当作新一轮已处理事项。
 - 一个仓库最多一个非终态 run，paused 也占名额；保留原 owner Session 才能续跑。
 - worktree 和分支保留，不自动删除。若未能确认资源停止，保留现场并报告，不宣称可以安全清理。
 
