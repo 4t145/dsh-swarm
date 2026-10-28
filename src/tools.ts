@@ -193,6 +193,7 @@ const waitInput = z.strictObject({
 
 const finishInput = z.strictObject({
   accepted_commit: z.string().min(1),
+  goal_revision: z.number().int().min(0).optional(),
   notes: z
     .array(
       z.strictObject({
@@ -474,17 +475,18 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_finish',
       description:
-        'Request run completion against the current accepted commit, with one evidence note per original '
+        'Request run completion against the current accepted commit and goal revision, with one evidence note per active '
         + 'acceptance criterion. Returns the receipt decision; acceptance still requires host verification '
         + 'and resource shutdown.',
       properties: {
         accepted_commit: { type: 'string', description: 'Accepted commit the evidence applies to.' },
+        goal_revision: { type: 'integer', description: 'Current goalRevision from swarm_sync. Required after owner additions; omitted means original revision zero.' },
         notes: {
           type: 'array',
           items: {
             type: 'object',
             properties: {
-              criterion: { type: 'string', description: 'Original acceptance criterion.' },
+              criterion: { type: 'string', description: 'Active acceptance criterion from swarm_sync.' },
               evidence: {
                 type: 'array',
                 items: { type: 'string' },
@@ -494,7 +496,7 @@ export function registerWorkerTools(
             required: ['criterion', 'evidence'],
             additionalProperties: false,
           },
-          description: 'At least one note per original criterion.',
+          description: 'At least one note per active criterion, including owner additions.',
         },
       },
       required: ['accepted_commit', 'notes'],
@@ -504,6 +506,7 @@ export function registerWorkerTools(
           caller.sessionId,
           {
             acceptedCommit: input.accepted_commit,
+            ...(input.goal_revision === undefined ? {} : { goalRevision: input.goal_revision }),
             notes: input.notes.map((note) => ({
               criterion: note.criterion,
               evidence: [...note.evidence],

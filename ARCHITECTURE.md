@@ -1,6 +1,6 @@
 # DSH Swarm v0.1：单机对等 Agent 协作插件实施方案
 
-文档修订：R4 · 2026-10-28
+文档修订：R5 · 2026-10-28（追加式 owner 目标）
 
 状态：待实现的架构规格，不是已实现功能说明。
 
@@ -72,7 +72,8 @@
 - worker 使用同一套协作指令，自主发现任务；没有固定 planner、reviewer 或 integrator LLM。
 - 单进程 Host 服务集中保存协作数据、串行更新和串行集成。这不违反“无经理 LLM”。
 - 首版面向有本地 Git 基线、可配置验证命令的编码任务，不面向任意非编码研究任务。
-- run 的目标、验收项和验证配置在启动后固定。修改目标需要停止旧 run 后启动新 run；普通父会话聊天不会被默认为修改运行中的目标。
+- 原始 goal/acceptanceCriteria 与验证配置在启动后保留不变；owner 可通过 Agent 工具、slash 和面板共用的 Host 操作追加 GoalRecord，不覆盖历史。普通聊天不自动成为目标；调用真实 owner Session 的追加入口才会持久化。当前权限范围是同一 owner 会话、当前 run 的仓库。
+- preparing/running 追加纳入当前轮并发出全员 goal 事件；paused 追加纳入当前轮但不唤醒。draining/quiescing/终态的追加保存为 deferred 下一轮待办，不进入已受理的 finish。暂停收尾期间的 deferred 在显式 resume 时激活；终态必须显式 continue，沿 acceptedHead 新建 run，保留 continuedFromRunId/continuedInRunId 关联，旧 stopped/failed 不复活。
 - 工程 run 默认不设墙钟截止：省略 budgetMinutes 或设为 0 时，deadline=null，不启动到期 timer；持续至目标完成、用户停止，或因故障/无进展暂停。只有用户明确要求限时，才接受正整数 budgetMinutes；以下预算到期规则仅适用于这种显式限时运行。单条命令的 timeoutMs 保留。
 - 暂停期间截止时间仍然推进，但已暂停的 run 不因时间经过自动变成 stopped。恢复过期的 paused run 必须明确追加预算；completed/stopped/failed 都是终态，不能 resume。预算已耗尽而进入 stopped 的工作，要以当前 acceptedHead 为基线新建 run。
 
@@ -140,10 +141,10 @@ reducer 是纯同步函数，不得在里面 await Git、模型、网络或工�
 ```text
 Run
   id, ownerSessionId, repositoryRoot, gitCommonDir
-  goal, acceptanceCriteria[], verificationConfig, deadline
+  goal, acceptanceCriteria[], goals{}, goalRevision, continuedFromRunId?, verificationConfig, deadline
   phase, reason?, quiesceTarget?, revision, nextSeq, baseCommit, acceptedHead
   resultRef, integrationWorktree, workers{}, tasks{}, findings{}
-  messages{}, proposals{}, integrationAttempts{}, activeAttemptId?, verifications{}, finishRequest?
+  messages{}, proposals{}, integrationAttempts{}, activeAttemptId?, verifications{}, finishRequest?, finishHistory[]
   events[], mutationReceipts{}
 
 Worker
@@ -177,6 +178,10 @@ Event
 ```
 
 `validated(M,H,receipt)` 是简写，权威记录是持久化 passed Verification：`commit=M, expectedHead=H, sourceCommit=C, proposalId, attemptId, configFingerprint, receiptRef`。H 是本次开始集成时的 acceptedHead，**不是** Proposal.resultRefAtSubmission；提交之后公共分支可能已变化。每次 attempt 独立保存在 integrationAttempts 中，activeAttemptId 只作指针，不覆盖旧记录。用于恢复的 Verification 字段一旦 passed 就不可改写；取消未发布候选不会抹掉已完成测试的真实凭据。purpose=finish 时 commit=expectedHead=H，无 sourceCommit/proposalId；两种 purpose 的 passed 记录都可在 commit/配置匹配时复用于 finish。
+
+追加目标记录含 id/seq/text/acceptanceCriteria/status(active|deferred|completed)、完成 commit/时间与下一轮关联。当前轮的有效验收是原始验收加 active 目标验收（去重）；worker sync 返回有效验收、goalRevision 与有界目标页，read 可按 ID/文本展开；goal 事件进入正常通知、等待和工具边界上下文。它是 owner 需求，不是 peer 建议，不需要 owner 指派 Task。
+
+finish 调用携带 goal_revision（省略仅代表旧协议的 revision=0），受理与 Verification 保存 goalRevision，最终收尾复查版本；旧目标版本的验证不能复用，finish 的原子写也重查目标版本。每次受理的验收说明追加到 finishHistory，即使中断也保留。当前轮完成仅将 active 目标标为 completed，deferred 保持待办，绝不能因旧凭据被标为完成。旧数据缺少这些字段时按空追加列表、revision=0、空历史加载。
 
 运行时 Agent 句柄、进程句柄和互斥锁不序列化。Agent 的 running/inactive 来自 DSH 实际状态，不把上次保存的 running 当作重启后仍在运行的证据。
 
