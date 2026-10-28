@@ -9,17 +9,19 @@
  */
 
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 
 import type { CommandResult } from '@deepseek-ai/dsh-commands';
 import type { Session } from '@deepseek-ai/dsh-session';
 
 import { SwarmError, normalizeError } from './errors.ts';
 import { parseRunSpec } from './spec.ts';
-import type { Run, RunSpec } from './types.ts';
+import type { AppendGoalInput, AppendGoalReceipt, GoalRecord, Run, RunSpec } from './types.ts';
 
 /** Fixed usage line repeated by parse diagnostics. */
 export const SWARM_USAGE =
-  'usage: start --spec <path> | status [--details] | pause | resume [--budget <30m|1h>] | stop | task release|cancel <id> --revision <n> --reason <text>';
+  'usage: start --spec <path> | append <goal text> | append --json <object> | continue | status [--details] | pause | resume [--budget <30m|1h>] | stop | task release|cancel <id> --revision <n> --reason <text>';
 
 /** Maximum characters returned to the human UI for one command. */
 const MAX_RESULT_TEXT = 4000;
@@ -30,6 +32,8 @@ const DETAIL_ROW_LIMIT = 10;
 /** Parsed subcommands; every variant is exhaustive for the fixed grammar. */
 export type SwarmCommand =
   | { readonly kind: 'start'; readonly specPath: string }
+  | { readonly kind: 'append'; readonly input: AppendGoalInput; readonly json: boolean }
+  | { readonly kind: 'continue' }
   | { readonly kind: 'status'; readonly details: boolean }
   | { readonly kind: 'pause' }
   | { readonly kind: 'resume'; readonly budgetMinutes?: number }
@@ -62,6 +66,7 @@ export interface SwarmCommandInvocation {
 export interface SwarmCommandDefinition {
   readonly name: string;
   readonly description: string;
+  readonly input?: { readonly hint: string };
   readonly handler: (invocation: SwarmCommandInvocation) => CommandResult | Promise<CommandResult>;
 }
 
@@ -105,6 +110,7 @@ export interface SwarmRunView {
 
 /** Bounded status details used by `status --details`. */
 export interface SwarmRunStatusDetailsView {
+  readonly goalRecords?: readonly GoalRecord[];
   readonly eventCount: number;
   readonly lastEventSeq: number;
   readonly inFlightOperations: number;
@@ -132,6 +138,8 @@ export interface SwarmRunStatusDetailsView {
 
 /** A run status projected onto the JSON-safe fields rendered as text. */
 export interface SwarmRunStatusView {
+  readonly goalRevision?: number;
+  readonly goals?: { readonly total: number; readonly active: number; readonly deferred: number; readonly completed: number };
   readonly runId: string;
   readonly ownerSessionId: string;
   readonly phase: string;
@@ -189,6 +197,8 @@ export interface SwarmTaskView {
  */
 export interface SwarmRuntimePort {
   start(ownerSessionId: string, spec: RunSpec): Promise<SwarmRunView>;
+  appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt>;
+  continueGoals(ownerSessionId: string): Promise<SwarmRunView>;
   status(ownerSessionId: string, details?: boolean): SwarmRunStatusView;
   runForOwner?(ownerSessionId: string): Run;
   pause(ownerSessionId: string): Promise<SwarmRunView>;
@@ -273,6 +283,10 @@ export function tokenizeSwarmInput(input: string): string[] {
  *   missing values, a missing reason or an invalid budget/revision.
  */
 export function parseSwarmCommand(input: string): SwarmCommand {
+  // Goal prose and JSON are not shell tokens: retain apostrophes, quotes and
+  // newlines exactly, including escaped JSON strings submitted by the panel.
+  const append = /^\s*append(?:\s+([\s\S]*))?$/u.exec(input);
+  if (append) return parseAppend(append[1] ?? '');
   const tokens = tokenizeSwarmInput(input);
   const subcommand = tokens[0];
   if (subcommand === undefined) {
@@ -288,6 +302,9 @@ export function parseSwarmCommand(input: string): SwarmCommand {
       }
       return { kind: 'start', specPath };
     }
+    case 'continue':
+      expectNoArguments('continue', args);
+      return { kind: 'continue' };
     case 'status':
       return parseStatus(args);
     case 'pause':
@@ -345,7 +362,8 @@ export function registerSwarmCommand(
 ): () => void {
   const disposable = ctx.commands.register({
     name: 'swarm',
-    description: 'Start, inspect and control a local swarm run from a JSON spec',
+    description: '◈ Swarm · 追加目标与协作 / Goals & collaboration',
+    input: { hint: 'append <目标 / goal> · status · pause · resume · continue' },
     handler: (invocation) => handleSwarmCommand(ctx, runtime, invocation, workspace),
   });
   ctx.effect(() => disposable);
@@ -366,12 +384,26 @@ export async function handleSwarmCommand(
   workspace?: SwarmWorkspacePort,
 ): Promise<CommandResult> {
   try {
+    const header = invocation.agent.session.header;
+    if (header.origin === 'subagent' || (header.delegationDepth ?? 0) > 0) {
+      throw new SwarmError('SWARM_FORBIDDEN', '/swarm is only available to a top-level owner session, not a subagent or worker');
+    }
     const command = parseSwarmCommand(invocation.rawInput);
     const ownerSessionId = String(invocation.agent.id);
 
     switch (command.kind) {
       case 'start':
         return await startRun(ctx, runtime, invocation, ownerSessionId, command.specPath);
+      case 'append': {
+        assertWritableGoalAction(ctx, invocation);
+        const result = await runtime.appendGoal(ownerSessionId, command.input, randomUUID());
+        return { kind: 'success', text: formatAppendReceipt(result, command.json) };
+      }
+      case 'continue': {
+        assertWritableGoalAction(ctx, invocation);
+        const run = await runtime.continueGoals(ownerSessionId);
+        return { kind: 'success', text: formatStartReceipt(run) };
+      }
       case 'status': {
         const status = runtime.status(ownerSessionId, command.details);
         let text = formatStatus(status, command.details);
@@ -432,6 +464,15 @@ export async function handleSwarmCommand(
 /* handlers                                                            */
 /* ------------------------------------------------------------------ */
 
+function assertWritableGoalAction(ctx: SwarmCommandContext, invocation: SwarmCommandInvocation): void {
+  if (invocation.signal.aborted) {
+    throw new SwarmError('SWARM_INVALID_STATE', 'command was cancelled; no goal action was applied');
+  }
+  if (ctx.sandboxPolicy.resolve({ session: invocation.agent.session }).mode === 'read-only') {
+    throw new SwarmError('SWARM_FORBIDDEN', 'session sandbox mode is read-only; changing swarm goals requires a writable session');
+  }
+}
+
 async function startRun(
   ctx: SwarmCommandContext,
   runtime: SwarmRuntimePort,
@@ -490,6 +531,36 @@ async function startRun(
 /* ------------------------------------------------------------------ */
 /* parsing helpers                                                     */
 /* ------------------------------------------------------------------ */
+
+const appendInput = z.strictObject({
+  goal: z.string().trim().min(1),
+  acceptanceCriteria: z.array(z.string().trim().min(1)).min(1).optional(),
+});
+
+function parseAppend(raw: string): SwarmCommand {
+  const text = raw.trim();
+  const json = /^--json(?:\s|$)/u.test(text);
+  let value: unknown = { goal: text };
+  if (json) {
+    try {
+      value = JSON.parse(text.slice('--json'.length).trim());
+    } catch {
+      throw invalidInput('append --json requires a JSON object with goal and optional acceptanceCriteria');
+    }
+  }
+  const parsed = appendInput.safeParse(value);
+  if (!parsed.success) {
+    throw invalidInput('append requires a non-empty goal and optional non-empty acceptanceCriteria array');
+  }
+  return {
+    kind: 'append',
+    input: {
+      text: parsed.data.goal,
+      ...(parsed.data.acceptanceCriteria === undefined ? {} : { acceptanceCriteria: parsed.data.acceptanceCriteria }),
+    },
+    json,
+  };
+}
 
 function parseStatus(args: readonly string[]): SwarmCommand {
   const first = args[0];
@@ -622,6 +693,22 @@ function parseRevision(value: string): number {
 /* formatting                                                          */
 /* ------------------------------------------------------------------ */
 
+function formatAppendReceipt(result: AppendGoalReceipt, json: boolean): string {
+  if (json) return JSON.stringify({
+    runId: result.runId,
+    goalId: result.goal.id,
+    disposition: result.disposition,
+    phase: result.phase,
+    goalRevision: result.goalRevision,
+  });
+  const disposition = {
+    executing: 'accepted into the current round; workers can act on it',
+    paused: 'saved; still paused — use /swarm resume when ready',
+    deferred: 'saved for the next round; not executing — use /swarm continue after this run ends',
+  }[result.disposition];
+  return limitText(`goal ${result.goal.id}: ${disposition}\nrun: ${result.runId} phase=${result.phase} revision=${result.goalRevision}`);
+}
+
 function formatStartReceipt(run: SwarmRunView): string {
   const lines = [
     'swarm run started',
@@ -658,6 +745,12 @@ function formatStatus(status: SwarmRunStatusView, details: boolean): string {
     `admission: ${status.admission}`,
   ];
 
+  if (status.goals) {
+    const goals = status.goals;
+    lines.splice(2, 0, `goals: revision=${status.goalRevision ?? 0} total=${goals.total} active=${goals.active} deferred=${goals.deferred} completed=${goals.completed}`);
+    if (goals.deferred > 0) lines.splice(3, 0, 'deferred goals: saved, not executing; /swarm continue after this run ends');
+  }
+
   if (status.workers.length > 0) {
     lines.push(`workers (${status.workers.length}):`);
     for (const worker of status.workers) {
@@ -685,6 +778,8 @@ function formatStatus(status: SwarmRunStatusView, details: boolean): string {
       lines.push(
         `details: events=${extra.eventCount} lastSeq=${extra.lastEventSeq} inflight=${extra.inFlightOperations} messages=${extra.messageCount} receipts=${extra.mutationReceiptCount}`,
       );
+      appendBounded(lines, 'latest goals', (extra.goalRecords ?? []).map((goal) =>
+        `${goal.id} status=${goal.status}${goal.continuedInRunId ? ` continuedIn=${goal.continuedInRunId}` : ''} ${goal.text.slice(0, 160)}`));
       appendBounded(
         lines,
         'integration attempts',
