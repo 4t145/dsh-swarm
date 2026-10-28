@@ -441,6 +441,7 @@ describe('ProgressFeed native agent refresh', () => {
 describe('Remote markers', () => {
   it('exports snapshot as unary and watch as a stream on the swarmProgress namespace', () => {
     expect(progressRemoteMethods()).toEqual([
+      { method: 'worktreeHistory' },
       { method: 'snapshot' },
       { method: 'watch', mode: 'stream' },
       { method: 'watchSession', mode: 'stream' },
