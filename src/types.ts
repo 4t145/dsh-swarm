@@ -126,6 +126,8 @@ export interface WaitRegistration {
 
 export interface WorkerRecord {
   id: WorkerId;
+  /** Persisted random readable name; absent only in legacy records. */
+  displayName?: string;
   sessionId: string;
   branch: string;
   /** 独立 worktree 绝对路径；初始化完成前为 null。 */
@@ -165,6 +167,14 @@ export interface GoalRecord {
   completedAt: Millis | null;
   completedCommit: CommitSha | null;
   continuedInRunId: RunId | null;
+}
+
+export interface AddWorkerReceipt {
+  runId: RunId;
+  workerId: WorkerId;
+  displayName: string;
+  phase: RunPhase;
+  disposition: 'started' | 'paused';
 }
 
 export interface AppendGoalInput {

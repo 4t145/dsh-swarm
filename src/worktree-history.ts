@@ -2,6 +2,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { isSwarmError, SwarmError } from './errors.ts';
+import { workerDisplayName } from './worker-names.ts';
 import type { Run, WorkerRecord } from './types.ts';
 
 export const WORKTREE_HISTORY_PAGE_SIZE = 30;
@@ -120,7 +121,7 @@ export class WorktreeHistory {
   private async capture(run: Run, signal: AbortSignal): Promise<Cursor> {
     const worktrees: WorktreeHistoryLane[] = [];
     for (const worker of Object.values(run.workers)) {
-      const displayName = 'displayName' in worker && typeof worker.displayName === 'string' ? worker.displayName : null;
+      const displayName = workerDisplayName(worker);
       const lane: WorktreeHistoryLane = { workerId: worker.id, displayName, branch: worker.branch, worktreePath: worker.worktreePath, head: null, diagnostic: null };
       if (worker.initializationState !== 'ready' || !worker.worktreePath) {
         lane.diagnostic = `Worktree ${worker.initializationState}`;

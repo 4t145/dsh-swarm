@@ -59,6 +59,7 @@ describe('real merged worktree Git history', () => {
     const { root, run, history } = await fixture();
     const one = run.workers['w1']!;
     const two = run.workers['w2']!;
+    one.displayName = 'Calm Otter';
     const a = commit(one.worktreePath!, 'worker one');
     const b = commit(two.worktreePath!, 'worker two');
     gitSync(['merge', '--quiet', '--no-ff', '-m', 'integrate one', a], root);
@@ -71,6 +72,8 @@ describe('real merged worktree Git history', () => {
     expect(page?.items.map((item) => item.sha)).toEqual(expect.arrayContaining([a, b]));
     expect(new Set(page?.items.map((item) => item.sha)).size).toBe(4);
     expect(page?.worktrees.map((lane) => lane.workerId)).toEqual(['w1', 'w2', null]);
+    expect(page?.worktrees[0]?.displayName).toBe('Calm Otter');
+    expect(page?.worktrees[1]?.displayName).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
     expect(page?.worktrees.every((lane) => lane.diagnostic === null)).toBe(true);
     expect(page?.items.every((item) => item.committedAt > 1_000_000_000_000)).toBe(true);
     expect(page?.nextCursor).toBeNull();

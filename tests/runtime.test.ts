@@ -501,6 +501,88 @@ beforeEach(() => {
   harness.integration.gate = null;
 });
 
+describe('dynamic workers', () => {
+  it('reserves unique persisted names and admits concurrent additions up to the limit', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    const receipts = await Promise.allSettled([h.runtime.addWorker(OWNER), h.runtime.addWorker(OWNER), h.runtime.addWorker(OWNER)]);
+    expect(receipts.filter((receipt) => receipt.status === 'fulfilled')).toHaveLength(2);
+    expect(receipts.filter((receipt) => receipt.status === 'rejected')).toHaveLength(1);
+    const workers = Object.values(h.store.get(run.id).workers);
+    expect(workers).toHaveLength(4);
+    expect(new Set(workers.map((worker) => worker.displayName)).size).toBe(4);
+    expect(workers.every((worker) => /^[A-Z][a-z]+ [A-Z][a-z]+$/u.test(worker.displayName ?? ''))).toBe(true);
+    expect(harness.delivery.starts).toHaveLength(4);
+    expect(h.runtime.status(OWNER).workers.map((worker) => worker.displayName)).toEqual(workers.map((worker) => worker.displayName));
+    expect(h.runtime.status(OWNER).workerControls).toEqual({ canAdd: false, maxWorkers: 4 });
+    const loaded = createMemoryStateStore(h.table);
+    expect(Object.values(loaded.get(run.id).workers).map((worker) => worker.displayName)).toEqual(workers.map((worker) => worker.displayName));
+  });
+
+  it('reserves without starting while paused and starts the new member on resume', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    await h.runtime.pause(OWNER);
+    const receipt = await h.runtime.addWorker(OWNER);
+    expect(receipt).toMatchObject({ disposition: 'paused', phase: 'paused', workerId: `${run.id}-w3` });
+    expect(h.store.get(run.id).workers[receipt.workerId]?.initializationState).toBe('pending');
+    expect(harness.delivery.starts).toHaveLength(2);
+    await h.runtime.resume(OWNER);
+    await settleWorkers(h, run.id);
+    expect(harness.delivery.starts).toContainEqual({ runId: run.id, workerId: receipt.workerId });
+    expect(h.store.get(run.id).workers[receipt.workerId]?.displayName).toBe(receipt.displayName);
+  });
+
+  it('refuses non-owners, offline owners and terminal runs without reserving', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    await expect(h.runtime.addWorker('other-owner')).rejects.toMatchObject({ code: 'SWARM_NOT_FOUND' });
+    await expect(h.runtime.addWorker(firstWorkerSession(run))).rejects.toMatchObject({ code: 'SWARM_NOT_FOUND' });
+    h.host.live = false;
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_FORBIDDEN' });
+    h.host.live = true;
+    await h.runtime.stop(OWNER);
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_NOT_RUNNING' });
+    expect(Object.keys(h.store.get(run.id).workers)).toHaveLength(2);
+  });
+
+  it('retains failed initialization diagnostics and follows existing failed-run cleanup', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    harness.delivery.onStart = async () => { throw new Error('dynamic worktree creation failed'); };
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_INTERNAL' });
+    expect(h.store.get(run.id).phase).toBe('failed');
+    expect(Object.keys(h.store.get(run.id).workers)).toHaveLength(3);
+    expect(h.runtime.status(OWNER).diagnostics.join(' ')).toContain('dynamic worktree creation failed');
+  });
+
+  it('stop cancels an admitted addition without misreporting failure or starting later', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    harness.delivery.onStart = async (runId, workerId) => {
+      const permit = await harness.delivery.options!.admitWorkerOperation(runId, workerId, 'create');
+      try {
+        entered();
+        await new Promise<void>((_resolve, reject) => permit.signal.addEventListener('abort', () => reject(permit.signal.reason), { once: true }));
+      } finally { permit.release(); }
+    };
+    const addition = h.runtime.addWorker(OWNER);
+    const assertion = expect(addition).rejects.toBeDefined();
+    await started;
+    await h.runtime.stop(OWNER);
+    await assertion;
+    expect(h.store.get(run.id).phase).toBe('stopped');
+    expect(h.runtime.status(OWNER, true).details?.inFlightOperations).toBe(0);
+  });
+});
+
 describe('start', () => {
   it('预留 worker、首个 worker ready 后进入 running，其余 worker 异步启动', async () => {
     const h = createHarness();

@@ -179,6 +179,14 @@ class FakeRuntime implements SwarmRuntimePort {
   readonly stopCalls: string[] = [];
   readonly appendCalls: Array<{ ownerSessionId: string; input: AppendGoalInput; callId: string }> = [];
   readonly continueCalls: string[] = [];
+  readonly addWorkerCalls: string[] = [];
+
+  async addWorker(ownerSessionId: string) {
+    this.addWorkerCalls.push(ownerSessionId);
+    if (this.failure !== undefined) throw this.failure;
+    return { runId: 'run-1', workerId: 'w3', displayName: 'Sunny Otter', phase: this.run.phase,
+      disposition: 'started' as const };
+  }
   disposition: AppendGoalReceipt['disposition'] = 'executing';
 
   async appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt> {
@@ -514,7 +522,7 @@ describe('append and continue', () => {
     expect(runtime.continueCalls).toEqual([]);
   });
 
-  it.each(['append next', 'continue'])('refuses read-only, cancelled and delegated %s calls before the Host', async (command) => {
+  it.each(['append next', 'continue', 'worker add --json'])('refuses read-only, cancelled and delegated %s calls before the Host', async (command) => {
     const ctx = new FakeContext();
     const runtime = new FakeRuntime();
     ctx.mode = 'read-only';
@@ -530,6 +538,7 @@ describe('append and continue', () => {
     expect(result).toMatchObject({ kind: 'error', text: expect.stringContaining('SWARM_FORBIDDEN') });
     expect(runtime.appendCalls).toEqual([]);
     expect(runtime.continueCalls).toEqual([]);
+    expect(runtime.addWorkerCalls).toEqual([]);
   });
 
   it('continues explicitly and never turns Host rejection into success', async () => {
@@ -609,6 +618,40 @@ describe('pause, resume and stop', () => {
     if (stopped.result.kind === 'success') {
       expect(stopped.result.text).toContain('phase=quiescing');
     }
+  });
+});
+
+describe('worker addition', () => {
+  it('parses only owner worker add commands and returns a JSON receipt', async () => {
+    expect(parseSwarmCommand('worker add')).toEqual({ kind: 'worker', action: 'add', json: false });
+    expect(parseSwarmCommand('worker add --json')).toEqual({ kind: 'worker', action: 'add', json: true });
+    for (const input of ['worker', 'worker remove', 'worker add --count 2', 'worker add --json extra']) {
+      expect(() => parseSwarmCommand(input)).toThrow();
+    }
+    const { runtime, result } = await runCommand('worker add --json');
+    expect(runtime.addWorkerCalls).toEqual(['owner-1']);
+    expect(result.kind).toBe('success');
+    if (result.kind === 'success') expect(JSON.parse(result.text ?? '')).toMatchObject({
+      workerId: 'w3', displayName: 'Sunny Otter', disposition: 'started',
+    });
+  });
+
+  it('rejects cancelled and read-only actions before adding a member', async () => {
+    const ctx = new FakeContext();
+    ctx.mode = 'read-only';
+    const denied = await runCommand('worker add', { ctx });
+    expect(denied.result).toMatchObject({ kind: 'error', text: expect.stringContaining('SWARM_FORBIDDEN') });
+    expect(denied.runtime.addWorkerCalls).toEqual([]);
+    const cancelled = await runCommand('worker add', { signal: AbortSignal.abort() });
+    expect(cancelled.result.kind).toBe('error');
+    expect(cancelled.runtime.addWorkerCalls).toEqual([]);
+  });
+
+  it('surfaces failed additions without a success receipt', async () => {
+    const runtime = new FakeRuntime();
+    runtime.failure = new SwarmError('SWARM_INVALID_STATE', 'at most 4 workers');
+    const { result } = await runCommand('worker add --json', { runtime });
+    expect(result).toMatchObject({ kind: 'error', text: expect.stringContaining('at most 4 workers') });
   });
 });
 

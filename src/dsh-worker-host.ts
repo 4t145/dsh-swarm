@@ -26,6 +26,7 @@ import type { WorkerHost, WorkerStartRequest } from './ports.ts';
 import { KeyedSerialQueue } from './serial.ts';
 import type { StateStore } from './store.ts';
 import type { Run, RunId, WorkerId, WorkerRecord } from './types.ts';
+import { workerDisplayName } from './worker-names.ts';
 
 /** worker 的专用 preset；preset 身份由 Runtime 持有，这里只按约定引用。 */
 const DEFAULT_PRESET_ID = 'swarm-worker';
@@ -216,7 +217,7 @@ export class DshWorkerHost implements WorkerHost {
     try {
       activation = await this.requireService('subagents').startActivation({
         provider: this.provider,
-        label: `swarm ${run.id} worker ${worker.id}`,
+        label: `${workerDisplayName(worker)} · swarm ${run.id}`,
         childId: SessionId(worker.sessionId),
         request: {
           parent: owner,
@@ -555,7 +556,7 @@ export class DshWorkerHost implements WorkerHost {
 
     const created = await this.requireService('worktrees').create(
       agent,
-      { name: worker.branch, from: run.baseCommit },
+      { name: worker.branch, from: run.acceptedHead },
       signal,
     );
     if (created.branch !== worker.branch) {
