@@ -253,7 +253,7 @@ export class DshWorkerHost implements WorkerHost {
   }
 
   /**
-   * 用兄弟消息把 owner 的注意力引到未读事件；正文由 domain 提供，这里只发提示。
+   * 通过原 owner→worker 消息提示同步与自主续工；不在这里分派子任务。
    *
    * @throws SwarmError owner 离线或消息未被 inbox 接受。
    */
@@ -261,7 +261,12 @@ export class DshWorkerHost implements WorkerHost {
     this.assertActive('notify');
     const owner = this.requireOwner(run.ownerSessionId);
     const content: ContentBlock[] = [
-      { type: 'text', text: `有未读 Swarm 事件，请 sync 到至少 ${throughSeq}` },
+      { type: 'text', text: `Swarm coordination checkpoint (event ${throughSeq}). Call swarm_sync to read current shared state. `
+        + 'Choose the next useful contribution yourself: inspect a remaining gap, claim complementary work, '
+        + 'review/help a peer, or resolve a dependency. No manager is assigning you a task. '
+        + 'After an accepted contribution, share a patch summary and repeat the work cycle. '
+        + 'If all original criteria have evidence, propose swarm_finish. If truly blocked on peers, '
+        + 'use swarm_wait with a cursor returned by swarm_sync; do not just end with a completion report.' },
     ];
     try {
       await this.requireService('subagents').sendMessage(owner, SessionId(worker.sessionId), content, { signal });

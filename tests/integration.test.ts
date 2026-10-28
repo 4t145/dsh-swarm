@@ -212,6 +212,25 @@ function baseRun(input: { acceptedHead?: CommitSha; phase?: RunPhase } = {}): Ru
   return run;
 }
 
+function addWorker(run: Run, currentTaskId: string | null): void {
+  run.workers.w1 = {
+    id: 'w1',
+    sessionId: 'w1-session',
+    branch: 'swarm-w1',
+    worktreePath: '/repo/.agents/worktrees/w1',
+    initializationState: 'ready',
+    initializationError: null,
+    unavailableReason: null,
+    offeredSeq: 0,
+    observedSeq: 0,
+    notifiedSeq: 0,
+    wakeTargetSeq: 0,
+    waitRegistration: null,
+    currentTaskId,
+    createdAt: 1000,
+  };
+}
+
 function addProposal(
   run: Run,
   input: {
@@ -410,6 +429,7 @@ describe('IntegrationQueue', () => {
   it('integrates one queued proposal once and records exact accepted events', async () => {
     const run = baseRun({ acceptedHead: SUBMITTED_HEAD });
     addProposal(run, { id: 'p1', taskId: 't1', sourceCommit: SOURCE, submissionHead: BASE });
+    addWorker(run, 't1');
     const { store, workspace, artifacts, queue } = fixture(run);
     await store.create(run);
 
@@ -436,6 +456,9 @@ describe('IntegrationQueue', () => {
     const task = taskOf(updated, 't1');
     expect(task.status).toBe('done');
     expect(task.revision).toBe(2);
+    // Acceptance completes the task, so the author no longer has a current task.
+    expect(updated.workers.w1?.currentTaskId).toBeNull();
+    expect(task.ownerWorkerId).toBe('w1');
 
     const verification = only(Object.values(updated.verifications));
     expect(verification.purpose).toBe('proposal');
@@ -480,9 +503,24 @@ describe('IntegrationQueue', () => {
     expect(afterRecover.acceptedHead).toBe(CANDIDATE);
   });
 
+  it('does not clear an unrelated current-task pointer during acceptance', async () => {
+    const run = baseRun();
+    addProposal(run, { id: 'p1', taskId: 't1' });
+    addWorker(run, 'another-task');
+    const { store, queue } = fixture(run);
+    await store.create(run);
+
+    await queue.process(RUN_ID);
+
+    const updated = store.get(RUN_ID);
+    expect(taskOf(updated, 't1').status).toBe('done');
+    expect(updated.workers.w1?.currentTaskId).toBe('another-task');
+  });
+
   it('rejects the proposal and keeps the head when combined verification fails', async () => {
     const run = baseRun({ acceptedHead: SUBMITTED_HEAD });
     addProposal(run, { id: 'p1', taskId: 't1' });
+    addWorker(run, 't1');
     const { store, workspace, artifacts, queue } = fixture(run);
     workspace.outcome = { passed: false, interrupted: false, exitCode: 1, timedOut: false, log: 'FAIL combined suite' };
     await store.create(run);
@@ -502,6 +540,7 @@ describe('IntegrationQueue', () => {
     expect(task.status).toBe('claimed');
     expect(task.ownerWorkerId).toBe('w1');
     expect(task.proposalId).toBeNull();
+    expect(updated.workers.w1?.currentTaskId).toBe('t1');
 
     const verification = only(Object.values(updated.verifications));
     expect(verification.status).toBe('failed');
@@ -621,6 +660,7 @@ describe('IntegrationQueue', () => {
   it('recovers domain state after ref CAS succeeded but the domain write failed', async () => {
     const run = baseRun({ acceptedHead: SUBMITTED_HEAD });
     addProposal(run, { id: 'p1', taskId: 't1' });
+    addWorker(run, 't1');
     const { store, table, workspace, queue, failures } = fixture(run);
     await store.create(run);
     workspace.onPublish = () => {
@@ -634,6 +674,7 @@ describe('IntegrationQueue', () => {
     expect(workspace.ref).toBe(CANDIDATE);
     expect(afterFailure.acceptedHead).toBe(SUBMITTED_HEAD);
     expect(proposalOf(afterFailure, 'p1').status).toBe('integrating');
+    expect(afterFailure.workers.w1?.currentTaskId).toBe('t1');
     expect(only(Object.values(afterFailure.verifications)).status).toBe('passed');
 
     // 只补 domain：不再次合并、不再次移动 ref。
@@ -645,6 +686,8 @@ describe('IntegrationQueue', () => {
     expect(proposalOf(recovered, 'p1').status).toBe('accepted');
     expect(proposalOf(recovered, 'p1').acceptedCommit).toBe(CANDIDATE);
     expect(taskOf(recovered, 't1').status).toBe('done');
+    expect(taskOf(recovered, 't1').ownerWorkerId).toBe('w1');
+    expect(recovered.workers.w1?.currentTaskId).toBeNull();
     expect(only(Object.values(recovered.integrationAttempts)).status).toBe('published');
     expect(recovered.events.map((event) => event.kind)).toEqual(['proposal', 'head', 'task']);
   });

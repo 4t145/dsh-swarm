@@ -3,4 +3,5 @@ lib/
 coverage/
 *.tsbuildinfo
 .agents/worktrees/
+.pnpm-store/
 .env

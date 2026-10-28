@@ -56,7 +56,7 @@ declare module '@deepseek-ai/cordis' {
 export class SwarmService extends Service {
   static inject = [
     'storageDomain', 'agents', 'subagents', 'worktrees', 'workingDirectory',
-    'commands', 'jobs', 'tools', 'fs', 'sandbox', 'sandboxPolicy', 'subprocess',
+    'commands', 'jobs', 'tools', 'fs', 'sandbox', 'sandboxPolicy', 'subprocess', 'sessionProjections',
   ];
 
   static Config = Schema.object({

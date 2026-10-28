@@ -5,7 +5,8 @@
 ## 环境与当前安装
 
 - 目标：DSH **0.2.1-rc.4**、Node **24.9+**、Linux、较新的 Git（建议 **2.46+**）。其他 DSH 版本或操作系统未验证。
-- 当前 `web` profile 已安装并启用 `@local/dsh-swarm`，提供 `/swarm` 命令及 `swarm-worker` preset。**当前 DSH 进程仍缓存旧 JavaScript；首次使用最终构建前请重启 DSH，不只是刷新网页。** 最后的原生检查已明确检测到这个版本差异。
+- 当前 `web` profile 已安装并启用 `@local/dsh-swarm`，链接到本 checkout。首次安装已 live 生效，用户刷新后确认“协作群”空态正常。**后续 Host/worker 代码更新需要按管理器提示重启 DSH**；仅刷新网页不能替换已加载的 Host 模块。Client 更新后刷新页面。
+- 依赖原生 `worktrees` 服务；当前 `web` profile 已启用 `@deepseek-ai/dsh-experimental-tool-worktree` bundle 提供它。本插件的 bundle 不再重复插入同一 provider；其他 profile 安装前须确认此服务已挂载（例如先启用该原生 bundle），否则 Swarm 将等待缺失依赖。独立 headless overlay 自带 provider，不要与 Web bundle 重复叠加。
 - 是 Host 插件＋命令界面，并在 Web 对话页提供一个只读的 Swarm 进度面板（`conversation.view`，order=5）。面板只读取有界公开 DTO，不另起 Web 服务器。
 - 原生 worker 继承启动者的模型和权限。只支持本地 spawn，不支持 Codex/Claude Code 外部 worker。
 - worker 的审批策略是 `never`，不能在子会话内申请扩大权限。只读模式会拒绝启动；其他权限不足会明确失败，不自动改成 full access。
@@ -17,7 +18,11 @@
 
 - 人类：`/swarm start --spec <绝对路径>`，以及 `/swarm status|pause|resume|stop`。
 - 模型/Agent：`swarm_manage` 工具，`action=start|status|pause|resume|stop`。start 需要内联 `spec` 对象或 `spec_path`。身份取自真实 `exec.agent`；子会话与 worker 一律被拒绝，不能递归控制包含自己的 run。
-- Web 对话页的“协作群”标签位于“对话”和“轨迹”之间，展示 run 阶段、预算、task 完成数、每个 worker 的原生 running/inactive/unavailable、当前任务以及 proposal/验证计数。没有 run 时面板说明启动方法；切换或关闭标签只取消读取，不停止 run。面板不显示私信正文、finding 正文或事件日志。
+- Web 对话页的“协作群”标签位于“对话”和“轨迹”之间。新版将整体流程、任务/验证/预算指标、每个 worker 的当前任务与工具活动放在首屏，下面是任务板、最近公开活动和结果分支详情。切换或关闭标签只取消读取，不停止 run。
+- worker 的任务归属、协作等待、提案集成与原生 running/inactive/unavailable 分开显示；inactive 不表示完成。工具仅显示名称、时间和返回状态，不显示参数、输出、命令正文、推理、私信或 finding 正文。
+- 新版 Host 的会话级订阅在 run 结束后继续等待下一次 run；状态变化由事件推送，预算倒计时在浏览器本地计算，不轮询模型。连接中断保留最后快照但标为非实时，可手动重新连接。
+- 旧 Host 会显示能力受限提示，继续展示旧版摘要；缺少新版执行活动和任务板不是“worker 无事可做”。如管理器要求重启，请先重启 DSH 再刷新/重新连接。
+- 数据有界：任务板最多 40 项，公开活动最多最近 24 条；每个 worker 最多显示 16 个当前工具与 8 个最近工具。截断或不可用会显示说明，不把未展示的数据当作不存在。
 
 可以直接对普通 owner 会话中的 Agent 说：
 
@@ -64,6 +69,10 @@ overlay 禁用 `headless-startup`/`headless-runner`、挂载 Agent preset regist
 ## 工作与交付
 
 worker 自主创建/认领任务、交换短发现和定向消息。知识条目为 `observed`、`fact`、`fail`、`patch_summary`；更正追加而不改历史。模型看到的工具结果与输入由原生 Session 日志记录。
+
+自主协作原型不需要另开模式：仍用 `swarm_manage start` 提供共同目标，不预先给每个 worker 指派分工。worker 会自己观察缺口、认领、协商、提交，再寻找下一项工作。普通工具成功返回时，插件向该 worker 附上有界的同伴新发现/工作声明/相关消息，不必等它主动查询才看到。默认每次最多 6 条、每个正文片段 400 字符；可通过 worker 插件 Config 的 `peerNoticeItems` / `peerNoticeChars` 调整。提示不会自动确认游标，正式同步仍由 swarm_sync 完成。
+
+若 worker 只是普通结束了一个 activation，却没有明确 wait 或 finish，Host 会通过已有原生消息通道提醒它自主继续；不会指定它做哪个任务。显式等待、暂停、终态不会被这个提醒唤醒，连续无进展仍暂停，预算边界保持不变。此原型本轮只构建，尚未跑新增行为的模型验收。
 
 代码先进入 worker 私有提交，再在专用集成工作区串行合并并执行 setup/test。只有通过验证的组合提交才推进 result 分支。局部检查通过不代表集成通过；失败候选会交回作者修复。用户原工作区的 tracked 文件、index、当前分支与 cwd 不被插件切换。
 
@@ -114,8 +123,8 @@ pnpm test:native-headless
 
 - 已有状态机、CAS、消息分页、等待竞态、权限执行适配、控制/发布排序、恢复和工具注册测试。
 - 真实临时 Git 仓库的端到端测试串联了实际 Runtime、Collaboration、Delivery、IntegrationQueue 和 GitWorkspace；仅原生 worker/模型边界使用 fake。
-- 已在当前运行 Host 中检查 runtime ready、命令、worktree 服务和真实 worker preset 的 9 个 Swarm 工具，见 [原生加载报告](<notes/native-smoke.json>)。该报告的 `latestWorkerFailurePauseCode: false` 表示**最新构建尚未载入当前进程，必须重启**。测试没有创建模型任务或消耗模型 API。
-- **真实 Swarm 自举开发已尝试**：2 个 `vast-internal/deepseek-v4.1-flash-1017` worker 在原生 Session/worktree 中产出本轮功能提交；首次集成因 artifact id 含冒号被真实存储后端拒绝而失败，代码随后由 Lead 审查合入。v0.2 已改为安全前缀并增加真实 JSON 后端测试。不能把该次 failed run 记作 completed。
-- 已验证独立 headless profile 的启动/帮助、缺失路由诊断，以及两个原生 worker 的真实 SIGINT 退出链路（模型端为明确的阻塞测试 adapter）：最终 `stopped`、`aborted=true`、进程/记录退出码均为 `130`。该测试不是付费模型编码验收。默认 headless profile 尚无 `vast-internal`，完整真实模型 CLI 验收仍需先配置相应路由。
-- 本项目的 fake 边界测试仍不能替代真实模型任务；GUI 面板的最终视觉呈现未做浏览器目视验证。插件为实验性 v0.2。
-- 插件元数据、locale 与原创 SVG 文件已检查；未对 GUI 中的最终视觉呈现做浏览器目视验证。临时加载测试 bundle 的安装与配置已移除；管理器提示当前进程还需重启完成清理。正式插件保留启用。
+- [历史原生加载报告](<notes/native-smoke.json>) 记录早期代码代际与工具接线，不代表当前进程已经载入最新构建。更新以管理器的 `application`/`nextStep` 为准。
+- **真实双 worker 编码已完成两次**：2026-10-28 用 `deepseek-official/deepseek-flash` 在两个临时仓库运行，均由插件自动验证、发布、finish 至 completed，Lead 独立复跑结果测试通过，原 checkout 保持基线。详见 [验收报告](<notes/live-e2e-2026-10-28.md>)。第一场景覆盖失败反馈与重提，第二场景有重复实现；不据此宣称协作效率或大项目可靠性。
+- 两次实跑发现 code task 完成后的 currentTaskId 残留，源码已修复并补回归；真实运行仍使用更新前的 Host，该修复的重启后模型验收尚未执行，也不自动修补历史 completed 记录。
+- 独立 headless 的帮助、缺失路由、两个原生 worker 的 SIGINT→持久 stopped→退出 130 已通过。中断测试使用阻塞 adapter，不是付费模型编码验收；完整真实模型 CLI 运行仍需可用路由。
+- 初版 GUI 空态由用户刷新后确认，slot 注册亦经 Inspect 核验；没有自动化浏览器目视、明暗主题或布局截图验收。元数据与原创 SVG 源文件已检查，实际图标渲染未核验。插件仍为实验性实现。

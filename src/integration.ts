@@ -587,6 +587,11 @@ export class IntegrationQueue {
           revision: task.revision + 1,
           updatedAt: now,
         };
+        // Retain task authorship, but clear active work in the same acceptance update.
+        const owner = task.ownerWorkerId === null ? undefined : run.workers[task.ownerWorkerId];
+        if (owner !== undefined && owner.currentTaskId === task.id) {
+          run.workers[owner.id] = { ...owner, currentTaskId: null };
+        }
       }
       appendEvent(
         run,

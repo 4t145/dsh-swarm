@@ -401,27 +401,57 @@ export class Delivery {
       return;
     }
 
-    this.trackProgress(runId, workerId, activationId, state);
+    if (!this.trackProgress(runId, workerId, activationId, state)) return;
 
     try {
       await this.kickWorker(runId, workerId);
+      await this.continueAfterSettle(runId, workerId, state);
     } catch (error) {
       this.report(runId, error);
     }
   }
 
+  /** Continue an ordinary finished activation, not an explicit wait or a stopped run. */
+  private async continueAfterSettle(runId: RunId, workerId: WorkerId, state: WorkerState): Promise<void> {
+    await state.queue.run(async () => {
+      if (this.disposed || state.notifiedGeneration === state.generation) return;
+      const run = this.readRun(runId);
+      const worker = run?.workers[workerId];
+      if (!run || run.phase !== 'running' || !worker || worker.initializationState !== 'ready'
+        || worker.waitRegistration !== null || this.workerStatus(worker.sessionId) !== 'inactive'
+        || this.host.isWorkerBusy(worker.sessionId)) return;
+      try {
+        const permit = await this.options.admitWorkerOperation(runId, workerId, 'notify');
+        try {
+          permit.signal.throwIfAborted();
+          const through = Math.max(worker.observedSeq, run.nextSeq - 1);
+          // No task is assigned here: peers choose what to inspect, claim, help with, or finish.
+          await this.host.notify(run, worker, through, permit.signal);
+          state.notifiedGeneration = state.generation;
+          state.lastNotifiedSeq = through;
+          state.waitGateClosed = true;
+          await this.recordNotified(runId, workerId, through);
+        } finally {
+          permit.release();
+        }
+      } catch (error) {
+        if (!isExpectedRejection(error)) this.report(runId, error);
+      }
+    });
+  }
+
   /**
    * 连续两次 settled 既没有 cursor 前进也没有新业务事件时上报，建议上层暂停该 run。
-   * 只观测，不自行改 run 状态（那是 Runtime 的职责）。
+   * 返回 false 时本轮不得继续唤醒；实际暂停由 Runtime 负责。
    */
-  private trackProgress(runId: RunId, workerId: WorkerId, activationId: string, state: WorkerState): void {
+  private trackProgress(runId: RunId, workerId: WorkerId, activationId: string, state: WorkerState): boolean {
     const run = this.readRun(runId);
-    if (run === null) {
-      return;
+    if (run === null || run.phase !== 'running') {
+      return false;
     }
     const worker = run.workers[workerId];
     if (worker === undefined) {
-      return;
+      return false;
     }
     const marker = `${worker.observedSeq}:${run.nextSeq}`;
     if (state.settledMarker !== null && marker === state.settledMarker) {
@@ -432,7 +462,7 @@ export class Delivery {
     state.settledMarker = marker;
     // 连续两次 settled 既没有 cursor 前进也没有新业务事件。
     if (state.settledWithoutProgress < 1) {
-      return;
+      return true;
     }
     state.settledWithoutProgress = 0;
     this.report(
@@ -443,6 +473,7 @@ export class Delivery {
         { details: { runId, workerId, activationId, observedSeq: worker.observedSeq } },
       ),
     );
+    return false;
   }
 
   /* ---------------------------------------------------------------- */

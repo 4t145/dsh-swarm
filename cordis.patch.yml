@@ -1,6 +1,7 @@
 - insert:
-    - id: swarm-worktrees
-      name: '@deepseek-ai/dsh-experimental-worktree'
+    # Requires a profile worktrees provider, e.g. the
+    # @deepseek-ai/dsh-experimental-tool-worktree bundle (see USAGE.md).
+    # Reuse it rather than registering a second provider in the same realm.
     - id: swarm-runtime
       name: '@local/dsh-swarm'
       config:

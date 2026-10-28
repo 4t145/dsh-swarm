@@ -37,7 +37,7 @@
 - 选择架构方案 A：首个 worker 初始化期间创建集成树并返回源目录，再建立私有树；不改变用户 owner 的 cwd。不采用自己重写 worktree 创建流程的方案。
 - worker 权限继承原生子会话，审批为 never；不能自我升级。preset 不可用时冷恢复失败，不静默回退。当前 profile 的全局 MCP 仍可能继承，不宣称工具列表或 worktree 构成恶意代码沙箱。
 
-## 最后实际执行的验证
+## v0.1 历史验证（当前结果见文末）
 
 | 检查 | 结果 |
 |---|---|
@@ -81,3 +81,35 @@
 - 原生中断验收 run `4971e190-8941-4062-b02f-860c2cca0991`：两个原生 worker 到达 model stream 后发送真实 SIGINT，最终记录为 `stopped`、`aborted=true`、`error=null`，记录与进程退出码均为 `130`。模型端是明确的阻塞测试 adapter；这证明退出链路，不是假称真实模型编码成功。
 - Client 只依赖宿主 React，style 随组件卸载，使用 strict descriptor 挂载 Remote；包声明 `immediately=true`。重启 DSH 后实测：标签位于“对话”与“轨迹”之间，但面板报“未接线”。原因是 `$mount` 安装的是独立的 `remote.swarmProgress` 服务，经 `ctx.remote.swarmProgress` 读取会触发 Cordis 的 inject 检查而抛错；mock 测试未覆盖。现改用 `ctx.get('remote.swarmProgress')`，失败时显示真实错误，并新增 `tests/client-remote.test.ts`，用真实 typert-registry 与 api-gateway Client 回归。刷新页面后用户实测：空态正确显示“当前没有 Swarm run”。
 - 最后完整检查：typecheck、23 文件 / **267 项测试**、build 全部通过。`pnpm test:native-headless` 在全新临时 DSH_HOME 中验证缺失路由提前失败、两个原生 worker 的 SIGINT→持久 stopped→退出 130，原 checkout 不变；该脚本使用阻塞测试 adapter，不调用付费模型 API。所有临时 Web probe bundle 已移除，正式包保留启用；管理器仍明确要求重启完成代码代际切换。
+
+## 2026-10-28 当前环境安装与真实模型验收
+
+- 重新安装开发依赖、链接精确宿主声明，初始 typecheck / 23 文件 267 项测试 / build 通过；本地 pnpm store 加入忽略规则。
+- 本 checkout 通过 `plugin_manager install_bundle` 链接到当前 `web` profile。首次激活失败于重复 worktrees provider：当前 profile 已启用 `@deepseek-ai/dsh-experimental-tool-worktree`，旧 bundle 又在根 realm 注册同一服务。
+- [正式 patch](<cordis.patch.yml>) 改为消费 profile 已有 provider；其他 profile 须先提供 worktrees，[独立 headless overlay](<cordis.headless.yml>) 仍自带 provider。在线尝试隔离域时失败行未恢复，没有核验干净启动下的隔离语义，不据此断言 Cordis isolate 无效。最终 reconcile 返回 applied、无 warnings，owner 工具可用。
+- 用户刷新后确认“协作群”空态正常；Client Inspect 后续核验 `swarm-progress` active / order=5。
+- 两次真实 `deepseek-official/deepseek-flash` 双 worker run 完成：`7288a880-e5ec-4e69-9e25-62a9a44c0971` 与 `22444773-aa43-4806-b771-a1e812be73da`。验证、SHA、模型路由和独立 Git 检查见 [验收报告](<notes/live-e2e-2026-10-28.md>)；失败重提与重复实现均如实记录，不把参与的 worker 数量等同于有效并行产出。
+- 实跑发现 code task 接受后 currentTaskId 残留。[集成模块](<src/integration.ts>) 已在接受更新中清除匹配指针，保留历史 owner；[回归](<tests/integration.test.ts>) 覆盖接受、拒绝、恢复补记及不误清其他指针。[worker 指令](<src/worker-policy.ts>) 明确每次验证是 acceptedHead 合并当前 submission，不批量接受未验证的 peer proposal，遵循架构 §8.2。
+- 此轮修复检查：typecheck、23 文件 / 268 项、build 与原生 headless 中断脚本均通过。原生中断使用阻塞测试 adapter，与两个真实模型场景分开。
+- 新构建仍未进入现有 Host：第二次实跑仍复现旧指针，管理器随后明确返回 `restart-required / module-comparison`。须重启 DSH，不能靠刷新页面替代；没有擅自重启服务，也没有改写历史终态记录。
+
+## 协作群面板重设计与持续进度订阅
+
+- 本轮面板开发使用外部 DSH Agent Teams，Lead 为避免共享目录写冲突划分后端/Client 作用域；这不是 Swarm 自主拆分任务的自举验收。插件内 worker 自主创建/认领任务的协议没有更改。
+- [Client 面板](<client.js>) 重设计为整体工作流、真实任务/验证/预算指标、双列 worker 卡片、任务板、公开时间线与可展开结果信息；工作流允许多个阶段同时活跃，没有把任务数转成目标完成百分比。采用主题 token、中英文文案、响应式布局、原生 details、键盘焦点和 reduced-motion 支持。
+- [进度 DTO](<src/progress.ts>) 新增 protocolVersion=2、目标/起始时间、最多 40 项任务板、最近 24 条公开 task/proposal/head/run 状态事件，以及 worker 等待条件、当前提案和工具活动。私信、finding 正文、工具参数/结果、命令或推理正文不进入这些数据；旧终态任务指针在投影中隐藏，不改写历史记录。
+- [原生活动投影](<src/worker-activity.ts>) 通过真实 sessionProjections 增量处理 turn/step/tool 事件；只保留工具身份、名称、状态、时间，当前工具最多 16 个、最近 8 个。超限时保守保留截断/调用中状态至 step/turn 结束，不能因列表裁剪误报空闲；native inactive 覆盖残留执行状态。Host [入口](<src/index.ts>) 显式依赖 sessionProjections，注册与监听器随插件卸载清理。
+- 新增 Remote `watchSession(sessionId, signal)` 持续跟随同 owner 的后续 run；旧 `watch` 保持终态结束语义。只订阅相关 worker/业务变化，并忽略仅快照时钟变化产生的冗余帧；取消在 generator 暂停于 yield 时也会立即解除订阅。
+- Client 使用持续订阅，只有确认新版 endpoint 缺失时才回退旧 watch；权限/网络错误不能伪装成兼容成功。断线、坏帧或流结束时保留最后快照并标非实时；切换 Session 立即屏蔽旧帧。倒计时只用本地 timer，无 Host 轮询；终态或断线冻结，组件卸载清 timer/stream。真实 Remote mount 的 namespace、slot、locale 与异步卸载均有生命周期回归。
+- 最后实际检查：`node --check client.js`、`pnpm typecheck`、`pnpm test`（25 文件 / **308 项**）、`pnpm build`、原生 headless 缺路由与 SIGINT 回归、`git diff --check` 全部退出 0。覆盖真实 ProjectionRegistry 与 Remote client 的集成测试，但不把它们当作浏览器截图或真实模型 UI 验收。
+- 构建后再次 reconcile：`restart-required / module-comparison`，无 warnings，随后用户重启 DSH 并确认面板可见。尚未进行新版面板下的新 run 实时目视验收及明暗主题/窄屏检查；未启动替代服务器或额外浏览器。
+
+## Agensh 式自主协作原型
+
+- 按用户要求先实现原型，不再做评审循环、全套测试或新增真实模型 run。本轮修改范围：[worker-context](<src/worker-context.ts>)、[worker 入口](<src/worker.ts>)、[协作指令](<src/worker-policy.ts>)、[Delivery](<src/delivery.ts>)、[原生消息适配](<src/dsh-worker-host.ts>) 及对应说明。
+- 在专用 worker preset 的真实 `tools/post-execute` waterfall 中先调用 next，保留既有 accept/block/value/content 决策；仅在合适的成功工具边界通过 additionalContexts 附上同伴发现、工作声明、本人可见消息与结果更新。用户 owner 不挂该监听器；等待、finish、取消及非 running 状态不注入。普通工具结果不被改写，提示读取失败只给可见诊断，不把已执行工具伪装成失败重试。
+- 摘要有界，默认每批 6 条、正文片段 400 字符，worker Config 可调整；私信按原 audience 过滤。WeakMap 以真实 Agent 对象记录临时去重位置，不改持久 offered/observed、不自动确认、不清除 wait。明确提示用 sync/read 展开及确认；恢复可重投，提示内容不是新的 owner 指令。
+- 指令改为同权 peer 的观察→选题/认领→协商→实施/分享→验证/集成→再观察循环，空任务板不等于没工作；允许同伴自主形成评审/协调分工，但不新增经理模型。
+- Delivery 在普通 activation settled 后，如未等待、没有已投递唤醒、资源空闲且 run 仍 running，则通过同一 worker 串行队列和 admission 发送自主续工提示；不分派具体任务，不使用轮询 timer，保持连续无进展暂停和停止/预算门禁。显式 wait 仍只由匹配事件恢复。
+- 保留现有候选验证规则，没有借“先做原型”取消用户指定的运行时测试。也未实现任意追加新目标或跨 run 的永久 worker 池。
+- 本轮实际执行 `pnpm build`（含源码声明编译）和 `git diff --check`，退出 0；没有运行新增行为测试或模型端到端，因此此前 308 项结果不代表本轮新增行为已经验收。

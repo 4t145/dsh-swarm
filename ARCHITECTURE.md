@@ -307,6 +307,7 @@ open / claimed / blocked --cancel（授权 + CAS + 理由）--> cancelled
 - 例：41 是可见 Finding，42 是发给其他人的私信，43 是可见 Finding；页大小只容纳一条时返回 41、throughSeq=42、hasMore=true。下一页必须从 43 开始，不返回 42 的正文。
 - 只有事件正文/摘要实际进入模型可见结果，才更新对应的 offeredSeq；仅送“请同步至 N”的控制通知只更新 notifiedSeq，不能把 offeredSeq 跳到 N。
 - 仅拉取页面不能声称模型已处理它；下一次确认才推进 observedSeq。条目有稳定 ID/seq，恢复时可以重复送达。目标是至少一次提供，不承诺模型恰好处理一次。
+- 自主协作原型增加工具返回边界的旁路知识提示：只给当前 worker 附上它可见的同伴事件摘要，经原生 additionalContexts 正常落日志；不改变工具结果、offered/observed、等待登记或运行目标。提示内 seq 不是 ack cursor，正式确认仍须先 sync。提示去重只在当前 Agent 内存中保留，恢复可重复，完整记录仍通过 sync/read 获取。
 
 ### 7.2 确定性的唤醒匹配表
 
@@ -597,6 +598,15 @@ status 的“不可用”是插件诊断标签（例如 provider 缺失、Sessio
 v0.1 的交付包括 bundle manifest、Cordis patch、Host 模块、worker preset、工具说明、测试、英文/中文插件元数据和原创或合规图标。通过 `plugin_manager install_bundle` 安装，不手改用户 profile。
 
 第一版 UI 可以只有命令和文本状态；后续通过 DSH `conversation.view` 添加只读 Swarm 看板，不起独立 Web 服务器。
+
+#### 12.1.1 v0.2 看板增量：可视性与即时性
+
+- 整体展示目标、run 阶段、任务状态计数、集成/验证流程、结果 ref/SHA；工作流中的协作与验证可并行，不伪造单一线性完成百分比。
+- 每个 worker 展示当前有效任务、原生状态、等待协作或等待集成，以及从原生 Session 事件派生的有界工具调用状态。inactive 不是完成；调用返回也不是整个任务完成。done/cancelled 的历史任务不能标为当前工作。
+- 工具活动由宿主 sessionProjections 增量派生；只展示名称、状态和时间，不转发工具参数/结果、命令正文、推理或私信。任务板和最近公开状态事件有固定条数上限，显示截断信息。
+- 看板订阅以 owner 会话为生命周期，run 终态之后仍可接收同 owner 的下一次 run。旧的单 run watch 语义可保留；新增持续订阅必须在面板卸载、会话切换、取消或插件卸载时清理，不驱动模型。
+- 底层只监听持久状态和相关 worker 投影变化，不轮询 Agent。预算倒计时在 Client 本地更新；没有新帧不等于断线，流结束或错误则明确显示非实时、保留最后快照并提供重新连接。
+- 旧 Host 不具备新能力时明确标示并保留可用摘要，不把权限拒绝或网络错误吞为降级成功。部署生效与单测分开验收，新 Host 模块要求重启时如实报告。
 
 ### 12.2 四个有验收结果的阶段
 

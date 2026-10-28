@@ -9,6 +9,8 @@ import { describe, expect, it } from 'vitest';
 
 import { isRemoteFailure } from '@deepseek-ai/dsh-api-gateway/client';
 import { SwarmError } from '../src/errors.ts';
+import { emptyWorkerActivity, type WorkerActivityState } from '../src/worker-activity.ts';
+import type { SwarmEvent } from '../src/types.ts';
 import {
   PROGRESS_LIMITS,
   ProgressFeed,
@@ -394,9 +396,254 @@ describe('Remote markers', () => {
     expect(progressRemoteMethods()).toEqual([
       { method: 'snapshot' },
       { method: 'watch', mode: 'stream' },
+      { method: 'watchSession', mode: 'stream' },
     ]);
   });
 });
+describe('progress v2 public facts', () => {
+  it('includes bounded task board, goal, wait and pending proposal without leaking run-private data', () => {
+    const tasks = Object.fromEntries(Array.from({ length: 60 }, (_, index) => [`task-${index}`, {
+      id: `task-${index}`, subject: 'public subject', status: index === 59 ? 'claimed' : 'done', revision: 1,
+      ownerWorkerId: 'w1', proposalId: null, acceptance: 'PRIVATE ACCEPTANCE',
+    }]));
+    const run = {
+      goal: 'g'.repeat(1_000), createdAt: 50, tasks,
+      workers: { w1: { currentTaskId: 'task-59', waitRegistration: {
+        mode: 'selected' as const, afterSeq: 10,
+        taskIds: Array.from({ length: 30 }, (_, index) => `t${index}`), proposalIds: ['proposal-1'],
+      } } },
+      proposals: { p: { id: 'proposal-1', taskId: 'task-59', status: 'integrating' as const,
+        authorWorkerId: 'w1', createdAt: 200, updatedAt: 300, diagnosticsRef: 'PRIVATE ARTIFACT' } },
+      messages: { private: { body: 'PRIVATE MESSAGE' } }, findings: { private: { summary: 'PRIVATE FINDING' } },
+    };
+    const snapshot = toProgressSnapshot(status({ workers: [worker({ id: 'w1', currentTaskId: 'task-59' })] }), run, 500);
+    expect(snapshot.protocolVersion).toBe(2);
+    expect(snapshot.goal).toHaveLength(PROGRESS_LIMITS.goalChars);
+    expect(snapshot.createdAt).toBe(50);
+    expect(snapshot.taskBoard).toMatchObject({ total: 60, truncated: true });
+    expect(snapshot.taskBoard.items).toHaveLength(PROGRESS_LIMITS.taskBoard);
+    expect(snapshot.taskBoard.items[0]?.id).toBe('task-59');
+    expect(snapshot.workers[0]?.wait?.taskIds).toHaveLength(PROGRESS_LIMITS.waitIds);
+    expect(snapshot.workers[0]?.currentProposal).toEqual({ id: 'proposal-1', taskId: 'task-59',
+      status: 'integrating', createdAt: 200, updatedAt: 300 });
+    expect(JSON.stringify(snapshot)).not.toMatch(/PRIVATE|acceptance|diagnosticsRef|messages|findings/);
+  });
+
+  it('filters stale terminal task pointers in the DTO without rewriting completed history', () => {
+    const run = detail();
+    const historical = { ...run, tasks: { 'task-1': { ...run.tasks['task-1']!, status: 'done' } } };
+    const before = JSON.stringify(historical);
+    const snapshot = toProgressSnapshot(status({ phase: 'completed' }), historical, 500);
+    expect(snapshot.workers[0]?.currentTask).toBeNull();
+    expect(snapshot.taskBoard.items[0]?.status).toBe('done');
+    expect(JSON.stringify(historical)).toBe(before);
+  });
+
+  it('publishes only a bounded public task/proposal/head/run timeline in chronological order', () => {
+    const events: SwarmEvent[] = Array.from({ length: 30 }, (_, index) => ({
+      seq: index + 1, createdAt: index, authorWorkerId: 'w1', audience: { kind: 'all' },
+      kind: 'task', taskId: `task-${index}`, status: 'claimed', ownerWorkerId: 'w1',
+    }));
+    events.push({ seq: 31, createdAt: 31, authorWorkerId: 'w1', audience: { kind: 'all' },
+      kind: 'finding', findingId: 'PRIVATE FINDING ID', taskId: null, findingKind: 'fact' },
+    { seq: 32, createdAt: 32, authorWorkerId: 'w1', audience: { kind: 'workers', workerIds: ['w1'] },
+      kind: 'message', messageId: 'PRIVATE MESSAGE ID', targetWorkerId: 'w1' },
+    { seq: 33, createdAt: 33, authorWorkerId: 'w1', audience: { kind: 'all' },
+      kind: 'proposal', proposalId: 'p1', taskId: 'task-1', status: 'accepted' },
+    { seq: 34, createdAt: 34, authorWorkerId: null, audience: { kind: 'all' },
+      kind: 'head', acceptedHead: 'abcd', proposalId: 'p1' },
+    { seq: 35, createdAt: 35, authorWorkerId: null, audience: { kind: 'all' },
+      kind: 'run', phase: 'completed', target: null, reason: 'PRIVATE REASON' });
+    const snapshot = toProgressSnapshot(status(), { ...detail(), events }, 100);
+    expect(snapshot.recentEvents).toHaveLength(PROGRESS_LIMITS.recentEvents);
+    expect(snapshot.recentEvents.slice(-3).map((event) => event.kind)).toEqual(['proposal', 'head', 'run']);
+    expect(snapshot.recentEvents.map((event) => event.seq)).toEqual([...snapshot.recentEvents.map((event) => event.seq)].sort((a, b) => a - b));
+    expect(JSON.stringify(snapshot.recentEvents)).not.toMatch(/PRIVATE|finding|message|reason/);
+  });
+
+  it('checks owner before reading full detail or worker activity', () => {
+    let details = 0;
+    let activities = 0;
+    const feed = new ProgressFeed({ status: () => status({ ownerSessionId: 'other' }) }, {
+      subscribe: () => () => undefined,
+      detail: () => { details++; return detail(); },
+      activity: { read: () => { activities++; return emptyWorkerActivity(); },
+        subscribe: () => () => undefined, dispose: () => undefined },
+    });
+    expect(() => feed.snapshot(OWNER)).toThrow(/another session/);
+    expect(details).toBe(0);
+    expect(activities).toBe(0);
+  });
+});
+
+describe('ProgressFeed continuous session stream', () => {
+  it('observes terminal run then a new run without ending or resetting frame sequence', async () => {
+    const { feed, runtime, emit, unsubscribeCount } = manualChanges();
+    const controller = new AbortController();
+    const iterator = feed.watchSession(OWNER, controller.signal)[Symbol.asyncIterator]();
+    expect((await iterator.next()).value?.progress?.runId).toBe(RUN);
+    runtime.setPhase(status({ phase: 'completed' }));
+    emit({ runId: RUN, ownerSessionId: OWNER, phase: 'completed' });
+    expect((await iterator.next()).value?.progress?.phase).toBe('completed');
+    expect(unsubscribeCount()).toBe(0);
+    const next = iterator.next();
+    runtime.setPhase(status({ runId: 'run-2', phase: 'preparing' }));
+    emit({ runId: 'run-2', ownerSessionId: OWNER, phase: 'preparing' });
+    expect(await next).toMatchObject({ done: false, value: { seq: 3, progress: { runId: 'run-2' } } });
+    controller.abort();
+    expect(unsubscribeCount()).toBe(1);
+    expect((await iterator.next()).done).toBe(true);
+    await feed.dispose();
+  });
+
+  it('starts without a run and remains subscribed until one is created', async () => {
+    let current: RunStatus | null = null;
+    let notify: ((change: ProgressChange) => void) | undefined;
+    const feed = new ProgressFeed({ status: () => {
+      if (!current) throw new SwarmError('SWARM_NOT_FOUND', 'no run');
+      return current;
+    } }, { subscribe: (listener) => { notify = listener; return () => { notify = undefined; }; } });
+    const controller = new AbortController();
+    const iterator = feed.watchSession(OWNER, controller.signal)[Symbol.asyncIterator]();
+    expect((await iterator.next()).value).toEqual({ seq: 1, progress: null });
+    current = status();
+    notify?.({ runId: RUN, ownerSessionId: OWNER, phase: 'running' });
+    expect((await iterator.next()).value?.progress?.runId).toBe(RUN);
+    controller.abort();
+    expect(notify).toBeUndefined();
+    await feed.dispose();
+  });
+
+  it('deduplicates clock-only or private-record updates while retaining public changes', async () => {
+    let clock = 100;
+    let current = status();
+    let notify: ((change: ProgressChange) => void) | undefined;
+    const feed = new ProgressFeed({ status: () => current }, {
+      now: () => clock,
+      detail: () => ({ ...detail(), updatedAt: clock }),
+      subscribe: (listener) => { notify = listener; return () => { notify = undefined; }; },
+    });
+    const iterator = feed.watchSession(OWNER)[Symbol.asyncIterator]();
+    await iterator.next();
+    let settled = false;
+    const pending = iterator.next().then((value) => { settled = true; return value; });
+    clock = 200;
+    notify?.({ runId: RUN, ownerSessionId: OWNER, phase: 'running' });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    current = status({ tasks: { ...status().tasks, done: 10 } });
+    notify?.({ runId: RUN, ownerSessionId: OWNER, phase: 'running' });
+    expect(await pending).toMatchObject({ value: { seq: 2, progress: { now: 200, tasks: { done: 10 } } } });
+    await feed.dispose();
+  });
+
+  it('refreshes only relevant worker activity and disposes the source once', async () => {
+    let activity: WorkerActivityState = emptyWorkerActivity();
+    let notify: ((sessionId: string) => void) | undefined;
+    let reads = 0;
+    let disposed = 0;
+    const feed = new ProgressFeed({ status: () => status({ workers: [worker()] }) }, {
+      subscribe: () => () => undefined,
+      activity: { read: () => { reads++; return activity; },
+        subscribe: (listener) => { notify = listener; return () => { notify = undefined; }; },
+        dispose: () => { disposed++; },
+      },
+    });
+    const iterator = feed.watchSession(OWNER)[Symbol.asyncIterator]();
+    await iterator.next();
+    let settled = false;
+    const pending = iterator.next().then((value) => { settled = true; return value; });
+    activity = { ...activity, turn: 3, step: 5, updatedAt: 700 };
+    notify?.('unrelated');
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(reads).toBe(1);
+    notify?.('worker-session-2');
+    expect(await pending).toMatchObject({ value: { progress: { workers: [{ activity: { turn: 3, step: 5 } }] } } });
+    expect(reads).toBe(2);
+    await feed.dispose();
+    await feed.dispose();
+    expect(disposed).toBe(1);
+    expect(notify).toBeUndefined();
+  });
+});
+
+describe('ProgressFeed strict cancellation', () => {
+  it('does not subscribe or read for a signal aborted before the opening frame', async () => {
+    let touched = false;
+    const controller = new AbortController();
+    controller.abort();
+    const feed = new ProgressFeed({ status: () => { touched = true; return status(); } }, {
+      subscribe: () => { touched = true; return () => undefined; },
+    });
+    const iterator = feed.watchSession(OWNER, controller.signal)[Symbol.asyncIterator]();
+    expect((await iterator.next()).done).toBe(true);
+    expect(touched).toBe(false);
+  });
+
+  it('cleans up immediately when cancelled while suspended at yield', async () => {
+    const { feed, unsubscribeCount } = manualChanges();
+    const controller = new AbortController();
+    const iterator = feed.watchSession(OWNER, controller.signal)[Symbol.asyncIterator]();
+    await iterator.next();
+    controller.abort();
+    expect(unsubscribeCount()).toBe(1);
+    expect((await iterator.next()).done).toBe(true);
+    await feed.dispose();
+    expect(unsubscribeCount()).toBe(1);
+  });
+
+  it('settles a pending next on abort without emitting a buffered change', async () => {
+    const { feed, runtime, emit, unsubscribeCount } = manualChanges();
+    const controller = new AbortController();
+    const iterator = feed.watchSession(OWNER, controller.signal)[Symbol.asyncIterator]();
+    await iterator.next();
+    const pending = iterator.next();
+    runtime.setPhase(status({ phase: 'completed' }));
+    emit({ runId: RUN, ownerSessionId: OWNER, phase: 'completed' });
+    controller.abort();
+    expect((await pending).done).toBe(true);
+    expect(unsubscribeCount()).toBe(1);
+    await feed.dispose();
+  });
+
+  it('honors synchronous cancellation during subscription and snapshot reads', async () => {
+    for (const during of ['subscribe', 'snapshot']) {
+      const controller = new AbortController();
+      let closed = 0;
+      const feed = new ProgressFeed({ status: () => {
+        if (during === 'snapshot') controller.abort();
+        return status();
+      } }, { subscribe: () => {
+        if (during === 'subscribe') controller.abort();
+        return () => { closed++; };
+      } });
+      const iterator = feed.watchSession(OWNER, controller.signal)[Symbol.asyncIterator]();
+      expect((await iterator.next()).done).toBe(true);
+      expect(closed).toBe(1);
+      await feed.dispose();
+    }
+  });
+
+  it('propagates ongoing subscription failures rather than ending successfully', async () => {
+    let fail = false;
+    let notify: ((change: ProgressChange) => void) | undefined;
+    const feed = new ProgressFeed({ status: () => {
+      if (fail) throw new Error('status unavailable');
+      return status();
+    } }, { subscribe: (listener) => { notify = listener; return () => { notify = undefined; }; } });
+    const iterator = feed.watchSession(OWNER)[Symbol.asyncIterator]();
+    await iterator.next();
+    const pending = iterator.next();
+    fail = true;
+    notify?.({ runId: RUN, ownerSessionId: OWNER, phase: 'running' });
+    await expect(pending).rejects.toThrow('status unavailable');
+    expect(notify).toBeUndefined();
+    await feed.dispose();
+  });
+});
+
 /* ------------------------------------------------------------------ */
 /* 浏览器插件：conversation.view order=5 + ctx.remote.$mount            */
 /* ------------------------------------------------------------------ */
@@ -436,6 +683,7 @@ interface LoadedPlugin {
 function fakeReact(): {
   createElement: (tag: unknown, props: unknown, ...children: unknown[]) => unknown;
   useState: (initial: unknown) => [unknown, (next: unknown) => void];
+  useRef: (initial: unknown) => { current: unknown };
   useEffect: (effect: () => unknown, deps?: readonly unknown[]) => void;
   reset: () => void;
 } {
@@ -445,18 +693,21 @@ function fakeReact(): {
     left !== undefined && right !== undefined && left.length === right.length
       && left.every((value, index) => value === right[index]);
   return {
-    createElement: (tag, props, ...children) => ({
-      tag,
-      props: (props ?? {}) as Record<string, unknown>,
-      children: children.flat(Infinity),
-    }),
+    createElement: (tag, props, ...children) => typeof tag === 'function'
+      ? (tag as (props: unknown) => unknown)(props)
+      : { tag, props: (props ?? {}) as Record<string, unknown>, children: children.flat(Infinity) },
     useState: (initial) => {
       const index = cursor++;
-      if (slots[index] === undefined) slots[index] = { value: initial };
+      if (slots[index] === undefined) slots[index] = { value: typeof initial === 'function' ? initial() : initial };
       const slot = slots[index];
       return [slot.value, (next: unknown) => {
         slot.value = typeof next === 'function' ? (next as (value: unknown) => unknown)(slot.value) : next;
       }];
+    },
+    useRef: (initial) => {
+      const index = cursor++;
+      if (slots[index] === undefined) slots[index] = { value: { current: initial } };
+      return slots[index].value as { current: unknown };
     },
     useEffect: (effect, deps) => {
       const index = cursor++;
@@ -561,6 +812,7 @@ async function loadPlugin(options: LoadPluginOptions = {}): Promise<LoadedPlugin
     get: (name: string) => (name === 'remote.swarmProgress' && contribution !== undefined ? progressRemote : undefined),
   };
   const progressRemote = {
+        watchSession() { return this.watch(); },
         snapshot: async () => ({ ok: true, value: null }),
         watch: () => {
           let index = 0;
@@ -660,15 +912,18 @@ describe('client.js progress panel rendering', () => {
     expect(text).toContain(zh('title'));
     expect(text).toContain(RUN);
     expect(text).toContain(zh('phase.running'));
-    expect(text).toContain('4/21');
-    expect(text).toContain(zh('budget.remaining').replace('{minutes}', '1'));
+    expect(text).toContain('4 / 21');
+    expect(text).toContain(zh('budget.kpi'));
+    expect(text).toMatch(/0:0[45]/);
     // 每个 worker 的原生状态原样展示；inactive 不得显示成完成。
     expect(text).toContain('w1');
     expect(text).toContain('w2');
     expect(text).toContain('w3');
-    expect(text).toContain(plugin.locale.zh['worker.running']);
-    expect(text).toContain(plugin.locale.zh['worker.inactive']);
-    expect(text).toContain(plugin.locale.zh['worker.unavailable']);
+    for (const native of ['running', 'inactive', 'unavailable']) {
+      expect(text).toContain(zh('worker.native').replace('{status}', native));
+    }
+    expect(text).toContain(zh('worker.inactiveNote'));
+    expect(text).toContain(zh('stale.title'));
     expect(text).toContain('provider missing');
     expect(text).toContain('Implement progress DTO');
     expect(text).toContain('3');
@@ -688,7 +943,7 @@ describe('client.js progress panel rendering', () => {
   it('reports the Host interface as unavailable when the Remote mount fails', async () => {
     const plugin = await loadPlugin({ mountFails: true });
     const { text } = plugin.render();
-    expect(text).toContain('Swarm 进度连接失败');
+    expect(text).toContain(plugin.locale.zh['connection.unavailable']);
     expect(text).toContain('mount failed');
   });
 });

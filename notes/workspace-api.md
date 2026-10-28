@@ -537,7 +537,7 @@ function assertWritableInside(policy: SandboxExecutionPolicy, needs: readonly st
 
 | # | 风险 | 影响 | 建议 |
 |---|---|---|---|
-| 1 | `worktrees` 服务本 profile **未挂载** | 架构 §5.3-4 的调用会直接 `ctx.worktrees === undefined` | Swarm bundle 的 `cordis.patch.yml` `insert` 一个 `@deepseek-ai/dsh-experimental-worktree` 条目；并在文档里禁止同时挂 `@deepseek-ai/dsh-experimental-tool-worktree`（会 duplicate service 抛错） |
+| 1 | 初次调研时 `worktrees` 未挂载；当前 profile 已提供 | 缺失会等待依赖；重复 provider 会报 `service "worktrees" has been registered` | 正式 bundle 复用 profile 已有的 provider（当前通过 `@deepseek-ai/dsh-experimental-tool-worktree` 提供），安装前检查依赖，不假设所有 Web profile 默认启用。独立 headless overlay 仍自行提供。见 [安装与验收记录](<../IMPLEMENTATION.md>)。 |
 | 2 | 集成树由谁创建（§2.4 A/B/C） | 影响是否需要额外可见 Session | 先按 A；B 备选；C 只在放弃 worktree 服务时 |
 | 3 | `workspace-write` root = **源仓库**，不是 worktree | 隔离是约定而非边界；worker 能写仓库其它路径 | 验收用候选 diff；架构已有声明，勿在实现里宣称更强保证 |
 | 4 | 工具链缓存写 `$HOME` 被拒 | `pnpm test` 等可能在 `workspace-write` 下失败 | env 指到 worktree 内；失败即报告（§7.4） |

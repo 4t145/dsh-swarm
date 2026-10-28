@@ -2,10 +2,10 @@
  * Read-only swarm progress projection shared with the Web UI.
  *
  * This module owns a bounded public DTO derived from the runtime's existing
- * `status(ownerSessionId)` summary plus a small task/worker lookup used to name
- * a worker's current task. It never exposes chat messages, findings bodies,
- * artifacts, Git commands, or any other run-private text, and it never imports
- * React: the browser panel lives in `client.js` and reaches this service
+ * `status(ownerSessionId)` summary, an owner-checked task/event view, and the
+ * native session projection's tool/lifecycle facts. It never exposes chat,
+ * findings, tool arguments/results, artifacts or Git commands, and it never
+ * imports React: the browser panel lives in `client.js` and reaches this service
  * through the Typert Gateway.
  *
  * The service extends {@link TypertRemoteService} and marks `snapshot`/`watch`
@@ -28,7 +28,8 @@ import {
 } from '@deepseek-ai/dsh-typert-protocol';
 import { isSwarmError } from './errors.ts';
 import { isTerminalRunPhase } from './types.ts';
-import type { Run, RunPhase, RunId, WorkerInitializationState } from './types.ts';
+import type { Run, RunPhase, RunId, WorkerInitializationState, SwarmEvent, WaitRegistration, ProposalRecord } from './types.ts';
+import { registerWorkerActivity, toWorkerActivity, type WorkerActivity, type WorkerActivitySource } from './worker-activity.ts';
 import type { NativeWorkerStatus, RunStatus, WorkerStatusSummary, TaskCounts } from './runtime.ts';
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
@@ -53,6 +54,10 @@ export const PROGRESS_LIMITS = Object.freeze({
   reasonChars: 200,
   refChars: 200,
   workers: 8,
+  goalChars: 800,
+  taskBoard: 40,
+  recentEvents: 24,
+  waitIds: 16,
 });
 
 /** 一个 worker 当前持有的 task；只含任务板公开字段，不含 acceptance 正文。 */
@@ -63,12 +68,37 @@ export interface ProgressTask {
   readonly revision: number;
 }
 
+export interface ProgressBoardTask extends ProgressTask {
+  readonly ownerWorkerId: string | null;
+  readonly proposalId: string | null;
+}
+
+export interface ProgressEvent {
+  readonly seq: number;
+  readonly kind: 'task' | 'proposal' | 'head' | 'run';
+  readonly objectId: string;
+  readonly status: string;
+  readonly authorWorkerId: string | null;
+  readonly createdAt: number;
+}
+
+export interface ProgressProposal {
+  readonly id: string;
+  readonly taskId: string;
+  readonly status: 'queued' | 'integrating';
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
 /** 一个 worker 的原生运行状态；`unavailable` 是插件诊断标签，不是 DSH 状态。 */
 export interface ProgressWorker {
   readonly id: string;
   readonly nativeStatus: NativeWorkerStatus;
   readonly initializationState: WorkerInitializationState;
   readonly currentTask: ProgressTask | null;
+  readonly wait: WaitRegistration | null;
+  readonly currentProposal: ProgressProposal | null;
+  readonly activity: WorkerActivity;
   /** 原生状态读取失败或初始化失败的有界诊断；成功时为 null。 */
   readonly diagnostic: string | null;
 }
@@ -101,6 +131,11 @@ export interface ProgressVerificationCounts {
 
 /** 面板渲染所需的全部公开事实；不含私信、finding 正文或完整事件日志。 */
 export interface ProgressSnapshot {
+  readonly protocolVersion: 2;
+  readonly goal: string | null;
+  readonly createdAt: number | null;
+  readonly taskBoard: { readonly items: readonly ProgressBoardTask[]; readonly total: number; readonly truncated: boolean };
+  readonly recentEvents: readonly ProgressEvent[];
   readonly runId: RunId;
   readonly phase: RunPhase;
   readonly reason: string | null;
@@ -120,6 +155,7 @@ export interface ProgressSnapshot {
   readonly resultRef: string;
   /** 任务板只读视图读取失败时的有界诊断；成功为 null。 */
   readonly detailError: string | null;
+  /** Snapshot generation time, not the timestamp of a public business change. */
   readonly updatedAt: number;
 }
 
@@ -137,15 +173,21 @@ export interface ProgressRuntimePort {
 
 /** 任务板/worker 归属的最小只读视图；真实 `Run` 直接满足。 */
 export interface ProgressRunDetail {
-  readonly tasks: Readonly<Record<string, {
-    readonly id: string;
-    readonly subject: string;
-    readonly status: string;
-    readonly revision: number;
+  readonly ownerSessionId?: string;
+  readonly goal?: string;
+  readonly createdAt?: number;
+  readonly updatedAt?: number;
+  readonly tasks: Readonly<Record<string, ProgressTask & {
+    readonly ownerWorkerId?: string | null;
+    readonly proposalId?: string | null;
   }>>;
   readonly workers: Readonly<Record<string, {
     readonly currentTaskId: string | null;
+    readonly waitRegistration?: WaitRegistration | null;
   }>>;
+  readonly proposals?: Readonly<Record<string, Pick<ProposalRecord,
+    'id' | 'taskId' | 'authorWorkerId' | 'status' | 'createdAt' | 'updatedAt'>>>;
+  readonly events?: readonly SwarmEvent[];
 }
 
 /** 持久化变更通知；只暴露归属与 phase，不转发整条 run。 */
@@ -168,6 +210,8 @@ export interface ProgressFeedOptions {
    * feed 会先核对它是否属于当前 run 的 worker。
    */
   readonly agentEvents?: (listener: (agentSessionId: string) => void) => () => void;
+  /** Plugin-owned activity source; feed teardown disposes it, including its registry unit. */
+  readonly activity?: WorkerActivitySource;
 }
 
 /* ------------------------------------------------------------------ */
@@ -213,7 +257,9 @@ function currentTask(
 ): ProgressTask | null {
   if (worker.currentTaskId === null || detail === undefined) return null;
   const task = detail.tasks[worker.currentTaskId];
-  if (task === undefined) return null;
+  // Legacy completed runs may retain a stale pointer; never rewrite their durable history.
+  if (task === undefined || (task.status !== 'claimed' && task.status !== 'proposed')) return null;
+  if (task.ownerWorkerId != null && task.ownerWorkerId !== worker.id) return null;
   return {
     id: task.id,
     subject: bounded(task.subject, PROGRESS_LIMITS.subjectChars) ?? '',
@@ -222,11 +268,71 @@ function currentTask(
   };
 }
 
+function taskBoard(detail: ProgressRunDetail | undefined): ProgressSnapshot['taskBoard'] {
+  const tasks = Object.values(detail?.tasks ?? {});
+  const rank = (task: ProgressTask): number => task.status === 'claimed' || task.status === 'proposed' ? 0
+    : task.status === 'open' || task.status === 'blocked' ? 1 : 2;
+  tasks.sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
+  return {
+    items: tasks.slice(0, PROGRESS_LIMITS.taskBoard).map((task) => ({
+      id: task.id, subject: bounded(task.subject, PROGRESS_LIMITS.subjectChars) ?? '',
+      status: task.status, revision: task.revision,
+      ownerWorkerId: task.ownerWorkerId ?? null, proposalId: task.proposalId ?? null,
+    })),
+    total: tasks.length, truncated: tasks.length > PROGRESS_LIMITS.taskBoard,
+  };
+}
+
+function recentEvents(detail: ProgressRunDetail | undefined, runId: string): ProgressEvent[] {
+  const events = detail?.events ?? [];
+  const result: ProgressEvent[] = [];
+  for (let index = events.length - 1; index >= 0 && result.length < PROGRESS_LIMITS.recentEvents; index--) {
+    const event = events[index];
+    if (!event || event.audience.kind !== 'all') continue;
+    let objectId: string;
+    let status: string;
+    switch (event.kind) {
+      case 'task': objectId = event.taskId; status = event.status; break;
+      case 'proposal': objectId = event.proposalId; status = event.status; break;
+      case 'head': objectId = event.acceptedHead; status = 'accepted'; break;
+      case 'run': objectId = runId; status = event.phase; break;
+      default: continue; // Finding/message metadata is not public activity either.
+    }
+    result.push({ seq: event.seq, kind: event.kind, objectId, status,
+      authorWorkerId: event.authorWorkerId, createdAt: event.createdAt });
+  }
+  return result.reverse();
+}
+
+function workerWait(workerId: string, detail: ProgressRunDetail | undefined): WaitRegistration | null {
+  const wait = detail?.workers[workerId]?.waitRegistration;
+  return wait ? { mode: wait.mode, afterSeq: wait.afterSeq,
+    taskIds: wait.taskIds.slice(0, PROGRESS_LIMITS.waitIds),
+    proposalIds: wait.proposalIds.slice(0, PROGRESS_LIMITS.waitIds) } : null;
+}
+
+function currentProposal(workerId: string, detail: ProgressRunDetail | undefined): ProgressProposal | null {
+  const proposal = Object.values(detail?.proposals ?? {}).find((value) => value.authorWorkerId === workerId
+    && (value.status === 'queued' || value.status === 'integrating'));
+  if (!proposal || (proposal.status !== 'queued' && proposal.status !== 'integrating')) return null;
+  return { id: proposal.id, taskId: proposal.taskId, status: proposal.status,
+    createdAt: proposal.createdAt, updatedAt: proposal.updatedAt };
+}
+
 function diagnosticOf(worker: WorkerStatusSummary): string | null {
   return bounded(
     worker.nativeStatusError ?? worker.unavailableReason ?? worker.initializationError,
     PROGRESS_LIMITS.diagnosticChars,
   );
+}
+
+function readActivity(worker: WorkerStatusSummary, source: Pick<WorkerActivitySource, 'read'> | undefined): WorkerActivity {
+  try {
+    return toWorkerActivity(source?.read(worker.sessionId), worker.nativeStatus);
+  } catch {
+    // Projection failures can carry log/provider text; expose capability failure, not its contents.
+    return toWorkerActivity(undefined, worker.nativeStatus, 'worker activity projection unavailable');
+  }
 }
 
 /**
@@ -242,8 +348,14 @@ export function toProgressSnapshot(
   detail: ProgressRunDetail | undefined,
   now: number,
   detailError: string | null = null,
+  activity?: Pick<WorkerActivitySource, 'read'>,
 ): ProgressSnapshot {
   return {
+    protocolVersion: 2,
+    goal: bounded(detail?.goal, PROGRESS_LIMITS.goalChars),
+    createdAt: detail?.createdAt ?? null,
+    taskBoard: taskBoard(detail),
+    recentEvents: recentEvents(detail, status.runId),
     runId: status.runId,
     phase: status.phase,
     reason: bounded(status.reason, PROGRESS_LIMITS.reasonChars),
@@ -258,6 +370,9 @@ export function toProgressSnapshot(
       nativeStatus: worker.nativeStatus,
       initializationState: worker.initializationState,
       currentTask: currentTask(worker, detail),
+      wait: workerWait(worker.id, detail),
+      currentProposal: currentProposal(worker.id, detail),
+      activity: readActivity(worker, activity),
       diagnostic: diagnosticOf(worker),
     })),
     proposals: {
@@ -309,6 +424,7 @@ export class ProgressFeed {
   /** owner 会话 id -> 该会话各 watch 的通知/关闭句柄。 */
   private readonly watchers = new Map<string, Set<ProgressWatcher>>();
   private readonly unsubscribeAgent: (() => void) | undefined;
+  private readonly unsubscribeActivity: (() => void) | undefined;
   private disposed = false;
 
   constructor(runtime: ProgressRuntimePort, options: ProgressFeedOptions) {
@@ -316,6 +432,13 @@ export class ProgressFeed {
     this.options = options;
     this.now = options.now ?? (() => Date.now());
     this.unsubscribeAgent = options.agentEvents?.((agentSessionId) => this.onAgentEvent(agentSessionId));
+    try {
+      this.unsubscribeActivity = options.activity?.subscribe((sessionId) => this.onAgentEvent(sessionId));
+    } catch (error) {
+      this.unsubscribeAgent?.();
+      options.activity?.dispose();
+      throw error;
+    }
   }
 
   /**
@@ -327,6 +450,11 @@ export class ProgressFeed {
       let belongs = false;
       try {
         const status = this.runtime.status(ownerSessionId);
+        // Membership inspection follows the same owner boundary as snapshots.
+        if (status.ownerSessionId !== ownerSessionId) {
+          for (const watcher of [...watchers]) watcher.notify();
+          continue;
+        }
         belongs = status.workers.some((worker) => worker.sessionId === agentSessionId);
       } catch (error) {
         // 没有 run 只是无关事件；其他读取失败通过下一次快照显式暴露给订阅者。
@@ -376,14 +504,27 @@ export class ProgressFeed {
       }
       detail = undefined;
     }
-    return toProgressSnapshot(status, detail, this.now(), detailError);
+    if (detail?.ownerSessionId !== undefined && detail.ownerSessionId !== sessionId) {
+      throw new RemoteError('swarm-progress/forbidden', 'session may not read another session\'s swarm run',
+        { sessionId, runId: status.runId });
+    }
+    return toProgressSnapshot(status, detail, this.now(), detailError, this.options.activity);
   }
 
   /**
    * 先从当前快照开始，之后每个与 owner 相关的持久化变更后重算一帧；快照不变时
    * 不重复发送。终态 run 发送最后一帧后结束。`signal` 取消只结束本次读取。
    */
-  async *watch(sessionId: string, signal?: AbortSignal): AsyncIterable<ProgressWatchItem> {
+  watch(sessionId: string, signal?: AbortSignal): AsyncIterable<ProgressWatchItem> {
+    return this.stream(sessionId, signal, false);
+  }
+
+  /** Observe this owner across terminal runs and future starts; abort/dispose ends the stream. */
+  watchSession(sessionId: string, signal?: AbortSignal): AsyncIterable<ProgressWatchItem> {
+    return this.stream(sessionId, signal, true);
+  }
+
+  private async *stream(sessionId: string, signal: AbortSignal | undefined, continuous: boolean): AsyncIterable<ProgressWatchItem> {
     assertSessionId(sessionId);
     if (this.disposed) {
       throw new RemoteError('gateway/internal', 'swarm progress feed is disposed', {});
@@ -396,32 +537,49 @@ export class ProgressFeed {
     let last: string | null = null;
     let wake: (() => void) | null = null;
     const notify = (): void => {
+      if (closed) return;
       pending = true;
       wake?.();
+    };
+    let unsubscribe: (() => void) | undefined;
+    let cleaned = false;
+    const watchers = this.watchers.get(sessionId) ?? new Set<ProgressWatcher>();
+    const cleanup = (): void => {
+      if (cleaned) return;
+      cleaned = true;
+      watchers.delete(watcher);
+      if (watchers.size === 0 && this.watchers.get(sessionId) === watchers) this.watchers.delete(sessionId);
+      signal?.removeEventListener('abort', stop);
+      unsubscribe?.();
     };
     const stop = (): void => {
       closed = true;
       wake?.();
+      cleanup(); // Also release subscriptions while the generator is suspended at yield.
     };
-    const unsubscribe = this.options.subscribe((change) => {
-      if (change.ownerSessionId === sessionId) notify();
-    });
     const watcher: ProgressWatcher = { notify, close: stop };
-    const watchers = this.watchers.get(sessionId) ?? new Set<ProgressWatcher>();
     watchers.add(watcher);
     this.watchers.set(sessionId, watchers);
-    signal?.addEventListener('abort', stop, { once: true });
     try {
+      unsubscribe = this.options.subscribe((change) => {
+        if (change.ownerSessionId === sessionId) notify();
+      });
+      if (closed) { unsubscribe(); return; }
+      signal?.addEventListener('abort', stop, { once: true });
+      // Registration itself can synchronously cancel; no opening frame may escape that cancellation.
+      if (signal?.aborted) stop();
       while (!closed) {
         pending = false;
         const progress = this.snapshot(sessionId);
         // 变更通知可能由与本 run 无关的字段触发；内容不变时保持单帧，避免刷屏。
-        const serialized = JSON.stringify(progress);
+        const serialized = progress === null ? 'null' : JSON.stringify({ ...progress,
+          now: undefined, remainingMs: undefined, updatedAt: undefined });
+        if (closed) return;
         if (serialized !== last) {
           last = serialized;
           yield { seq: ++seq, progress };
         }
-        if (progress !== null && isTerminalRunPhase(progress.phase)) return;
+        if (!continuous && progress !== null && isTerminalRunPhase(progress.phase)) return;
         while (!closed && !pending) {
           await new Promise<void>((resolve) => {
             wake = resolve;
@@ -430,10 +588,7 @@ export class ProgressFeed {
         }
       }
     } finally {
-      watchers.delete(watcher);
-      if (watchers.size === 0) this.watchers.delete(sessionId);
-      signal?.removeEventListener('abort', stop);
-      unsubscribe();
+      cleanup();
     }
   }
 
@@ -446,6 +601,8 @@ export class ProgressFeed {
     }
     this.watchers.clear();
     this.unsubscribeAgent?.();
+    this.unsubscribeActivity?.();
+    this.options.activity?.dispose();
   }
 }
 
@@ -513,6 +670,11 @@ export class ProgressService extends TypertRemoteService<never> {
     return this.feed.watch(sessionId, signal);
   }
 
+  /** Continuous owner-session subscription, including future runs after a terminal frame. */
+  watchSession(sessionId: string, signal?: AbortSignal): AsyncIterable<ProgressWatchItem> {
+    return this.feed.watchSession(sessionId, signal);
+  }
+
   /** 停止全部 watch；由 Host 卸载时调用。 */
   async dispose(): Promise<void> {
     await this.feed.dispose();
@@ -523,6 +685,7 @@ export class ProgressService extends TypertRemoteService<never> {
 // 因此 snapshot/watch 必须保持简单的具名参数。
 markRemoteMethod(ProgressService.prototype, 'snapshot');
 markRemoteMethod(ProgressService.prototype, 'watch', { mode: 'stream' });
+markRemoteMethod(ProgressService.prototype, 'watchSession', { mode: 'stream' });
 
 /** 构造后即可用的进度服务；调用方负责在卸载时 `dispose()`。 */
 export function registerProgress(
@@ -534,23 +697,30 @@ export function registerProgress(
   },
   options: { now?: () => number } = {},
 ): ProgressService {
-  return new ProgressService(ctx, runtime, {
-    subscribe: (listener) =>
-      store.subscribe((run) => {
-        listener({ runId: run.id, ownerSessionId: run.ownerSessionId, phase: run.phase });
-      }),
-    detail: (runId) => store.get(runId),
-    agentEvents: (listener) => {
-      const disposers = [
-        ctx.on('agent/status', ({ agent }) => listener(agent.id)),
-        ctx.on('agent/disposed', ({ agent }) => listener(agent.id)),
-      ];
-      return () => {
-        for (const dispose of disposers) dispose();
-      };
-    },
-    ...(options.now === undefined ? {} : { now: options.now }),
-  });
+  const activity = registerWorkerActivity(ctx);
+  try {
+    return new ProgressService(ctx, runtime, {
+      activity,
+      subscribe: (listener) =>
+        store.subscribe((run) => {
+          listener({ runId: run.id, ownerSessionId: run.ownerSessionId, phase: run.phase });
+        }),
+      detail: (runId) => store.get(runId),
+      agentEvents: (listener) => {
+        const disposers = [
+          ctx.on('agent/status', ({ agent }) => listener(agent.id)),
+          ctx.on('agent/disposed', ({ agent }) => listener(agent.id)),
+        ];
+        return () => {
+          for (const dispose of disposers) dispose();
+        };
+      },
+      ...(options.now === undefined ? {} : { now: options.now }),
+    });
+  } catch (error) {
+    activity.dispose();
+    throw error;
+  }
 }
 
 /** 供接线与测试核对：当前导出的 Remote 方法标记。 */
