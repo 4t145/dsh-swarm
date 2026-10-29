@@ -1,6 +1,8 @@
 /** Bounded public read projection; metadata streams and cursors never imply full-message acknowledgement. */
 import { assert } from './errors.ts';
 import type { ParsedPublicQuery } from './public-input.ts';
+import { matchQuery, parseQuery, type QuerySubject } from './query-expr.ts';
+import { workerDisplayName } from './worker-names.ts';
 import type { Run } from './types.ts';
 import type { AgreementRecord, AgreementVersion, ChannelRecord, NotificationRecord, PublicMessageRecord,
   PublicMessageRevision, ResponseRequestRecord, ThreadRecord } from './public-types.ts';
@@ -72,9 +74,21 @@ export function buildPublicPage(run: Run, input: ParsedPublicQuery, workerId: st
     upperSeq = cursor.upperSeq;
     lastKey = cursor.lastKey;
   }
-  const matches = (value: { channelId?: string; threadId?: string; taskIds?: string[] }, text: string): boolean =>
-    (!input.channelId || value.channelId === input.channelId) && (!input.threadId || value.threadId === input.threadId) &&
-    (!input.taskId || value.taskIds?.includes(input.taskId) === true) && (!input.query || text.toLowerCase().includes(input.query.toLowerCase()));
+  // Same expression language as swarm_read (src/query-expr.ts); invalid input fails with its position.
+  const queryNode = input.query ? parseQuery(input.query) : null;
+  const authors = (...ids: (string | null | undefined)[]): string[] => ids.flatMap((id) => {
+    if (!id) return [];
+    const worker = run.workers[id];
+    return worker ? [id, workerDisplayName(worker)] : [id];
+  });
+  const matches = (value: { channelId?: string; threadId?: string; taskIds?: string[] }, text: string,
+    fields: { kind: string; authors?: (string | null | undefined)[] } = { kind: input.view }): boolean => {
+    if (input.channelId && value.channelId !== input.channelId) return false;
+    if (input.threadId && value.threadId !== input.threadId) return false;
+    if (input.taskId && value.taskIds?.includes(input.taskId) !== true) return false;
+    const subject: QuerySubject = { text, fields: { kind: [fields.kind], author: authors(...(fields.authors ?? [])), task: value.taskIds ?? [] } };
+    return matchQuery(queryNode, subject);
+  };
   const rows: Row[] = [];
   const add = (seq: number, id: string, item: PublicItem, priority = '2'): void => {
     if (seq <= upperSeq) rows.push({ seq, key: `${priority}:${numberKey(seq)}:${id}`, item });
@@ -84,7 +98,7 @@ export function buildPublicPage(run: Run, input: ParsedPublicQuery, workerId: st
       for (const channel of Object.values(run.channels)) {
         if (input.channelId && channel.id !== input.channelId) continue;
         if (input.status && channel.status !== input.status) continue;
-        if (input.query && !`${channel.name}\n${channel.purpose}`.toLowerCase().includes(input.query.toLowerCase())) continue;
+        if (!matchQuery(queryNode, { text: `${channel.name}\n${channel.purpose}`, fields: { kind: ['channel'], author: authors(channel.createdByWorkerId) } })) continue;
         const seq = run.events.find((event) => event.kind === 'public' && event.channelId === channel.id && event.action === 'channel_created')?.seq ?? 0;
         add(seq, channel.id, { kind: 'channel', channel });
       }
@@ -93,7 +107,7 @@ export function buildPublicPage(run: Run, input: ParsedPublicQuery, workerId: st
     case 'activity':
       for (const entry of Object.values(run.threads)) {
         const taskIds = [...entry.taskIds, ...Object.values(run.publicMessages).filter((msg) => msg.threadId === entry.id).flatMap((msg) => msg.taskIds)];
-        if (!matches({ ...entry, threadId: entry.id, taskIds }, entry.title) || (input.status && entry.status !== input.status)) continue;
+        if (!matches({ ...entry, threadId: entry.id, taskIds }, entry.title, { kind: 'thread', authors: [entry.createdByWorkerId, ...entry.participantWorkerIds] }) || (input.status && entry.status !== input.status)) continue;
         if (input.findingId && !entry.findingIds.includes(input.findingId) && !Object.values(run.publicMessages).some((msg) => msg.threadId === entry.id && msg.findingIds.includes(input.findingId!))) continue;
         if (input.view === 'threads') add(entry.seq, entry.id, { kind: 'thread', thread: entry });
         else {
@@ -113,13 +127,13 @@ export function buildPublicPage(run: Run, input: ParsedPublicQuery, workerId: st
         const taskIds = [...entry.taskIds, ...(run.threads[entry.threadId]?.taskIds ?? [])];
         const linkedFinding = input.findingId && (entry.findingIds.includes(input.findingId) || run.events.some((event) =>
           event.kind === 'public' && event.action === 'finding_linked' && event.findingId === input.findingId && event.messageId === entry.id));
-        if (!matches({ ...entry, taskIds }, entry.body) || (input.findingId && !linkedFinding)) continue;
+        if (!matches({ ...entry, taskIds }, entry.body, { kind: 'message', authors: [entry.authorWorkerId] }) || (input.findingId && !linkedFinding)) continue;
         add(entry.seq, entry.id, { kind: 'message', message: currentMessage(entry) });
       }
       break;
     case 'requests':
       for (const request of Object.values(run.responseRequests)) {
-        if (!matches(request, run.publicMessages[request.messageId]?.body ?? '') || (input.status && request.status !== input.status)) continue;
+        if (!matches(request, run.publicMessages[request.messageId]?.body ?? '', { kind: 'request', authors: [request.requestedByWorkerId] }) || (input.status && request.status !== input.status)) continue;
         if (input.workerId && request.targetWorkerId !== input.workerId) continue;
         add(request.seq, request.id, { kind: 'request', request });
       }
@@ -127,14 +141,14 @@ export function buildPublicPage(run: Run, input: ParsedPublicQuery, workerId: st
     case 'agreements':
       for (const entry of Object.values(run.agreements)) {
         if (input.agreementId && entry.id !== input.agreementId) continue;
-        if (!matches(entry, `${entry.title}\n${entry.content}`)) continue;
+        if (!matches(entry, `${entry.title}\n${entry.content}`, { kind: 'agreement', authors: [entry.createdByWorkerId] })) continue;
         add(entry.seq, entry.id, { kind: 'agreement', agreement: currentAgreement(entry) });
       }
       break;
     case 'attention':
       // Requests stay visible ahead of ordinary updates even after their notification is acknowledged.
       for (const request of Object.values(run.responseRequests)) {
-        if (request.status !== 'pending' || (viewer && request.targetWorkerId !== viewer) || !matches(request, '')) continue;
+        if (request.status !== 'pending' || (viewer && request.targetWorkerId !== viewer) || !matches(request, run.publicMessages[request.messageId]?.body ?? '', { kind: 'request', authors: [request.requestedByWorkerId] })) continue;
         add(request.seq, request.id, { kind: 'request', request }, '0');
       }
       for (const notification of Object.values(run.notifications)) {

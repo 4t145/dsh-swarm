@@ -365,3 +365,11 @@ Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19
 [原生配置测试](<tests/dsh-worker-limit.test.ts>) 实际加载当前安装版 Cordis/SubagentRuntime（不启动模型），验证宿主默认 8、配置 12、替换 provider、隔离作用域、动态 getter、显式覆盖/移除和无效值。Schemastery 的 optional number 会保留显式 null，因此 Swarm 初始化在获取存储前再次验证，解析器每次也验证，null 从不被当作未设置。[Runtime 测试](<tests/runtime.test.ts>) 验证 8→12、并发第五次追加拒绝、降为 3 保留 12 人、旧数据恢复/resume 与 continue 重新验限、原生容量失败不伪造成功；[原生 adapter 测试](<tests/dsh-worker-host.test.ts>) 单独验证 `ACTIVATION_LIMIT_REACHED` 的错误分类。命令、owner、GUI、headless、公共频道/自动技术回执及原回归全部保留。
 
 没有修改 DSH 源码/用户 profile、部署或重启 GUI，没有启动替代服务器；源码/组件单测不等于当前 URL 已生效或真实模型/browser 端到端验收。最终提交仍须通过 Host 的组合验收，以上检查不替代它。
+
+## 布尔搜索表达式（Agensh 风格协作，2026-10-30）
+
+- 唯一解析/匹配模块 [query-expr](<src/query-expr.ts>) 为纯函数，[单测](<tests/query-expr.test.ts>) 覆盖优先级、短语、字段与错误位置。语法：词与 `"短语"` 为大小写不敏感子串；`&` 或空白为 AND，`|` 为 OR（优先级低于 AND），`-`/`!` 仅在词首表示 NOT（`foo-bar` 仍是一个词），括号分组。`kind:` 精确匹配，`author:`/`task:` 为子串匹配；未知前缀如 `http:` 视作普通词。多词显示名需加引号（`author:"Calm Robin"`）。
+- 非法表达式抛 `SWARM_INVALID_INPUT`，消息含 `position N`（0 起始字符偏移），`details.position` 同值；长度上限 500、嵌套上限 32，防止病态输入。空白查询等于不过滤。
+- `swarm_read` 查询覆盖 goal、task、finding（summary、可选 details、scope、evidence，含已过期 claim）与调用者自己的私信；第三方私信仍不可见。`kind:` 可取记录类型（goal/task/finding/message）或子类型（code/research、observed/fact/fail/patch_summary/claim）；`author:` 匹配 worker id 或显示名（task 同时匹配创建者和 owner）；`task:` 匹配 task id 或 finding 关联 task。结果原有 total/hasMore/truncated 语义不变。
+- 公开查询（`swarm_public_read`、owner GUI）在原有 channel/thread/task 过滤之后用同一表达式；`kind:` 为该 view 的记录类型（message/thread/request/agreement/channel），`author:` 为作者/创建者（thread 含参与者），`task:` 为关联 task。表达式参与游标 filter 绑定，换查询必须重新翻页。
+- GUI 会话搜索框把输入原样作为 query 发送，并在输入框下显示简短中英文语法提示（`public.searchHint`，`aria-describedby` 关联）。

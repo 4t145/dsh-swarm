@@ -283,11 +283,11 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_read',
       description:
-        'Read one record by id, or search tasks, findings, and your direct messages. Diagnostic artifact ids '
+        'Read one record by id, or search goals, tasks, findings, and your direct messages with a boolean query expression. Diagnostic artifact ids '
         + '(starting with swarm-artifact-) return bounded text slices instead.',
       properties: {
         id: { type: 'string', description: 'Task, finding, message, or diagnostic artifact id.' },
-        query: { type: 'string', description: 'Case-insensitive text filter when no id is given.' },
+        query: { type: 'string', description: 'When no id is given: Search expression: terms (case-insensitive substring), \"quoted phrases\", AND via & or whitespace, OR via |, NOT via - or !, parentheses, field filters kind:, author: (worker id or display name), task:. Example: (build | test) -kind:claim author:w2. Invalid expressions fail with SWARM_INVALID_INPUT naming the position. Covers full history: goals, tasks, findings (summary, details, expired claims) and your own direct messages; results report total and truncated.' },
         cursor: { type: 'string', description: 'nextCursor from a previous read result.' },
         limit: {
           type: 'integer',

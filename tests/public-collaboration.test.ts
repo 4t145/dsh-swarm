@@ -4,6 +4,7 @@ import { Collaboration } from '../src/collaboration.ts';
 import { MemoryStateStore, type RunTable } from '../src/store.ts';
 import { createRun, type Run, type WorkerRecord } from '../src/types.ts';
 import { parseRun } from '../src/schema.ts';
+import { workerDisplayName } from '../src/worker-names.ts';
 import type { PublicCommand } from '../src/public-input.ts';
 import type { AgreementRecord, ChannelRecord, PublicMessageRecord, ResponseRequestRecord, ThreadRecord } from '../src/public-types.ts';
 
@@ -51,6 +52,26 @@ describe('persistent public collaboration', () => {
     expect((await api.query('s-c', { view: 'messages' })).items).toEqual([]);
     await expect(api.query('s-c', { view: 'messages', messageId: secret.id })).rejects.toMatchObject({ code: 'SWARM_NOT_FOUND' });
     expect(JSON.stringify(await legacy.read('s-c', { query: 'secret' }))).not.toContain('private secret');
+  });
+
+  it('filters public records with the shared boolean expression language', async () => {
+    const { api, post, thread } = await setup();
+    await post('a', 'Schema migration plan');
+    await post('b', 'Review the schema tests');
+    await post('c', 'Unrelated chatter');
+    const bodies = async (query: string) =>
+      (await api.query('s-c', { view: 'messages', threadId: thread.id, query })).items.map((item) => item.kind === 'message' ? item.message.body : '');
+    expect(await bodies('schema -tests')).toEqual(['Schema migration plan']);
+    expect(await bodies('migration | chatter')).toEqual(['Schema migration plan', 'Unrelated chatter']);
+    // author: matches worker id or display name (substring); quote multi-word names.
+    const nameOfB = workerDisplayName({ id: 'b' });
+    expect(await bodies(`author:"${nameOfB}"`)).toEqual(['Review the schema tests']);
+    expect(await bodies('"the schema" & kind:message')).toEqual(['Review the schema tests']);
+    expect((await api.query('s-c', { view: 'threads', query: 'protocol' })).total).toBe(1);
+    const page = await api.query('s-c', { view: 'messages', query: 'schema | chatter', limit: 1 });
+    expect(page).toMatchObject({ total: 3, truncated: true });
+    await expect(api.query('s-c', { view: 'messages', query: 'schema |' })).rejects.toMatchObject({
+      code: 'SWARM_INVALID_INPUT', details: { position: 8 } });
   });
 
   it('validates identity, channel creation, creator authorization, archive and duplicate names', async () => {
