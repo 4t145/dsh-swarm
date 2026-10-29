@@ -13,7 +13,7 @@ describe('readable worker names', () => {
     }
     for (let index = 256; index < 320; index += 1) {
       const name = randomWorkerName(names);
-      expect(name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+ [2-9][0-9]*$/u);
+      expect(name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+ [1-9][0-9]*$/u);
       expect(names.has(name)).toBe(false);
       names.add(name);
     }

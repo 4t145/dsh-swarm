@@ -350,6 +350,7 @@ Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19
 - [Runtime](<src/runtime.ts>) 统一 start/add/status 的当前上限解析；continue 是新 run，沿用旧人数也必须重新通过当前上限。上限降低不删除、终止已有成员，旧 paused run 恢复保留名册。没有把新字段写入旧 Run、复活旧终态或新增调度器。
 - `SWARM_WORKER_LIMIT` 表示团队配置拒绝；`SWARM_CONFIG_UNAVAILABLE` 表示配置能力/解析失败；原生 `ACTIVATION_LIMIT_REACHED` 映射为 `SWARM_NATIVE_CAPACITY`。显式覆盖不偷偷取 min，也不绕过原生权限或运行容量；保留实际创建失败/部分添加回执。
 - [owner 工具](<src/owner-tools.ts>) 的启动人数说明不再是 2–4，仍保留每次 `add_workers count` 为 1–4 的批次约束；[owner 上下文](<src/owner-context.ts>) 从当前 status 读取 `workerLimit`、来源、诊断和 `canAddWorkers`，不读静态 default。
+- [无界面进度](<src/headless.ts>) 在持久事件触发的 JSONL progress/final 中读取同一 runtime status 的当前 `workerControls`，不把配置写入 Run 或轮询；旧适配器缺少 status 时给显式 unavailable。成员可读名字词库耗尽后加数字后缀，不再造成隐式 256 人上限。
 - [进度](<src/progress.ts>) 透传 `workerControls`，不再把人数裁到 8。[面板](<client.js>) 验证新 DTO 的有效/不可用状态，显示继承宿主或显式覆盖；旧 v2 DTO 无来源时明确未知，不伪造继承。上限降低显示真实 `12 / 3` 而非把分母 clamp 成 12；成员色块只表示已加入成员，不按任意大 max 分配空位，更不暗示这些空位是原生可用容量。
 - 进度流保留原业务/活动事件驱动机制；未伪造通用配置订阅。quiet run 在下一事件或手动重新连接时刷新，status 与实际 add 每次重新读取。使用和取消覆盖示例见 [使用说明](<USAGE.md>)。
 
