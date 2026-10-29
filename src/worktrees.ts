@@ -34,6 +34,7 @@ import {
 import { z } from 'zod';
 
 import { isSwarmError } from './errors.ts';
+import { disabledGitFilterArgs, GIT_ISOLATION_ARGV } from './git-isolation.ts';
 import { markRemoteMethod } from './remote-marker.ts';
 import type { CommandExecutor, CommandResult } from './ports.ts';
 
@@ -195,20 +196,6 @@ export interface WorktreeCatalogueOptions {
 
 /** 单条 Git 命令的墙钟上限；创建 checkout 可能比只读命令慢。 */
 const GIT_TIMEOUT_MS = 120_000;
-/** 每条 Git argv 都带的隔离设置；与 `src/workspace.ts` 保持一致。 */
-const GIT_ISOLATION_ARGV: readonly string[] = [
-  '--no-lazy-fetch',
-  '-c',
-  'core.hooksPath=/dev/null',
-  '-c',
-  'core.fsmonitor=false',
-  '-c',
-  'gc.auto=0',
-  '-c',
-  'maintenance.auto=false',
-  '-c',
-  'submodule.recurse=false',
-];
 /** 新建 worktree 的固定父目录（相对仓库根）。 */
 const WORKTREE_PARENT = join('.agents', 'worktrees');
 /** unborn 仓库在 porcelain 里报告的 HEAD。 */
@@ -693,26 +680,7 @@ export class WorktreeCatalogue {
     );
     // 退出码 1 表示没有 filter 配置；其他失败留给真正的 Git 命令报出更准确的错误。
     if (probe.exitCode !== 0) return [];
-    const drivers = new Set<string>();
-    for (const line of probe.stdout.split(/\r?\n/)) {
-      const key = line.trim().split(/\s+/)[0] ?? '';
-      const match = /^filter\.(.+)\.[^.]+$/.exec(key);
-      if (match?.[1] !== undefined) drivers.add(match[1]);
-    }
-    const args: string[] = [];
-    for (const driver of drivers) {
-      args.push(
-        '-c',
-        `filter.${driver}.clean=`,
-        '-c',
-        `filter.${driver}.smudge=`,
-        '-c',
-        `filter.${driver}.process=`,
-        '-c',
-        `filter.${driver}.required=false`,
-      );
-    }
-    return args;
+    return disabledGitFilterArgs(probe.stdout);
   }
 
   /** 把执行器抛出的权限/基础设施失败折算成稳定的 Remote 错误。 */

@@ -18,6 +18,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { isAbsolute, resolve as resolvePath } from 'node:path';
 
 import { normalizeError, SwarmError, type SwarmErrorCode } from './errors.ts';
+import { disabledGitFilterArgs, GIT_ISOLATION_ARGV } from './git-isolation.ts';
 import type {
   CandidateResult,
   CommandExecutor,
@@ -44,24 +45,6 @@ const GIT_TIMEOUT_MS = 120_000;
 const DIAGNOSTIC_LIMIT = 4_000;
 /** 验证日志里单条命令保留的输出字符数，避免失控输出撑爆内存与记录。 */
 const COMMAND_LOG_LIMIT = 65_536;
-
-/**
- * 每条 Git argv 都带的隔离设置：禁懒加载、hooks、fsmonitor、自动维护与子模块递归。
- * `--no-lazy-fetch` 需要 Git ≥ 2.46；旧版本会直接报未知选项，而不是静默降级。
- */
-const GIT_ISOLATION_ARGV: readonly string[] = [
-  '--no-lazy-fetch',
-  '-c',
-  'core.hooksPath=/dev/null',
-  '-c',
-  'core.fsmonitor=false',
-  '-c',
-  'gc.auto=0',
-  '-c',
-  'maintenance.auto=false',
-  '-c',
-  'submodule.recurse=false',
-];
 
 /** 插件自己创建候选提交时使用的提交者身份；不读也不写用户的 Git 配置。 */
 const COMMIT_IDENTITY_ARGV: readonly string[] = [
@@ -952,27 +935,7 @@ export class GitWorkspace implements WorkspacePort {
     if (result.exitCode !== 0) {
       return [];
     }
-    const drivers = new Set<string>();
-    for (const line of result.stdout.split('\n')) {
-      const key = line.trim().split(/\s+/)[0] ?? '';
-      const match = /^filter\.(.+)\.[^.]+$/.exec(key);
-      if (match?.[1] !== undefined) {
-        drivers.add(match[1]);
-      }
-    }
-    const args: string[] = [];
-    for (const driver of drivers) {
-      args.push(
-        '-c',
-        `filter.${driver}.clean=`,
-        '-c',
-        `filter.${driver}.smudge=`,
-        '-c',
-        `filter.${driver}.process=`,
-        '-c',
-        `filter.${driver}.required=false`,
-      );
-    }
+    const args = disabledGitFilterArgs(result.stdout);
     this.filterArgsByCwd.set(cwd, args);
     return args;
   }

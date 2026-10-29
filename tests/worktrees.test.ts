@@ -8,7 +8,7 @@
  */
 
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -369,6 +369,48 @@ describe('WorktreeCatalogue.create', () => {
     expect(gitSync(['status', '--porcelain', '--untracked-files=no'], root)).toBe('');
     // 会话 cwd 没有被切换（Host 从未调用 workingDirectory.set）。
     expect(process.cwd()).not.toBe(result.worktree.path);
+  });
+
+  it('creates a checkout without running configured hooks or required filter drivers', async () => {
+    const { root, catalogue } = await catalogueFixture();
+    await writeFile(join(root, '.gitattributes'), 'a.txt filter=evil\nb.txt filter=fixture.driver\n');
+    await writeFile(join(root, 'a.txt'), 'alpha\n');
+    await writeFile(join(root, 'b.txt'), 'beta\n');
+    gitSync(['add', '.gitattributes', 'a.txt', 'b.txt'], root);
+    commit(root, 'files with filter attributes');
+    for (const driver of ['evil', 'fixture.driver']) {
+      for (const operation of ['clean', 'smudge', 'process']) {
+        gitSync(['config', `filter.${driver}.${operation}`, 'false'], root);
+      }
+      gitSync(['config', `filter.${driver}.required`, 'true'], root);
+    }
+    const hookMarker = join(root, 'hook-ran');
+    await writeFile(join(root, '.git', 'hooks', 'post-checkout'), `#!/bin/sh\nprintf ran > '${hookMarker}'\n`, { mode: 0o755 });
+    const configBefore = gitSync(['config', '--local', '--list'], root);
+    const headBefore = gitSync(['rev-parse', 'HEAD'], root);
+
+    const result = await catalogue.create(OWNER, { name: 'isolated' });
+
+    expect(await readFile(join(result.worktree.path, 'a.txt'), 'utf8')).toBe('alpha\n');
+    expect(await readFile(join(result.worktree.path, 'b.txt'), 'utf8')).toBe('beta\n');
+    expect(result.worktree.subject).toBe('files with filter attributes');
+    expect(existsSync(hookMarker)).toBe(false);
+    expect(gitSync(['config', '--local', '--list'], root)).toBe(configBefore);
+    expect(gitSync(['rev-parse', 'HEAD'], root)).toBe(headBefore);
+  });
+
+  it('propagates a filter-probe permission denial without creating a branch', async () => {
+    const executor = new InterceptingExecutor((request) => {
+      if (request.argv.includes('--get-regexp')) {
+        throw new SwarmError('SWARM_FORBIDDEN', 'filter config denied', { details: { sandboxMode: 'read-only' } });
+      }
+      return undefined;
+    });
+    const { root, catalogue } = await catalogueFixture({ executor });
+    const error = await failureOf(catalogue.create(OWNER, { name: 'probe-denied' }));
+    expect(error).toMatchObject({ code: 'swarm-worktrees/sandbox-denied' });
+    expect(gitSync(['branch', '--list', 'probe-denied'], root)).toBe('');
+    expect(existsSync(join(root, '.agents', 'worktrees', 'probe-denied'))).toBe(false);
   });
 
   it('adds only the untracked .agents parent to a checkout that lacked it', async () => {
