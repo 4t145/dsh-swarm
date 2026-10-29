@@ -15,6 +15,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm';
 import type { JsonSchemaNode, ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import type { StoredArtifacts } from './artifacts.ts';
 import { SwarmError } from './errors.ts';
+import { toolReceiptMeta } from './notification-receipts.ts';
 import { publicCommandSchema, publicQuerySchema } from './public-input.ts';
 import type { SwarmRuntime } from './runtime.ts';
 import type { JsonValue } from './types.ts';
@@ -121,6 +122,7 @@ function defineWorkerTool<S extends z.ZodType>(spec: WorkerToolSpec<S>): ToolDef
     output: {
       schema: OUTPUT_SCHEMA,
       render: (_args, value): ContentBlock[] => [{ type: 'text', text: JSON.stringify(value) }],
+      presentationMeta: (_args, value) => toolReceiptMeta(spec.name, value),
     },
     execute: async (args, exec) => {
       const agent = exec.agent;
@@ -198,7 +200,7 @@ const submitInput = z.strictObject({
 });
 
 const waitInput = z.strictObject({
-  after_seq: z.number().int().min(0),
+  after_seq: z.number().int().min(0).optional(),
   task_ids: z.array(z.string().min(1)).optional(),
   proposal_ids: z.array(z.string().min(1)).optional(),
 });
@@ -241,7 +243,8 @@ export function registerWorkerTools(
       name: 'swarm_discuss',
       description: 'Manage public collaboration in this run. command.action creates/archives channels, creates/updates threads, '
         + 'posts/replies/revises messages, subscribes, requests/responds/withdraws responses, creates/revises/confirms versioned '
-        + 'agreements, links Findings, acknowledges notifications or marks full message versions read. '
+        + 'agreements, or links Findings. Host automatically records notification display and full-message display; '
+        + 'do not call ack_notifications or mark_read for routine bookkeeping (retained only for legacy callers). '
         + 'Use public threads by default. Structured mentions and responseRequestedFrom use worker IDs; @text alone does not notify. '
         + 'Revision/version checks are mandatory where specified. Reading or ACK is never a response/agreement; public chat never changes owner requirements or Task CAS.',
       parameters: generatedParameters(discussInput),
@@ -253,7 +256,8 @@ export function registerWorkerTools(
       description: 'Discover public channels, threads, full messages, response requests, current agreements, personal priority attention, '
         + 'thread activity, message revisions or agreement versions. Filter/search by channel/thread/task/Finding; use messageId to locate a message. '
         + 'Returns bounded pages and nextCursor. All members including later arrivals can read public history regardless of subscription. '
-        + 'Only full current messages offer versions for mark_read; summaries and snapshotSeq are not global ACK cursors. Pending responses stay above ordinary chatter.',
+        + 'Host records only the exact full versions actually displayed; summaries never mark full messages read. '
+        + 'No manual ACK or read-confirmation call is needed. Pending responses stay above ordinary chatter.',
       parameters: generatedParameters(publicQuerySchema),
       input: publicQuerySchema,
       run: (input, _exec, caller) => runtime.publicCollaboration.query(caller.sessionId, input),
@@ -262,12 +266,12 @@ export function registerWorkerTools(
       name: 'swarm_sync',
       description:
         'Read the run goal, acceptance criteria, accepted commit, your worker identity, the task board, '
-        + 'and new collaboration items. Returns one bounded page plus your cursor range; acknowledge with '
-        + 'ack_seq on a later call.',
+        + 'and new collaboration items. Returns one bounded page; Host automatically records display after logging. '
+        + 'Read further pages without ack_seq; no acknowledgement-only calls or chat replies are needed.',
       properties: {
         ack_seq: {
           type: 'integer',
-          description: 'Run seq to confirm as read. Must lie within the offered range you already received.',
+          description: 'Legacy explicit cursor only. Omit for normal use: technical display receipts are automatic.',
         },
         limit: { type: 'integer', description: 'Maximum items to return in this page.' },
       },
@@ -470,10 +474,10 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_wait',
       description:
-        'Wait for collaboration events after a run seq, optionally limited to given task or proposal ids. '
-        + 'Returns immediately when matching events already exist beyond that seq.',
+        'Wait for new collaboration using the Host-maintained display cursor, optionally limited to task or proposal ids. '
+        + 'Already-pending events return immediately. No separate synchronization or ACK is needed just to wait.',
       properties: {
-        after_seq: { type: 'integer', description: 'Last run seq you have observed.' },
+        after_seq: { type: 'integer', description: 'Optional legacy explicit cursor; normally omit to use automatic display receipts.' },
         task_ids: {
           type: 'array',
           items: { type: 'string' },
@@ -485,7 +489,6 @@ export function registerWorkerTools(
           description: 'Only wake for these proposals.',
         },
       },
-      required: ['after_seq'],
       input: waitInput,
       run: async (input, exec, caller) => {
         const busy = ctx.jobs

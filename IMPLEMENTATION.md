@@ -278,7 +278,7 @@ git diff --check
 
 - mentions / response_request / reply / announcement / agreement_confirmation 为 immediate。任务当前负责人/参与者/following 是 digest，未确认同线程通知合并，刷新 seq 并清 deliveredAt；显式请求独立保存且排序优先，不被普通消息降级。本人不收到自己的普通通知；无关讨论只进按线程分组的有界标题/活动数量摘要，不全员正文广播。
 - 通知先随业务持久化，再走每 worker 原串行 queue/admission。活跃者只处理 immediate；普通 digest 到 idle/settled。登记 wait 后不打断正在收尾的 activation。暂停不唤醒，恢复重投未确认，终态不启动；通知 id+seq 与本次实际送出的版本相符才记录 deliveredAt。
-- 全局 offered/observed、频道当前全文版本 offered/read、通知 delivered/acknowledged、请求 pending/responded/withdrawn、约定逐版本 confirmations 是五组独立状态。`ack_notifications` 要求 `notifications:[{id,seq}]`，陈旧 ACK 不能吞并发合并；`mark_read` 只接受实际提供的精确消息版本。GUI owner 阅读不推进 worker 全文 offers。
+- 全局 offered/observed/shown、频道当前全文版本 offered/read、通知 delivered/acknowledged、请求 pending/responded/withdrawn、约定逐版本 confirmations 是五组独立状态。后续 Lead 修复将技术展示确认改为 Host 自动执行（见下节），旧 ack_notifications/mark_read 仅兼容历史调用；陈旧回执不能吞并发合并，全文回执只记录精确展示版本。GUI owner 阅读不推进 worker 全文 offers。
 - 即使通知已 ACK，attention 仍把本人待回应请求放在普通更新前。普通发帖、全文已读、通知确认不会完成请求；只允许请求目标引用自己的同线程公开消息显式 respond。约定新版保留旧确认作为历史，但当前投影不把旧确认算成新版同意。
 - 公开线程、未答请求本身不进入 finishGaps。真正阻塞的工作仍用 Task/fail Finding，完整 owner 需求、goalRevision、Proposal、验证凭据、acceptedHead 与 pause/stop 逻辑不被聊天替代。
 
@@ -320,3 +320,18 @@ pnpm test
 - [8 项公共投递测试](<tests/public-delivery.test.ts>)：真实 Store/Collaboration/Delivery 配合 fake effect ports 和 Promise 屏障，覆盖等待登记前后、收尾、暂停/停止、冷恢复独立 ACK、投递中合并版本回执、普通噪声/优先级及上下文不泄露正文。保留原[投递](<tests/delivery.test.ts>)、[事件](<tests/events.test.ts>)与[运行时](<tests/runtime.test.ts>)回归断言。
 - [工具测试](<tests/tools.test.ts>) 实测 11 工具精确注册/卸载、真实 Agent 身份、完整问答/约定调用、错误输入、以及普通未关闭线程/待回应请求不阻塞正常 finish；fixture 使用显式时钟，不 sleep 碰时序。原 Git/e2e/目标/GUI/Remote 回归仍全量运行。
 - 这些是源码、构建、真实 ToolRuntime/临时 Git 与受控 effect port 的自动化证据，**不是**当前宿主已加载新代码、真实模型已使用公共协议、浏览器已完成视觉/交互验收。本轮未部署、未安装、未重启、未启动替代 Web 服务；旧章节的真实模型/GUI检查是历史版本证据，不可挪用于 R6。
+
+## Host 自动技术回执：Lead 亲自实现（2026-10-29）
+
+用户指出“模型为了技术 ACK 多走一轮”是不必要开销。本修复由 Lead 在独立工作树完成，不覆盖 Swarm 成员 checkout，不把程序投递确认和业务答复混为一谈。
+
+- [凭据及原生 projection](<src/notification-receipts.ts>)：工具的 output.presentationMeta 与自有 swarm-context MessageSource 携带不要求模型输出的回执证据。对最终内容计算 SHA-256，只有真正进入原生 append surface 的成功 tool/result 或 user/message、且内容未被截断/替换时，才形成展示证据。没有新增 SessionEvent 类型，没有解析任意用户文本冒充 Host 证明。
+- [生命周期适配](<src/worker-receipts.ts>)：核对当前 DSH session/event 是 post-commit 但不是落盘边界，因此先经 sessions.flush，再写 Swarm domain。失败保留可重放证据、日志给诊断，不把已执行文件操作变为失败重试；既有 pre-step/pre-execute/turn-stopping 等待自动记账，不唤醒模型来做 ACK。缺持久化能力显式失败；监听与队列受 worker/plugin effect 清理。
+- [协作内核](<src/collaboration.ts>) 新增 Host-only recordShown；Worker.shownSeq 是连续摘要展示位置，保留旧 offered/observed 和显式参数兼容。正常 sync/wait/Delivery 使用有效展示位置，不要求 ack_seq/after_seq。公共 notification 只确认精确 id+seq；完整当前消息只记录实际展示 revision；正文、回应、同意状态绝不因摘要被推断。
+- [Host 消息接线](<src/dsh-worker-host.ts>) 使用已核对的 DSH host-protocol steerHostSubagentPrompt 导出，保留 owner→child 身份、原生冷恢复、串行和取消边界，保存独立 Host 来源，避免伪装成 owner 模型写的聊天。
+- [worker 指令](<src/worker-policy.ts>) 和[工具](<src/tools.ts>) 不再要求 ACK-only 调用，正常 wait 无必填 cursor。旧 ack_notifications/mark_read 只用于兼容；respond/confirm_agreement 仍是必要的显式业务动作。
+- [自动回执测试](<tests/notification-receipts.test.ts>) 使用真实 Session/ProjectionRegistry 和受控持久化屏障，覆盖日志先于回执、失败/取消/截断/改写、存储/flush 失败恢复、分页不越界、精确合并/修订版本、权限以及回应/同意不被自动修改。[真实工具管线](<tests/tools.test.ts>) 验证 sync 结果落日志后，下一次 wait 无需任何模型 ACK；[Host 适配](<tests/dsh-worker-host.test.ts>) 核对原生 Host 消息来源。
+
+Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19e9d74af4510950d002be41caee` 合入独立候选后，实际执行 `pnpm typecheck && pnpm build && pnpm test && node --check client.js && git diff --check`，全部退出 0（`bash-0927c506ddbd4f26`，**44 文件 / 560 项通过**）。另执行 `pnpm test:native-headless` 退出 0（`bash-59b21c4c85184074`）：隔离 DSH_HOME、明确 blocking fake 模型，验证缺失路由拒绝、两个原生 worker 启动、SIGINT、持久 stopped/退出130和原始临时 checkout 不变。该原生检查不是付费模型对话或自动 ACK 的真实模型性能测试。
+
+面板将通知状态明确区分为 inbox 接受和技术展示回执，不能显示成业务回应/版本同意；双语渲染回归保留这些断言。本节描述已验证的源码候选，仍须由原 Swarm 集成队列验证接受；当前宿主仍需单独授权部署，未声称真实模型或浏览器已加载此补丁。最终组合发布以 Host 回执为准。

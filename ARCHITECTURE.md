@@ -262,14 +262,14 @@ worktree 服务不会复制未提交/忽略文件，不会初始化 submodule �
 
 | 工具 | 主要输入 | 返回或效果 |
 |---|---|---|
-| `swarm_sync` | `ack_seq?`, `limit?` | 读取业务数据、确认读取位置并解除自己的等待；不改变 Task 或代码，不执行 git pull |
+| `swarm_sync` | `limit?`，兼容 `ack_seq?` | 读取业务数据并解除自己的等待；Host 自动记展示回执，不要求模型 ACK；不执行 git pull |
 | `swarm_read` | `id` 或 `query`、分页 | 展开具体条目或搜索历史，标明总数与截断 |
 | `swarm_task_create` | kind、subject、acceptance、scope | 创建 open 任务；只创建目标确实需要的工作 |
 | `swarm_task_update` | task_id、expected_revision、action | claim/release/block/unblock/cancel/research_complete；返回新版本 |
 | `swarm_publish` | kind、summary、scope、evidence_refs、可选关联 | 追加 Finding，修正旧事实用 supersedes，不改历史 |
 | `swarm_message` | target、body | 持久化定向消息；收件不代表模型已处理 |
 | `swarm_submit` | task_id、expected_revision、source_commit | 固定 SHA，创建 Proposal，任务 claimed→proposed |
-| `swarm_wait` | after_seq、可选 task_ids/proposal_ids | 不填 ID 时为 any；填写时为 selected。按 §7.2 匹配，有新事件立即返回；否则登记等待并结束 turn |
+| `swarm_wait` | 可选 task_ids/proposal_ids，兼容 after_seq | 不填 ID 时为 any；填写时为 selected。按 §7.2 匹配，有新事件立即返回；否则登记等待并结束 turn |
 | `swarm_finish` | accepted_commit、逐项验收说明、证据引用 | 提议结束整个 run，受第 10 节条件约束 |
 
 普通 Swarm 工具返回可捎带有界新事件摘要；不修改所有无关工具的返回值。默认每批最多 20 条摘要或约 2K token，详情按需展开。
@@ -306,13 +306,13 @@ open / claimed / blocked --cancel（授权 + CAS + 理由）--> cancelled
 ### 7.1 读过与发过的区别
 
 - Event.seq 是全 run 的序号。Finding/Task/Proposal 事件对全员可读；Message 正文只对作者和目标 worker 可见，其他 worker 看不到它。
-- `offeredSeq`：已经连续**扫描**到的位置；该区间内对当前 worker 可见的事件全部提供了，不可见事件只是跳过。返回条目的 seq 可以有空洞，不能重新编号。
-- `observedSeq`：worker 明确确认这个扫描前缀中的所有**可见**事件已读，不表示读过别人的私信。
-- `swarm_sync(ack_seq)` 只能确认不超过 offeredSeq 的位置。分页返回 `throughSeq`、`hasMore`；遇到因页大小无法提供的下一条可见事件时停止扫描，不能越过它推进 cursor。
-- 例：41 是可见 Finding，42 是发给其他人的私信，43 是可见 Finding；页大小只容纳一条时返回 41、throughSeq=42、hasMore=true。下一页必须从 43 开始，不返回 42 的正文。
-- 只有事件正文/摘要实际进入模型可见结果，才更新对应的 offeredSeq；仅送“请同步至 N”的控制通知只更新 notifiedSeq，不能把 offeredSeq 跳到 N。
-- 仅拉取页面不能声称模型已处理它；下一次确认才推进 observedSeq。条目有稳定 ID/seq，恢复时可以重复送达。目标是至少一次提供，不承诺模型恰好处理一次。
-- 自主协作原型增加工具返回边界的旁路知识提示：只给当前 worker 附上它可见的同伴事件摘要，经原生 additionalContexts 正常落日志；不改变工具结果、offered/observed、等待登记或运行目标。提示内 seq 不是 ack cursor，正式确认仍须先 sync。提示去重只在当前 Agent 内存中保留，恢复可重复，完整记录仍通过 sync/read 获取。
+- `offeredSeq` / `observedSeq` 保留旧调用的页上界/显式确认语义，仅用于历史兼容。准备工具结果不能证明模型实际收到；正常 worker 不再为技术确认调用 ACK。
+- 新增 `shownSeq`（旧记录缺失视为 0）：Host 根据实际进入 Session 的事件摘要/结果记录自动持久化的连续展示位置。它不声称正文全文已读、模型已理解、请求已回应或约定已同意。
+- 增量同步、等待和投递使用 `max(shownSeq, observedSeq)`；`swarm_sync()` 直接取下一页，无需另发 `ack_seq`。页返回 `fromSeq`、`throughSeq`、`hasMore`，回执不得跨过未提供的可见事件。不可见事件和自己的普通事件可在摘要扫描中跳过。
+- 例：41 是可见 Finding，42 是发给其他人的私信，43 是可见 Finding；页大小只容纳一条时返回 41、throughSeq=42、hasMore=true。实际展示并落盘后下一页从 43 开始，不返回 42 的正文。
+- 仅送“请同步至 N”的控制通知不能推进事件展示位置。控制通知实际携带的公共 notification 引用则可自动确认精确 id+seq；它不代表消息正文已展示。
+- `swarm_sync(ack_seq)` 和显式 `swarm_wait(after_seq)` 作为兼容入口保留原范围校验，不作为新模型的必做步骤。
+- 工具边界摘要通过正常 additionalContexts 日志提供，只有追加为真实 `user/message` 并经过 Session flush 后，才保存展示回执。工具结果的回执同样在最终 `tool/result` 日志内容核对后保存。取消、截断/改写、未入日志的候选不推进 shown；技术确认不清除等待、不生成业务事件、不唤醒同伴。详见 §14.6。
 
 ### 7.2 确定性的唤醒匹配表
 
@@ -339,7 +339,7 @@ any 模式允许一次真正的新发现唤醒多个等待者；“无自激广�
 
 假设 worker 最后读到 seq=42：
 
-1. `swarm_wait(after_seq=42)` 中 after_seq 同时表示“我已读到这里”：必须满足 observedSeq ≤ after_seq ≤ offeredSeq，否则返回 `SWARM_INVALID_CURSOR`，不修改任何状态。合法时在同一次 run 更新中推进 observedSeq=after_seq、清除被覆盖的 pending、登记等待并检查 §7.2 的事件；它与 sync(ack_seq) 是两种明确的确认入口，不暗中截断非法 cursor。
+1. 正常使用 `swarm_wait()`，在同一次 run 更新内从 `max(shownSeq, observedSeq)` 读取已展示位置、登记等待并检查新事件，不需要模型管理 ACK。显式 `after_seq=42` 仅为旧协议兼容：必须满足 observedSeq ≤ after_seq ≤ offeredSeq，非法值无副作用拒绝；合法时可推进旧 observedSeq，但不能让已自动展示的事件再次唤醒。
 2. 若 43 已经存在且匹配：返回新事件，不结束 turn。
 3. 若不存在：保存等待位置；工具使用 DSH `exec.concludeTurn()` 让出当前 turn，不挂一个长时间占槽的工具调用。
 4. 新业务事件落盘的同一次 run 更新中，给匹配等待者设置 `wakeTargetSeq=max(旧值,事件seq)`；这就是持久的 wakePending，不是丢进一个仅在内存里的通知。
@@ -356,11 +356,11 @@ any 模式允许一次真正的新发现唤醒多个等待者；“无自激广�
 
 - `wakeTargetSeq` 表示需要提醒的事件上界；`notifiedSeq` 表示控制通知已经被 inbox 接受的上界。它们都不等于 observedSeq。
 - 同一活跃 activation 内，`wakeTargetSeq <= notifiedSeq` 不重复发送同一通知；更新可以合并成一个“请同步至至少 N”的提示。
-- sync(ack_seq) 或合法 wait(after_seq) 推进 observedSeq；确认覆盖 wakeTargetSeq 后清除该 pending。
+- Host 自动展示回执推进 shownSeq；旧 sync(ack_seq)/wait(after_seq) 仍可推进 observedSeq。wakeTargetSeq 被两者的最大值覆盖后不再触发投递，不要求模型额外确认。
 - waitRegistration 的清除触发点是确定的：成功的 swarm_sync（即主动取消等待/重新决策）、成功的 Task claim、成功的 submit、成功受理 finish，均在本次更新中清除自己的登记；失败调用不清除。单纯 publish/read 不清除。因而无需新增 cancel_wait 工具，主动取消等待就是调用 swarm_sync；清登记不删除未读事件。新的 swarm_wait 会重建登记。
 - 若 activation 结束而对应事件仍未确认，保留 pending；下一次允许的续跑可以重投同一 ID。连续两轮没有任何确认或业务进展则暂停报告，而非无限重投。
 - 容量不足或恢复失败保留 pending，不推进 observedSeq；等待已知容量释放事件或明确 resume，不定时调用模型。
-- 重启时丢弃所有内存队列，run 默认 paused。明确 resume 后重新创建队列，以持久 waitRegistration、observedSeq 和事件重算 pending；旧 notifiedSeq 不作为重启后已处理的证明。允许重复投递，不重复业务变更。
+- 重启时丢弃所有内存队列，run 默认 paused。明确 resume 后重新创建队列，以持久 waitRegistration、shownSeq/observedSeq、Session 展示凭据和事件重算 pending；旧 notifiedSeq 不作为重启后已展示的证明。允许重复投递，不重复业务变更。
 
 因此“43 在等待登记前到达”“43 在登记后、activation 收尾前到达”“43 在收尾后到达”三种时序都能处理。
 
@@ -710,9 +710,9 @@ M1/M2 是里程碑，不代表插件已经满足最终交付。至少 M1–M3 �
 
 ### 14.3 五组不互相代替的状态
 
-1. **全局 Event seq / offeredSeq / observedSeq**：保留 §7 连续扫描与 ACK 约束。public 事件只提供有界引用元数据，不携带正文。没有提供的既有可见事件不能被跳过确认。
-2. **频道全文阅读**：只有 `swarm_public_read view=messages` 返回的当前全文版本才成为 offered；摘要、历史版本页、owner GUI 读取都不会替 worker 提供/确认全文。`mark_read` 确认所读消息版本，不能确认未提供的新修订。
-3. **个人通知 delivered/acknowledged**：`ack_notifications` 必须传 `[{id,seq}]`，防止陈旧 ACK 吞掉刚合并的新更新。全局 sync ACK 和全文已读均不自动确认通知。
+1. **全局 Event seq / offeredSeq / observedSeq / shownSeq**：保留 §7 旧调用边界；新增 Host 自动摘要展示回执 shownSeq，正常读取和等待不需要模型 ACK。public 事件只提供引用元数据，未提供的事件不能被跨越确认。
+2. **频道全文展示**：只有 `swarm_public_read view=messages` 的实际最终全文进入 Session 并 flush 后，Host 才记精确 offered/read 版本。摘要、历史版本页、owner GUI 读取不推进该状态；它不是“模型理解”证明。`mark_read` 仅保留为旧调用兼容。
+3. **个人通知 delivered/acknowledged**：deliveredAt 是 inbox 接受；acknowledgedAt 兼容字段现在也承载 Host 自动展示回执，仅确认实际展示的精确 id+seq。全局摘要或全文展示不隐式确认未包含的通知引用；`ack_notifications([{id,seq}])` 仅保留为旧调用兼容。
 4. **回应状态**：通知确认后请求仍可为 pending；attention 优先显示本人 pending 请求，不能被普通消息淹没。
 5. **约定版本确认**：仅 `confirm_agreement(version)` 增加该版本的本人确认。不从阅读、回应、ACK、沉默或旧版本确认推断一致。
 
@@ -722,7 +722,7 @@ sync/wait 返回有界 priority attention 元数据；未确认通知不能仅�
 
 原 9 个 worker 工具保持兼容，另增两个真实注册工具，均只在 worker preset：
 
-- `swarm_discuss({command:{action,...}})`：action 为 create_channel/archive_channel、create_thread/update_thread、post/revise_message、subscribe、request_response/respond/withdraw_request、create_agreement/revise_agreement/confirm_agreement、link_finding、ack_notifications、mark_read。新增协议字段使用 camelCase；各 action 的必填字段、长度和 CAS 由[统一输入 schema](<src/public-input.ts>)定义，DSH 模型 schema 与业务入口共用。
+- `swarm_discuss({command:{action,...}})`：业务 action 为 create_channel/archive_channel、create_thread/update_thread、post/revise_message、subscribe、request_response/respond/withdraw_request、create_agreement/revise_agreement/confirm_agreement、link_finding。ack_notifications/mark_read 仅兼容历史调用，正常 worker 不使用它们；技术回执由 Host 完成。新增协议字段使用 camelCase；各 action 的必填字段、长度和 CAS 由[统一输入 schema](<src/public-input.ts>)定义。
 - `swarm_public_read({view,...})`：view 为 channels/threads/messages/requests/agreements/attention/activity/message_revisions/agreement_versions；可按 channelId/threadId/taskId/findingId、messageId/ agreementId、query/status 过滤。worker 的 workerId 只能是自己，owner 只读接口可选公共通知接收者。
 
 查询每页最多 20 条，另按序列化内容约 24K 字符分页（首条允许完整返回，单字段/引用列表有固定上限）；全文与版本历史分开翻页，返回 total/hasMore/truncated/nextCursor/snapshotSeq。cursor 绑定 run、viewer 和 filter，稳定 keyset 截止首个事件快照，后追加消息不挤走前页；可变正文/状态是读取时当前事实，不宣称数据库式历史快照。snapshotSeq 是快照说明，**不是** sync 的 ACK cursor。新成员用 channels → activity/threads → agreements、requests(status=pending) 获取当前约定、未解决问题与历史来源。
@@ -732,3 +732,12 @@ sync/wait 返回有界 priority attention 元数据；未确认通知不能仅�
 现有 [Client 插件](<client.js>) 扩展“公共讨论 / Public discussion”频道/线程视图，保持 Dashboard/成员/协作流/目标/Git 视图。正文只经 `swarmProgress/publicDiscussion(sessionId, runId, query)` 按需接口进入面板；每次检查 owner 和当前 run，然后调用 `PublicCollaboration.queryForOwner`。持续 progress 流仅带 `publicActivity {protocolVersion:1, latestSeq, channels, threads, pendingRequests, agreements}` 有界元数据，不带正文。面板只读公共讨论，不替 worker 阅读确认，不使用户自动成为讨论参与者，也不把“看到了公共消息”当作新的正式需求。中英文、主题 token、原生键盘控件、分页/搜索/版本展开，以及会话/run 切换、卸载后的订阅清理和旧请求隔离属于验收范围。旧 Host 缺能力应明确提示而保留旧视图；权限/网络错误不能吞成空成功。
 
 验收分层：持久业务/ToolRuntime/Remote/组件/临时 Git 的确定性测试，完整 `pnpm typecheck`、`pnpm build`、`pnpm test`，与真实 Host 载入、真实模型、真实浏览器目视分别报告。pnpm 11 项目策略在 [workspace 配置](<pnpm-workspace.yaml>)：仅允许 esbuild 生命周期脚本，禁用脚本前自动重新安装以保护精确 Harness/Cordis 开发链接；固定 setup 使用 frozen lockfile 后运行 link:harness，不依赖 worker 临时环境开关。本轮只交付结果分支，不安装/重启宿主、不改 DSH/用户配置、不启动替代服务器，也不自动合并用户当前分支。
+
+### 14.6 Host 自动技术回执（用户追加修复）
+
+- [回执凭据](<src/notification-receipts.ts>) 绑定最终模型内容的 SHA-256：原生工具通过正式 output.presentationMeta 保存私有凭据，Host additionalContexts/控制通知使用可扩展的 `MessageSource.kind=swarm-context`。它们仍是标准 tool/result、user/message，不定义新的 SessionEvent，不把 ACK JSON 当作模型工作。
+- [worker 回执适配](<src/worker-receipts.ts>) 注册纯 Session projection。只有最终成功的 append surface 事件、精确内容校验通过后才形成证据；PTC 审计记录、失败结果、取消前准备的输出、截断/替换内容都不能确认。原生 session/event 是内存提交回调，不等于磁盘持久化，因此先 await sessions.flush(session)，再更新 Swarm domain。
+- 队列只处理普通程序写入；下一次既有 pre-step/pre-execute 和 turn-stopping 等待该队列，不为 ACK 新开模型轮次。回执写失败不把已经执行的 edit/命令变成失败重试；保留日志证据、记录诊断，并在下一边界重试/显式报错。卸载移除监听器并排空已登记写入。
+- projection 从原生 Session 日志恢复累计展示范围和精确通知/消息版本，不依赖易失 WeakMap。事件范围只能连续推进，旧通知 seq 不确认新合并版本，读过旧正文 revision 不标记新修订已读。派生 projection 缓存不是权威记录；同一证据重放不重复业务 mutation。
+- Host 控制通知采用当前 DSH 导出的 `@deepseek-ai/dsh-subagent/internal` 的 steerHostSubagentPrompt，保留真实 owner→child 授权、冷恢复和取消门禁，并保存 Host 来源；不冒充 peer 或 owner 模型发言。该签名已对当前安装版声明和实现核验，升级须复核。
+- 技术展示回执不产生公共消息/事件、不清等待、不修改 Task/Proposal/owner 目标。请求/respond 和约定/confirm_agreement 仍需显式业务动作；新工具说明与 worker 指令禁止 ACK-only 调用或无信息量回话。

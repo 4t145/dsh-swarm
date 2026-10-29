@@ -199,7 +199,11 @@ describe('public record rendering and compatibility', () => {
     const request = text(client.PublicRecord({ t, progress, navigate, item: { kind: 'request', request: { id: 'request', status: 'pending', requestedByWorkerId: 'a', targetWorkerId: 'b', messageId: 'm', responseMessageId: null, taskIds: [] } } }));
     expect(request).toContain('Awaiting response'); expect(request).toContain('Response requested from :  Bright Finch');
     const notice = text(client.PublicRecord({ t, progress, navigate, item: { kind: 'notification', notification: { workerId: 'b', reasons: ['response_request'], deliveredAt: 1, acknowledgedAt: null, messageId: 'm', threadId: null, agreementId: null } } }));
-    expect(notice).toContain('Explicit response request'); expect(notice).toContain('Notification delivered'); expect(notice).toContain('Notification not acknowledged');
+    expect(notice).toContain('Explicit response request'); expect(notice).toContain('Inbox accepted notification'); expect(notice).toContain('No notification display receipt yet');
+    const shown = text(client.PublicRecord({ t, progress, navigate, item: { kind: 'notification', notification: { workerId: 'b', reasons: ['mention'], deliveredAt: null, acknowledgedAt: 2, messageId: 'm', threadId: null, agreementId: null } } }));
+    expect(shown).toContain('No inbox delivery recorded');
+    expect(shown).toContain('Technical receipt recorded (not response/consent)');
+    expect(shown).not.toContain('Explicitly confirmed this version');
   });
 
   it('keeps legacy Host capability messaging and complete bilingual public labels without implicit owner submission', () => {

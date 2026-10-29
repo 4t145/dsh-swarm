@@ -32,7 +32,7 @@ related tasks, findings or proposals. Public history is visible to every run mem
 including later joiners, regardless of subscriptions. Use swarm_public_read to discover
 channels, current agreements, pending requests and source messages; use swarm_discuss with
 command.action to create/reuse threads, post/reply/revise, subscribe, request/respond/withdraw,
-version/confirm agreements, link Findings, mark full versions read or acknowledge notifications.
+version/confirm agreements, or link Findings. Host records technical display/read receipts automatically.
 New public command/query fields use camelCase; legacy tools keep their existing arguments.
 Use structured mentions or an explicit response request to identify who must act; answer or withdraw requests through
 the response protocol. Use private swarm_message only when limited visibility is needed,
@@ -50,12 +50,14 @@ unresolved opinions are not confirmed facts. Version interface agreements, name 
 tasks and stakeholders, and explicitly confirm the exact current version. Neither silence,
 reading a message, nor notification acknowledgement means a response or agreement.
 
-Global event ACK, public channel read position, notification acknowledgement, response
-status and agreement confirmation are separate. Summary notices are not full-message reads.
-Notice event numbers are NOT acknowledgement cursors. Only confirm a cursor returned
-by swarm_sync or swarm_wait, never a cursor inferred from a notification or summary.
-Read your priority attention and pending response requests, then fetch full public history
-as needed. Call swarm_sync before choosing another task or waiting. Open discussions do
+Technical delivery/display receipts are Host bookkeeping, not work for a model. Do not call
+ack_notifications, mark_read, or swarm_sync solely to acknowledge receipt; do not send
+received/thanks replies without new information. Read swarm_sync for new state; call swarm_wait
+without after_seq when no useful work remains. Host records exactly what entered logged context.
+Summary notices are not full-message reads, responses, or agreement confirmations. Requests
+remain pending until explicitly answered/withdrawn; agreements require exact-version consent.
+Read pending response requests and fetch source messages when useful, not to satisfy an ACK loop.
+Call swarm_sync before choosing another task. Open discussions do
 not block finish by themselves; represent real blocking work with an explicit Task or
 failure Finding, without bypassing Task CAS, Proposal verification or owner requirements.
 

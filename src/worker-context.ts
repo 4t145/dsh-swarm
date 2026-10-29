@@ -1,10 +1,11 @@
-/** Passive peer knowledge at tool boundaries; never acknowledges events or wakes an Agent. */
+/** Passive peer context with exact display evidence; only the post-log Host observer commits receipts. */
 import type { Context } from '@deepseek-ai/cordis';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type {} from '@deepseek-ai/dsh-tools';
 import type { Collaboration } from './collaboration.ts';
 import { isSwarmError } from './errors.ts';
-import { isEventVisible, notificationReference, pendingNotifications } from './events.ts';
+import { isEventVisible, notificationReference, pendingNotifications, shownEventSeq } from './events.ts';
+import { receiptContext } from './notification-receipts.ts';
 import type { Run, SwarmEvent } from './types.ts';
 
 export interface WorkerContextConfig {
@@ -91,14 +92,10 @@ export function collectWorkerNotices(run: Run, workerId: string, after: number, 
 }
 
 /**
- * Append logged additional context after an accepted worker tool result, preserving its outcome.
- * The in-memory cursor only suppresses repeated notices. Durable offered/observed/wait state is
- * untouched: a later swarm_sync remains authoritative, and cold resumes may repeat summaries.
- * The caller's preset context owns registration and disposal.
+ * Prepare bounded passive context. Only a subsequently logged, flushed message confirms display;
+ * cancellation, replacement or truncation must leave the durable cursor untouched.
  */
 export function registerWorkerContext(ctx: Context, collaboration: Collaboration, config: WorkerContextConfig): () => void {
-  let cursors = new WeakMap<object, number>();
-  let attentionSeen = new WeakMap<object, string>();
   const remove = ctx.on('tools/post-execute', async (exec, result, next) => {
     const decision = await next();
     if (decision.kind !== 'accept' || exec.signal.aborted || !exec.agent || result.isError || result.concludesTurn) return decision;
@@ -119,34 +116,20 @@ export function registerWorkerContext(ctx: Context, collaboration: Collaboration
     const { run, worker } = membership;
     if (run.phase !== 'running' || worker.waitRegistration !== null) return decision;
 
-    // Explicit sync already returned the complete event page; do not repeat it as a notice.
-    if (exec.name === 'swarm_sync') {
-      const value = result.value;
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)
-        && typeof value.throughSeq === 'number') {
-        cursors.set(exec.agent, Math.max(cursors.get(exec.agent) ?? 0, value.throughSeq));
-      }
-      return decision;
-    }
-
-    const after = Math.max(worker.observedSeq, cursors.get(exec.agent) ?? worker.observedSeq);
+    // Sync has its own exact tool-result receipt; never confirm its prepared result here.
+    if (exec.name === 'swarm_sync') return decision;
+    const after = shownEventSeq(worker);
     const page = collectWorkerNotices(run, worker.id, after, config);
-    cursors.set(exec.agent, page.scanned);
-    const signature = JSON.stringify(page.attention);
-    const showAttention = attentionSeen.get(exec.agent) !== signature;
-    attentionSeen.set(exec.agent, signature);
-    const attention = showAttention ? page.attention : [];
-    if ((!page.updates.length && !attention.length) || exec.signal.aborted) return decision;
-    return { ...decision, additionalContexts: [...(decision.additionalContexts ?? []), createUserMessage({
-      source: { kind: 'tool', callId: exec.callId },
-      content: [{ type: 'text', text: '[Swarm shared context — goal records are owner additions; other records are peer reports]\n'
-        + JSON.stringify({ runId: run.id, attention, attentionTotal: page.attentionTotal,
-          attentionHasMore: page.attentionHasMore, updates: page.updates, hasMore: page.hasMore })
-        + '\nUse findings to adjust your work; negotiate overlaps in public threads. '
-        + 'Read priority attention and source public messages on demand; swarm_read expands legacy records. '
-        + 'Summaries are not full-message reads, responses or agreement confirmations. '
-        + 'These notice sequences are NOT acknowledgement cursors; use swarm_sync before ack or wait.' }],
-    })] };
+    if ((!page.updates.length && !page.attention.length) || exec.signal.aborted) return decision;
+    const receipt = { runId: run.id, ranges: [{ from: after, through: page.scanned }],
+      notifications: pendingNotifications(run, worker.id).slice(0, config.peerNoticeItems).map(({ id, seq }) => ({ id, seq })), messages: [] };
+    const text = '[Swarm shared context — goal records are owner additions; other records are peer reports]\n'
+      + JSON.stringify({ runId: run.id, attention: page.attention, attentionTotal: page.attentionTotal,
+        attentionHasMore: page.attentionHasMore, updates: page.updates, hasMore: page.hasMore })
+      + '\nUse findings to adjust your work; negotiate overlaps in public threads. '
+      + 'Read source records on demand. Host automatically records display: do not send ACK-only calls or replies. '
+      + 'A summary is not a full-message read, response or agreement confirmation.';
+    return { ...decision, additionalContexts: [...(decision.additionalContexts ?? []), receiptContext(text, receipt)] };
   });
-  return () => { remove(); cursors = new WeakMap(); attentionSeen = new WeakMap(); };
+  return remove;
 }

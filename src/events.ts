@@ -40,6 +40,11 @@ export function isEventVisible(event: { audience: EventAudience }, workerId: Wor
   return event.audience.kind === 'all' || event.audience.workerIds.includes(workerId);
 }
 
+/** Effective notification cursor: automatic display receipts plus legacy explicit confirmations. */
+export function shownEventSeq(worker: WorkerRecord): number {
+  return Math.max(worker.observedSeq, worker.shownSeq ?? 0);
+}
+
 /** Pending public attention is independent of global event ACK and full-message reads. */
 export function pendingNotifications(run: Run, workerId: WorkerId): NotificationRecord[] {
   return Object.values(run.notifications).filter((item) => item.workerId === workerId
@@ -84,7 +89,7 @@ export function matchesWait(run: Run, worker: WorkerRecord, event: SwarmEvent): 
   if (wait === null) return false;
   // A global event ACK is not an attention ACK. An outstanding request may predate the wait cursor.
   if (event.kind === 'public') return publicEventNeedsAttention(run, worker.id, event);
-  if (event.seq <= wait.afterSeq) return false;
+  if (event.seq <= Math.max(wait.afterSeq, shownEventSeq(worker))) return false;
 
   // 发给自己的直接消息：两种模式都恒匹配，不受 ID 列表限制。
   if (event.kind === 'message') return event.targetWorkerId === worker.id;

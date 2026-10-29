@@ -115,6 +115,7 @@ export const workerRecordSchema = z.strictObject({
   unavailableReason: z.string().nullable(),
   offeredSeq: seqSchema,
   observedSeq: seqSchema,
+  shownSeq: seqSchema.optional(),
   notifiedSeq: seqSchema,
   wakeTargetSeq: seqSchema,
   waitRegistration: waitRegistrationSchema.nullable(),
@@ -412,6 +413,11 @@ export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
     'channelReads', 'responseRequests', 'agreements'] as const) checkKeys(field, Object.entries(run[field]));
   checkKeys('goals', Object.entries(run.goals));
   checkKeys('workers', Object.entries(run.workers));
+  for (const [id, worker] of Object.entries(run.workers)) {
+    if (worker.shownSeq !== undefined && worker.shownSeq >= run.nextSeq) {
+      ctx.addIssue({ code: 'custom', path: ['workers', id, 'shownSeq'], message: 'shownSeq must be within the run event log' });
+    }
+  }
   checkKeys('tasks', Object.entries(run.tasks));
   checkKeys('findings', Object.entries(run.findings));
   checkKeys('messages', Object.entries(run.messages));

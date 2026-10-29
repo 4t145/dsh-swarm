@@ -91,6 +91,10 @@ describe('persistent public collaboration', () => {
     await api.query('s-b', { view: 'activity' });
     await expect(call('b', { action: 'mark_read', channelId: message.channelId, messages: [{ messageId: message.id, revision: 1 }] })).rejects.toMatchObject({ code: 'SWARM_INVALID_CURSOR' });
     await api.query('s-b', { view: 'messages', messageId: message.id });
+    // Preparing the query is not a display receipt; even the legacy explicit action must fail.
+    await expect(call('b', { action: 'mark_read', channelId: message.channelId, messages: [{ messageId: message.id, revision: 1 }] })).rejects.toMatchObject({ code: 'SWARM_INVALID_CURSOR' });
+    await legacy.recordShown('s-b', { runId: 'r', ranges: [], notifications: [],
+      messages: [{ id: message.id, channelId: message.channelId, revision: 1 }] });
     await call('b', { action: 'mark_read', channelId: message.channelId, messages: [{ messageId: message.id, revision: 1 }] });
     expect(store.get('r').notifications[notice.id]?.acknowledgedAt).toBeNull();
     await call('b', { action: 'ack_notifications', notifications: [{ id: notice.id, seq: notice.seq }] });
@@ -238,9 +242,11 @@ describe('persistent public collaboration', () => {
   });
 
   it('rejects corrupted persisted public references and never treats a revised message as fully read', async () => {
-    const { post, call, api, store } = await setup();
+    const { post, call, api, store, legacy } = await setup();
     const message = await post('a', 'v1');
     await api.query('s-b', { view: 'messages' });
+    await legacy.recordShown('s-b', { runId: 'r', ranges: [], notifications: [],
+      messages: [{ id: message.id, channelId: message.channelId, revision: 1 }] });
     await call('a', { action: 'revise_message', messageId: message.id, expectedRevision: 1, body: 'v2' });
     await expect(call('b', { action: 'mark_read', channelId: message.channelId, messages: [{ messageId: message.id, revision: 2 }] })).rejects.toMatchObject({ code: 'SWARM_INVALID_CURSOR' });
     const corrupted = store.get('r');
