@@ -313,7 +313,9 @@ function latestProposalFor(run: Run, taskId: string) {
 }
 
 function workspaceOf(fixture: Fixture, store: StateStore, host: FakeWorkerHost): SwarmRuntime {
-  return new SwarmRuntime(store, host, new GitWorkspace(new LocalCommandExecutor()), new MemoryArtifacts());
+  return new SwarmRuntime(store, host, new GitWorkspace(new LocalCommandExecutor()), new MemoryArtifacts(), {
+    workerLimit: () => ({ maxWorkers: 8, source: 'host' }),
+  });
 }
 
 function beginRun(fixture: Fixture): {

@@ -1,5 +1,7 @@
 /** Native Cordis Host entry for the single-process Swarm service. */
-import { Service, type Context } from '@deepseek-ai/cordis';
+import { Service, type Context, type Volatile } from '@deepseek-ai/cordis';
+import { dshWorkerLimitResolver } from './dsh-worker-limit.ts';
+import { positiveLimit } from './worker-limit.ts';
 import Schema from '@deepseek-ai/schemastery';
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain';
 import type {} from '@deepseek-ai/dsh-agent';
@@ -32,6 +34,8 @@ import { HeadlessDriverLifetime } from './headless-lifetime.ts';
 
 /** Deployment controls; goals and verification commands belong in each run spec. */
 export interface SwarmConfig {
+  /** Optional live team limit; no numeric default, inherits native config when unset. */
+  workerCountMax?: Volatile<number | undefined>;
   eventPageSize: number;
   commandOutputBytes: number;
   commandGraceMs: number;
@@ -62,6 +66,7 @@ export class SwarmService extends Service {
   ];
 
   static Config = Schema.object({
+    workerCountMax: Schema.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).volatile(),
     eventPageSize: Schema.number().min(1).max(100).default(20),
     commandOutputBytes: Schema.number().min(4096).max(4194304).default(262144),
     commandGraceMs: Schema.number().min(100).max(30000).default(3000),
@@ -114,6 +119,9 @@ export class SwarmService extends Service {
   }
 
   private async initialize(config: SwarmConfig): Promise<SwarmRuntime> {
+    // Schemastery preserves explicit null in optional fields; it is not absence.
+    const override = config.workerCountMax?.get();
+    if (override !== undefined) positiveLimit(override, 'workerCountMax');
     const domain = await this.ctx.storageDomain.open(domainSpec(config.storageDomainName));
     const store = new MemoryStateStore(domain.table('runs'));
     this.observerValue = { get: (id) => store.get(id), subscribe: (listener) => store.subscribe(listener) };
@@ -124,7 +132,10 @@ export class SwarmService extends Service {
       maxOutputBytes: config.commandOutputBytes,
     });
     const workspace = new GitWorkspace(executor);
-    const runtime = new SwarmRuntime(store, host, workspace, artifacts, { eventPageSize: config.eventPageSize });
+    const runtime = new SwarmRuntime(store, host, workspace, artifacts, {
+      eventPageSize: config.eventPageSize,
+      workerLimit: dshWorkerLimitResolver(this.ctx, config.workerCountMax),
+    });
     this.artifactsValue = artifacts;
     let disposeOwnerTools: (() => void) | undefined;
     let disposeOwnerContext: (() => void) | undefined;

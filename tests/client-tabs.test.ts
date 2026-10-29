@@ -161,6 +161,38 @@ describe('owner add-worker UI', () => {
     for (const phase of ['preparing', 'draining', 'quiescing', 'completed', 'stopped', 'failed']) expect(client.addWorkerState({ ...progress(), phase }, true)).toBe('phase');
   });
 
+  it('renders the live limit and source without clamping a reduced limit to the roster', () => {
+    const ui = harness();
+    const workers = Array.from({ length: 12 }, (_, index) => ({ id: `w${index}` }));
+    for (const [maxWorkers, source, expected] of [[16, 'host', 'Inherited Host limit'], [3, 'override', 'Explicit override']] as const) {
+      const p = { ...progress(), workers, workerControls: { canAdd: maxWorkers > workers.length, maxWorkers, source, diagnostic: null } };
+      const tree = ui.render(ui.client.AddWorkerControl, { progress: p, sessionId: 'owner', connected: true, executeCommand: vi.fn() });
+      expect(text(tree)).toContain(` / ${maxWorkers}`);
+      expect(text(tree)).toContain(expected);
+      expect(nodes(tree, (node) => node.props['data-filled'] === true)).toHaveLength(12);
+      expect(ui.client.addWorkerState(p, true)).toBe(maxWorkers > workers.length ? 'ready' : 'limit');
+    }
+    ui.unmount();
+  });
+
+  it('distinguishes unavailable configuration from a legacy unknown source', () => {
+    const ui = harness();
+    const p = { ...progress(), workerControls: { canAdd: false, maxWorkers: null, source: null, diagnostic: 'Native configuration could not be resolved' } };
+    const executeCommand = vi.fn();
+    let tree = ui.render(ui.client.AddWorkerControl, { progress: p, sessionId: 'owner', connected: true, executeCommand });
+    expect(ui.client.addWorkerState(p, true)).toBe('unavailable');
+    expect(text(tree)).toContain(' / ?');
+    expect(text(tree)).toContain('Native configuration could not be resolved');
+    const button = nodes(tree, (node) => node.type === 'button')[0]!;
+    expect(button.props.disabled).toBe(true);
+    (button.props.onClick as () => void)();
+    expect(executeCommand).not.toHaveBeenCalled();
+    tree = ui.render(ui.client.AddWorkerControl, { progress: progress(), sessionId: 'owner', connected: true, executeCommand });
+    expect(text(tree)).toContain('Limit source unavailable');
+    expect(text(tree)).not.toContain('Inherited Host limit');
+    ui.unmount();
+  });
+
   it('validates receipt identity and explicit disposition rather than guessing success', () => {
     const { client } = harness();
     const receipt = { runId: 'run', workerId: 'w2', displayName: 'Bright Finch', disposition: 'paused' };

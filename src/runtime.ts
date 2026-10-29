@@ -29,6 +29,8 @@ import {
   type WorkspacePort,
 } from './ports.ts';
 import { DEFAULT_RUNTIME_CONFIG } from './schema.ts';
+import { MIN_WORKERS } from './spec.ts';
+import { assertWorkerLimit, positiveLimit, type WorkerLimit, type WorkerLimitResolver, type WorkerControls } from './worker-limit.ts';
 import { randomWorkerName, workerDisplayName } from './worker-names.ts';
 import { KeyedSerialQueue } from './serial.ts';
 import type { StateStore } from './store.ts';
@@ -66,6 +68,8 @@ export interface SwarmRuntimeOptions {
   clock?: Clock;
   id?: () => string;
   eventPageSize?: number;
+  /** Required for admission; absence is a capability error, never a numeric fallback. */
+  workerLimit?: WorkerLimitResolver;
 }
 
 /** `finish` 的两种受理结果；两种都不是“成功完成”。 */
@@ -161,7 +165,7 @@ export interface RunStatus {
   goalRevision: number;
   goals: { active: number; deferred: number; completed: number; total: number };
   workers: WorkerStatusSummary[];
-  workerControls?: { canAdd: boolean; maxWorkers: number };
+  workerControls?: WorkerControls;
   proposals: { queued: number; integrating: number; accepted: number; rejected: number };
   verifications: { queued: number; running: number; passed: number; failed: number; interrupted: number };
   finishRequest: { id: string; acceptedHead: CommitSha; verificationId: string | null } | null;
@@ -250,6 +254,7 @@ export class SwarmRuntime {
   private readonly clock: Clock;
   private readonly makeId: () => string;
   private readonly eventPageSize: number;
+  private readonly workerLimit: WorkerLimitResolver;
   /** Serialize owner goal intake with an explicit next-round transfer. */
   private readonly goalIntake = new KeyedSerialQueue();
 
@@ -286,6 +291,9 @@ export class SwarmRuntime {
     this.clock = options.clock ?? systemClock;
     this.makeId = options.id ?? (() => randomUUID());
     this.eventPageSize = options.eventPageSize ?? DEFAULT_RUNTIME_CONFIG.eventPageSize;
+    this.workerLimit = options.workerLimit ?? (() => {
+      throw new SwarmError('SWARM_CONFIG_UNAVAILABLE', 'no effective worker-limit resolver is available');
+    });
 
     this.publicationGate = new KeyedSerialQueue();
     // Collaboration / IntegrationQueue 的选项都用 `now: () => Millis`，与 Runtime 的 Clock 适配。
@@ -342,6 +350,7 @@ export class SwarmRuntime {
       });
     }
 
+    assertWorkerLimit(spec.workers, this.resolveWorkerLimit(ownerSessionId));
     const runId = this.makeId();
     const operation = await this.admitOperation(runId, 'start', null);
     let persisted = false;
@@ -438,9 +447,7 @@ export class SwarmRuntime {
       if (current.phase === 'running' && current.deadline !== null && this.clock.now() >= current.deadline) {
         throw new SwarmError('SWARM_BUDGET_EXHAUSTED', 'run budget expired');
       }
-      if (Object.keys(current.workers).length >= DEFAULT_RUNTIME_CONFIG.workerCountMax) {
-        throw new SwarmError('SWARM_INVALID_STATE', `a run supports at most ${DEFAULT_RUNTIME_CONFIG.workerCountMax} workers`);
-      }
+      assertWorkerLimit(Object.keys(current.workers).length + 1, this.resolveWorkerLimit(ownerSessionId));
       const now = this.clock.now();
       const worker = reserveWorker(current, now);
       const updated = await this.store.update(run.id, (latest) => this.finalizeChange(
@@ -540,6 +547,27 @@ export class SwarmRuntime {
     return this.runForStatus(ownerSessionId);
   }
 
+  /** Shared fresh policy read for all admission and status paths. */
+  private resolveWorkerLimit(ownerSessionId: string): WorkerLimit {
+    const limit = this.workerLimit(ownerSessionId);
+    positiveLimit(limit.maxWorkers, 'effective worker limit');
+    if (limit.source !== 'host' && limit.source !== 'override') {
+      throw new SwarmError('SWARM_CONFIG_UNAVAILABLE', 'effective worker limit has an unknown source');
+    }
+    return limit;
+  }
+
+  private workerControls(run: Run, control: RunControlState, now: number): WorkerControls {
+    try {
+      const limit = this.resolveWorkerLimit(run.ownerSessionId);
+      return { ...limit, diagnostic: null,
+        canAdd: (run.phase === 'paused' || (run.phase === 'running' && !control.admissionClosed
+          && (run.deadline === null || now < run.deadline))) && Object.keys(run.workers).length < limit.maxWorkers };
+    } catch (error) {
+      return { canAdd: false, maxWorkers: null, source: null, diagnostic: errorMessage(error) };
+    }
+  }
+
   status(ownerSessionId: string, details = false): RunStatus {
     this.assertUsable('status');
     const run = this.runForStatus(ownerSessionId);
@@ -562,12 +590,7 @@ export class SwarmRuntime {
       goalRevision: run.goalRevision,
       goals: { ...countByStatus(Object.values(run.goals), ['active', 'deferred', 'completed']), total: Object.keys(run.goals).length },
       workers: Object.values(run.workers).map((worker) => this.workerSummary(worker)),
-      workerControls: {
-        canAdd: (run.phase === 'paused' || (run.phase === 'running' && !control.admissionClosed
-          && (run.deadline === null || now < run.deadline)))
-          && Object.keys(run.workers).length < DEFAULT_RUNTIME_CONFIG.workerCountMax,
-        maxWorkers: DEFAULT_RUNTIME_CONFIG.workerCountMax,
-      },
+      workerControls: this.workerControls(run, control, now),
       proposals: countByStatus(Object.values(run.proposals), ['queued', 'integrating', 'accepted', 'rejected']),
       verifications: countByStatus(
         Object.values(run.verifications),
@@ -2247,8 +2270,8 @@ function validateStartInput(ownerSessionId: string, spec: RunSpec): void {
   if (!Array.isArray(spec.acceptanceCriteria) || spec.acceptanceCriteria.length === 0) {
     issues.push({ path: 'acceptanceCriteria', message: 'at least one criterion is required' });
   }
-  if (!Number.isInteger(spec.workers) || spec.workers < 2 || spec.workers > 4) {
-    issues.push({ path: 'workers', message: 'workers must be an integer between 2 and 4' });
+  if (!Number.isSafeInteger(spec.workers) || spec.workers < MIN_WORKERS) {
+    issues.push({ path: 'workers', message: `workers must be a safe integer at least ${MIN_WORKERS}` });
   }
   if (!Number.isInteger(spec.budgetMinutes) || spec.budgetMinutes < 0) {
     issues.push({ path: 'budgetMinutes', message: 'budgetMinutes must be a non-negative integer (0 means no deadline)' });

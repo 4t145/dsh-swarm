@@ -10,6 +10,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveWorkerLimit } from '../src/worker-limit.ts';
 
 /** 模块 mock 共享状态；vi.hoisted 保证在 import runtime 之前建立。 */
 const harness = vi.hoisted(() => ({
@@ -355,6 +356,7 @@ function createHarness(options: { start?: number; runtime?: SwarmRuntimeOptions 
     clock,
     id: () => `id-${(counter += 1)}`,
     eventPageSize: 20,
+    workerLimit: () => ({ maxWorkers: 4, source: 'host' }),
     ...options.runtime,
   });
   return { runtime, store, table, host, workspace, artifacts, clock };
@@ -501,6 +503,104 @@ beforeEach(() => {
   harness.integration.gate = null;
 });
 
+describe('current worker limit policy', () => {
+  it('admits teams above four, uses current host value and serializes competing additions', async () => {
+    let hostLimit = 8;
+    const resolve = vi.fn((owner: string) => { expect(owner).toBe(OWNER); return resolveWorkerLimit(undefined, () => hostLimit); });
+    const h = createHarness({ runtime: { workerLimit: resolve } });
+    const run = await startRun(h, { workers: 8 });
+    await settleWorkers(h, run.id);
+    expect(h.runtime.status(OWNER).workerControls).toEqual({ canAdd: false, maxWorkers: 8, source: 'host', diagnostic: null });
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_WORKER_LIMIT', details: { maxWorkers: 8, source: 'host' } });
+    hostLimit = 12;
+    expect(h.runtime.status(OWNER).workerControls?.canAdd).toBe(true);
+    const additions = await Promise.allSettled(Array.from({ length: 5 }, () => h.runtime.addWorker(OWNER)));
+    expect(additions.filter((result) => result.status === 'fulfilled')).toHaveLength(4);
+    expect(additions.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(h.runtime.status(OWNER).workers).toHaveLength(12);
+    hostLimit = 3;
+    expect(h.runtime.status(OWNER).workerControls).toEqual({ canAdd: false, maxWorkers: 3, source: 'host', diagnostic: null });
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_WORKER_LIMIT' });
+    expect(h.store.get(run.id).phase).toBe('running');
+    expect(Object.keys(h.store.get(run.id).workers)).toHaveLength(12);
+    await h.runtime.pause(OWNER);
+    await h.runtime.resume(OWNER);
+    expect(Object.keys(h.store.get(run.id).workers)).toHaveLength(12);
+    await h.runtime.dispose();
+  });
+
+  it('explicit policy is not clamped to host capacity and removing it restores inheritance', async () => {
+    let override: number | undefined = 9;
+    const h = createHarness({ runtime: { workerLimit: () => resolveWorkerLimit(override, () => 6) } });
+    const run = await startRun(h, { workers: 8 });
+    await settleWorkers(h, run.id);
+    expect(h.runtime.status(OWNER).workerControls).toMatchObject({ maxWorkers: 9, source: 'override', canAdd: true });
+    override = undefined;
+    expect(h.runtime.status(OWNER).workerControls).toMatchObject({ maxWorkers: 6, source: 'host', canAdd: false });
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_WORKER_LIMIT' });
+    expect(h.runtime.status(OWNER).workers).toHaveLength(8);
+    await h.runtime.dispose();
+  });
+
+  it('rejects invalid or unavailable configuration before repository work and preserves visible old members', async () => {
+    const missing = createHarness({ runtime: { workerLimit: undefined } });
+    const inspect = vi.spyOn(missing.workspace, 'inspect');
+    await expect(startRun(missing)).rejects.toMatchObject({ code: 'SWARM_CONFIG_UNAVAILABLE' });
+    expect(inspect).not.toHaveBeenCalled();
+    expect(missing.store.list()).toHaveLength(0);
+    await missing.runtime.dispose();
+
+    let value: unknown = 8;
+    const h = createHarness({ runtime: { workerLimit: () => resolveWorkerLimit(value, () => 12) } });
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    for (value of [0, -1, 1.5, NaN, Infinity, '8', null, false]) {
+      expect(h.runtime.status(OWNER).workerControls).toMatchObject({ canAdd: false, maxWorkers: null, source: null });
+      expect(h.runtime.status(OWNER).workerControls?.diagnostic).toContain('workerCountMax');
+      await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_CONFIG_UNAVAILABLE' });
+      expect(h.runtime.status(OWNER).workers).toHaveLength(2);
+    }
+    await h.runtime.dispose();
+  });
+
+  it('recovers old records without cached policy; resume retains roster but continuation checks current limit', async () => {
+    const h = createHarness({ runtime: { workerLimit: () => ({ maxWorkers: 8, source: 'host' }) } });
+    const run = await startRun(h, { workers: 6 });
+    await settleWorkers(h, run.id);
+    await h.runtime.dispose();
+    let limit = 3;
+    const recovered = new SwarmRuntime(h.store, h.host, h.workspace, h.artifacts, {
+      clock: h.clock, id: () => 'continued-run', workerLimit: () => ({ maxWorkers: limit, source: 'host' }),
+    });
+    await recovered.recover();
+    expect(recovered.status(OWNER).workers).toHaveLength(6);
+    expect(recovered.status(OWNER).workerControls).toMatchObject({ canAdd: false, maxWorkers: 3 });
+    await recovered.resume(OWNER);
+    expect(recovered.status(OWNER).workers).toHaveLength(6);
+    await recovered.stop(OWNER);
+    await recovered.appendGoal(OWNER, { text: 'next round' }, 'append-next');
+    await expect(recovered.continueGoals(OWNER)).rejects.toMatchObject({ code: 'SWARM_WORKER_LIMIT' });
+    expect(h.store.list()).toHaveLength(1);
+    limit = 12;
+    const next = await recovered.continueGoals(OWNER);
+    expect(Object.keys(next.workers)).toHaveLength(6);
+    expect(recovered.status(OWNER).workerControls).toMatchObject({ maxWorkers: 12, source: 'host' });
+    await recovered.dispose();
+  });
+
+  it('does not report a native capacity failure as successful expansion or team policy refusal', async () => {
+    const h = createHarness({ runtime: { workerLimit: () => ({ maxWorkers: 12, source: 'override' }) } });
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    harness.delivery.onStart = async () => { throw new SwarmError('SWARM_NATIVE_CAPACITY', 'native active child limit: 2'); };
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_NATIVE_CAPACITY' });
+    expect(h.runtime.status(OWNER).phase).toBe('failed');
+    expect(h.runtime.status(OWNER).workerControls).toMatchObject({ maxWorkers: 12, source: 'override' });
+    expect(h.runtime.status(OWNER).diagnostics.join(' ')).toContain('native active child limit');
+    await h.runtime.dispose();
+  });
+});
+
 describe('dynamic workers', () => {
   it('reserves unique persisted names and admits concurrent additions up to the limit', async () => {
     const h = createHarness();
@@ -515,7 +615,7 @@ describe('dynamic workers', () => {
     expect(workers.every((worker) => /^[A-Z][a-z]+ [A-Z][a-z]+$/u.test(worker.displayName ?? ''))).toBe(true);
     expect(harness.delivery.starts).toHaveLength(4);
     expect(h.runtime.status(OWNER).workers.map((worker) => worker.displayName)).toEqual(workers.map((worker) => worker.displayName));
-    expect(h.runtime.status(OWNER).workerControls).toEqual({ canAdd: false, maxWorkers: 4 });
+    expect(h.runtime.status(OWNER).workerControls).toEqual({ canAdd: false, maxWorkers: 4, source: 'host', diagnostic: null });
     const loaded = createMemoryStateStore(h.table);
     expect(Object.values(loaded.get(run.id).workers).map((worker) => worker.displayName)).toEqual(workers.map((worker) => worker.displayName));
   });

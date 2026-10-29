@@ -37,14 +37,13 @@ export const verificationConfigSchema = z.strictObject({
 
 export const DEFAULT_RUNTIME_CONFIG: SwarmRuntimeConfig = {
   workerCountMin: 2,
-  workerCountMax: 4,
   defaultWorkerCount: 2,
   eventPageSize: 20,
 };
 
 export const runtimeConfigSchema = z.strictObject({
   workerCountMin: z.number().int().min(1),
-  workerCountMax: z.number().int().min(1),
+  workerCountMax: z.number().int().min(1).optional(),
   defaultWorkerCount: z.number().int().min(1),
   eventPageSize: z.number().int().min(1).max(200),
 });
@@ -510,18 +509,14 @@ export function parseRuntimeConfig(value: unknown): SwarmRuntimeConfig {
     });
   }
   const config = result.data;
-  if (
-    config.defaultWorkerCount < config.workerCountMin ||
-    config.defaultWorkerCount > config.workerCountMax
-  ) {
+  if (config.defaultWorkerCount < config.workerCountMin) {
     throw new SwarmError(
       'SWARM_INVALID_INPUT',
-      'defaultWorkerCount must be within [workerCountMin, workerCountMax]',
+      'defaultWorkerCount must be at least workerCountMin',
       {
         details: {
           defaultWorkerCount: config.defaultWorkerCount,
           workerCountMin: config.workerCountMin,
-          workerCountMax: config.workerCountMax,
         },
       },
     );

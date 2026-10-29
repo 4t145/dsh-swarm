@@ -1,4 +1,7 @@
 {
+  "schema": {
+    "workerCountMax": "Optional Swarm team-size override (positive integer). Leave unset to inherit the running DSH subagents maxActiveSubagents. Does not reserve or bypass native capacity."
+  },
   "meta": {
     "title": "Swarm · Peer collaboration",
     "description": "Keep adding goals while peer workers collaborate in isolated Git worktrees and deliver verified changes."

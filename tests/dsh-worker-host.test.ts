@@ -3,6 +3,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { createUserMessage, type MessageSource, type ContentBlock } from '@deepseek-ai/dsh-llm';
 import { deliverSubagentPrompt } from '@deepseek-ai/dsh-subagent/internal';
+import { SubagentError } from '@deepseek-ai/dsh-subagent';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -71,6 +72,19 @@ async function initializationHarness() {
 }
 
 describe('native initialization cancellation', () => {
+  it('reports native capacity rejection distinctly instead of team-limit or false start success', async () => {
+    const h = await initializationHarness();
+    try {
+      h.startActivation.mockRejectedValueOnce(new SubagentError('active child limit: 3', 'ACTIVATION_LIMIT_REACHED'));
+      const run = h.store.get('r');
+      await expect(h.host.start({ run, worker: run.workers.w!, signal: new AbortController().signal })).rejects.toMatchObject({
+        code: 'SWARM_NATIVE_CAPACITY', details: { nativeCode: 'ACTIVATION_LIMIT_REACHED', ownerSessionId: 'owner' },
+      });
+      expect(h.create).not.toHaveBeenCalled();
+      expect(h.host.workerStatus('worker')).toBe('unavailable');
+    } finally { await h.close(); }
+  });
+
   it('uses the native host delivery adapter and preserves exact receipt source without acknowledging inbox acceptance', async () => {
     const h = await initializationHarness();
     try {

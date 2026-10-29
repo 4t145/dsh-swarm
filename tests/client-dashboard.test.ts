@@ -146,6 +146,28 @@ describe('dashboard facts and compatibility', () => {
     expect(() => client.readFrame({ seq: 1, progress: progress({ workers: [worker({ activity: { ...worker().activity as object, diagnostic: {} } })] }) })).toThrow('details');
   });
 
+  it('validates inherited/override/unavailable worker limit DTOs without a fixed maximum', () => {
+    const workers = Array.from({ length: 12 }, (_, index) => worker({ id: `w${index}` }));
+    const valid = [
+      { canAdd: true, maxWorkers: 16, source: 'host', diagnostic: null },
+      { canAdd: false, maxWorkers: 3, source: 'override', diagnostic: null },
+      { canAdd: false, maxWorkers: null, source: null, diagnostic: 'Native config unavailable' },
+      { canAdd: true, maxWorkers: 16 }, // Legacy v2 keeps an explicitly unknown source.
+    ];
+    for (const workerControls of valid) {
+      const frame = client.readFrame({ seq: 1, progress: progress({ workers, workerControls }) });
+      expect(frame?.workerControls).toEqual(workerControls);
+      expect(frame?.workers).toHaveLength(12);
+    }
+    for (const workerControls of [
+      { canAdd: true, maxWorkers: null, source: null, diagnostic: 'unavailable' },
+      { canAdd: false, maxWorkers: null, source: null, diagnostic: null },
+      { canAdd: false, maxWorkers: 12, source: 'invented', diagnostic: null },
+      { canAdd: false, maxWorkers: 12, source: 'host', diagnostic: {} },
+      ...[0, -1, 1.5, NaN, Infinity, '12'].map((maxWorkers) => ({ canAdd: true, maxWorkers, source: 'host', diagnostic: null })),
+    ]) expect(() => client.readFrame({ seq: 1, progress: progress({ workerControls }) })).toThrow('worker controls');
+  });
+
   it('permits simultaneous collaboration and integration without a synthetic percentage', () => {
     const stages = client.deriveWorkflow(progress());
     expect(stages.map((stage) => [stage.id, stage.state])).toEqual([

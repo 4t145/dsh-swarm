@@ -1,6 +1,6 @@
 # 实现记录
 
-> 当前公共频道协议见文末“R6 公共协作体系”与 [架构 §14](<ARCHITECTURE.md>)。此前各版本的安装、原型、测试数量和局限为历史记录，不代表本次结果分支已部署；旧 pnpm 临时环境开关方式已由本轮项目配置替代。
+> 当前团队上限规则见文末“R7 继承宿主的团队上限”与 [架构 §1.4](<ARCHITECTURE.md>)；公共频道协议见“R6 公共协作体系”与 [架构 §14](<ARCHITECTURE.md>)。此前各版本的安装、原型、测试数量和局限为历史记录，不代表本次结果分支已部署；旧 pnpm 临时环境开关方式已由项目配置替代。
 
 ## 基线
 
@@ -335,3 +335,33 @@ pnpm test
 Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19e9d74af4510950d002be41caee` 合入独立候选后，实际执行 `pnpm typecheck && pnpm build && pnpm test && node --check client.js && git diff --check`，全部退出 0（`bash-0927c506ddbd4f26`，**44 文件 / 560 项通过**）。另执行 `pnpm test:native-headless` 退出 0（`bash-59b21c4c85184074`）：隔离 DSH_HOME、明确 blocking fake 模型，验证缺失路由拒绝、两个原生 worker 启动、SIGINT、持久 stopped/退出130和原始临时 checkout 不变。该原生检查不是付费模型对话或自动 ACK 的真实模型性能测试。
 
 面板将通知状态明确区分为 inbox 接受和技术展示回执，不能显示成业务回应/版本同意；双语渲染回归保留这些断言。本节描述已验证的源码候选，仍须由原 Swarm 集成队列验证接受；当前宿主仍需单独授权部署，未声称真实模型或浏览器已加载此补丁。最终组合发布以 Host 回执为准。
+
+## R7 继承宿主的团队上限
+
+### 经安装版核验的边界
+
+目标仍为 DSH 0.2.1-rc.4。原生 SubagentRuntime 没有公开 capacity getter；`Service.resolveConfig` 是服务 intercept 配置，不是插件实例的配置。没有采用这两个不成立的读取方案，也没有访问 TypeScript private `config`。
+
+核验到的公共路径是 Cordis `Context[Context.isolate].subagents` → `ctx.reflect.store[scope]` → `Impl.fiber.config` → `maxActiveSubagents.get()`。安装版 Cordis 的反射实现通过同一 isolation key 查找实际注入服务；Fiber 声明的 config 为已经验证的配置，Loader 的合法 volatile 更新修改同一引用，原生 subagent manager 在预约时调用同一 Volatile getter。Loader 原始配置可能保留被拒绝的编辑值，故不读取它。解析失败给明确配置诊断，不使用 schema 默认 8 或任意 fallback。读取作用域与 [原生 worker adapter](<src/dsh-worker-host.ts>) 的启动 Host 注入相同，保留真实 owner/parent 身份及原生 admission。
+
+### 行为与兼容性
+
+- [Host Config](<src/index.ts>) 提供可选 `workerCountMax`，没有数值 default；显式正安全整数优先，移除字段恢复继承，错误类型/0/负数/小数/非有限值明确拒绝。不会为 Swarm 改写用户 DSH 全局并发配置。
+- [Runtime](<src/runtime.ts>) 统一 start/add/status 的当前上限解析；continue 是新 run，沿用旧人数也必须重新通过当前上限。上限降低不删除、终止已有成员，旧 paused run 恢复保留名册。没有把新字段写入旧 Run、复活旧终态或新增调度器。
+- `SWARM_WORKER_LIMIT` 表示团队配置拒绝；`SWARM_CONFIG_UNAVAILABLE` 表示配置能力/解析失败；原生 `ACTIVATION_LIMIT_REACHED` 映射为 `SWARM_NATIVE_CAPACITY`。显式覆盖不偷偷取 min，也不绕过原生权限或运行容量；保留实际创建失败/部分添加回执。
+- [owner 工具](<src/owner-tools.ts>) 的启动人数说明不再是 2–4，仍保留每次 `add_workers count` 为 1–4 的批次约束；[owner 上下文](<src/owner-context.ts>) 从当前 status 读取 `workerLimit`、来源、诊断和 `canAddWorkers`，不读静态 default。
+- [无界面进度](<src/headless.ts>) 在持久事件触发的 JSONL progress/final 中读取同一 runtime status 的当前 `workerControls`，不把配置写入 Run 或轮询；旧适配器缺少 status 时给显式 unavailable。成员可读名字词库耗尽后加数字后缀，不再造成隐式 256 人上限。
+- [进度](<src/progress.ts>) 透传 `workerControls`，不再把人数裁到 8。[面板](<client.js>) 验证新 DTO 的有效/不可用状态，显示继承宿主或显式覆盖；旧 v2 DTO 无来源时明确未知，不伪造继承。上限降低显示真实 `12 / 3` 而非把分母 clamp 成 12；成员色块只表示已加入成员，不按任意大 max 分配空位，更不暗示这些空位是原生可用容量。
+- 进度流保留原业务/活动事件驱动机制；未伪造通用配置订阅。quiet run 在下一事件或手动重新连接时刷新，status 与实际 add 每次重新读取。使用和取消覆盖示例见 [使用说明](<USAGE.md>)。
+
+### 实际验证与部署边界
+
+本轮 presentation 工作树执行固定 `pnpm install --frozen-lockfile` 与 `pnpm run link:harness -- <当前安装目录>` 均退出 0（`bash-52e7234e3dba4aab`）；只链接开发依赖，不安装到用户 profile。第一次所谓定向 `pnpm test -- <files>` 在当前 pnpm/Vitest 实际运行全套，564 项通过、1 项失败（`bash-d8dd358297ce4d00`）：新 owner-tools 的 5/8/12 人断言碰到尚未合入的旧 spec 上限。该失败保留，等待 backend 合并，不删断言或冒充通过。owner context/progress/client 的新测试已通过：真实来源/null 诊断、超过八人的全名册、降低后保留、坏 DTO 拒绝、旧 DTO 兼容、按钮与真实 Host 命令路径。
+
+随后以 `pnpm exec vitest run` 明确选择 5 个 presentation 测试文件，89 项全部通过，并且 `node --check client.js` / `git diff --check` 均退出 0（`bash-00b4a2980e82451e`）。
+
+组合源码 `6263b62bf8224a93ed11bf847664e2d95fc10b6c` 的固定全套检查（`bash-2438639bfca14b4a`）全部退出 0：`pnpm install --frozen-lockfile`、`pnpm run link:harness -- /nix/store/an75q8mv8px3l5nqv13fcy6xwnwd0mys-dsh-0.2.1-rc.4/lib/node_modules/@deepseek-ai/dsh/`、`pnpm typecheck`、`pnpm build`、`pnpm test`（45 文件 / 591 测试）以及 `git diff --check`。前期类型检查曾发现 const-enum 引用、无效输入测试参数类型及尚未合并的 DTO 不匹配，已修复后重跑；没有忽略这些失败。定向验证用 `pnpm exec vitest run`，避免 pnpm 的 `--` 导致实际跑全套却误报范围。
+
+[原生配置测试](<tests/dsh-worker-limit.test.ts>) 实际加载当前安装版 Cordis/SubagentRuntime（不启动模型），验证宿主默认 8、配置 12、替换 provider、隔离作用域、动态 getter、显式覆盖/移除和无效值。Schemastery 的 optional number 会保留显式 null，因此 Swarm 初始化在获取存储前再次验证，解析器每次也验证，null 从不被当作未设置。[Runtime 测试](<tests/runtime.test.ts>) 验证 8→12、并发第五次追加拒绝、降为 3 保留 12 人、旧数据恢复/resume 与 continue 重新验限、原生容量失败不伪造成功；[原生 adapter 测试](<tests/dsh-worker-host.test.ts>) 单独验证 `ACTIVATION_LIMIT_REACHED` 的错误分类。命令、owner、GUI、headless、公共频道/自动技术回执及原回归全部保留。
+
+没有修改 DSH 源码/用户 profile、部署或重启 GUI，没有启动替代服务器；源码/组件单测不等于当前 URL 已生效或真实模型/browser 端到端验收。最终提交仍须通过 Host 的组合验收，以上检查不替代它。

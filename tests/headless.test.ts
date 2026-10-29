@@ -178,6 +178,34 @@ describe('terminalPhaseOf', () => {
 });
 
 describe('runSwarmHeadless', () => {
+  it('reports current policy and its source on events without persisting or polling it', async () => {
+    const fake = new FakeRuntime();
+    let maxWorkers = 12;
+    let unavailable = false;
+    const status = vi.fn((ownerSessionId: string) => {
+      if (unavailable) throw new Error('native config unavailable');
+      return { runId: 'run-1', ownerSessionId, workerControls: {
+        canAdd: true, maxWorkers, source: 'host' as const, diagnostic: null,
+      } };
+    });
+    const lines: string[] = [];
+    const driver = runSwarmHeadless({ start: fake.start.bind(fake), stop: fake.stop.bind(fake), status }, 'owner-1', SPEC, {
+      observe: fake.store, write: (line) => lines.push(line),
+    });
+    await fake.started;
+    await fake.transition('run-1', 'paused');
+    expect(parseLines(lines).at(-1)?.workerControls).toMatchObject({ maxWorkers: 12, source: 'host' });
+    maxWorkers = 6;
+    await fake.transition('run-1', 'running');
+    expect(parseLines(lines).at(-1)?.workerControls).toMatchObject({ maxWorkers: 6, source: 'host' });
+    unavailable = true;
+    await fake.transition('run-1', 'completed');
+    const result = await driver;
+    expect(result.final.workerControls).toEqual({ canAdd: false, maxWorkers: null, source: null, diagnostic: 'native config unavailable' });
+    expect(JSON.stringify(fake.store.get('run-1'))).not.toContain('maxWorkers');
+    expect(status).toHaveBeenCalledWith('owner-1');
+  });
+
   it('waits through non-terminal phases and settles on completed with bounded JSONL', async () => {
     const runtime = new FakeRuntime();
     const lines: string[] = [];
@@ -221,6 +249,7 @@ describe('runSwarmHeadless', () => {
     ]);
     const lastProgress = progress.at(-1);
     expect(lastProgress?.['now']).toBe(42);
+    expect(lastProgress?.['workerControls']).toMatchObject({ maxWorkers: null, source: null, canAdd: false });
     expect(lastProgress?.['tasks']).toEqual({
       open: 0,
       claimed: 0,

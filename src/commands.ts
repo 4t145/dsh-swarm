@@ -16,6 +16,7 @@ import type { Session } from '@deepseek-ai/dsh-session';
 
 import { SwarmError, normalizeError } from './errors.ts';
 import { loadRunSpecFile } from './spec-file.ts';
+import type { RunStatus } from './runtime.ts';
 import type { AddWorkerReceipt, AppendGoalInput, AppendGoalReceipt, GoalRecord, Run, RunSpec } from './types.ts';
 
 /** Fixed usage line repeated by parse diagnostics. */
@@ -159,6 +160,7 @@ export interface SwarmRunStatusView {
     readonly cancelled: number;
     readonly total: number;
   };
+  readonly workerControls?: NonNullable<RunStatus['workerControls']>;
   readonly workers: readonly {
     readonly id: string;
     readonly sessionId: string;
@@ -738,6 +740,10 @@ function formatStatus(status: SwarmRunStatusView, details: boolean): string {
     lines.splice(2, 0, `goals: revision=${status.goalRevision ?? 0} total=${goals.total} active=${goals.active} deferred=${goals.deferred} completed=${goals.completed}`);
     if (goals.deferred > 0) lines.splice(3, 0, 'deferred goals: saved, not executing; /swarm continue after this run ends');
   }
+
+  const controls = status.workerControls;
+  lines.push(`team limit: ${controls?.maxWorkers ?? 'unavailable'} source=${controls?.source ?? 'unavailable'} canAdd=${controls?.canAdd ?? false} (not native free capacity)`);
+  if (controls?.diagnostic) lines.push(`team limit diagnostic: ${controls.diagnostic.slice(0, 200)}`);
 
   if (status.workers.length > 0) {
     lines.push(`workers (${status.workers.length}):`);
