@@ -145,6 +145,8 @@ export interface WorkerRecord {
   offeredSeq: EventSeq;
   /** 明确确认已读到的位置。 */
   observedSeq: EventSeq;
+  /** Host-persisted contiguous event-summary display receipt; not full-body reading or consent. */
+  shownSeq?: EventSeq;
   /** 控制通知已被 inbox 接受的上界。 */
   notifiedSeq: EventSeq;
   /** 需要提醒的事件上界（持久 wakePending）。 */

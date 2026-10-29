@@ -6,7 +6,8 @@
  * 不 await 任何外部 IO。
  */
 
-import { appendEvent, isEventVisible, matchesWait, pendingNotifications } from './events.ts';
+import { appendEvent, isEventVisible, matchesWait, pendingNotifications, shownEventSeq } from './events.ts';
+import type { ShownReceipt } from './notification-receipts.ts';
 import type { NotificationRecord } from './public-types.ts';
 import { SwarmError } from './errors.ts';
 import { activeAcceptanceCriteria, type GoalRecord } from './types.ts';
@@ -103,7 +104,8 @@ export interface ReadInput {
 }
 
 export interface WaitInput {
-  afterSeq: number;
+  /** Omit to use the Host's durable display cursor. Explicit legacy ACK remains supported. */
+  afterSeq?: number;
   taskIds?: string[];
   proposalIds?: string[];
 }
@@ -148,13 +150,14 @@ export interface SyncEventItem {
 }
 
 export interface AttentionSummary {
-  /** References only. Offering these never advances channel reads or notification ACK. */
+  /** References only. Preparing these is not proof of display or a full-message read. */
   attention: NotificationRecord[];
   attentionTotal: number;
   attentionHasMore: boolean;
 }
 
 export interface SyncResult extends AttentionSummary {
+  fromSeq: EventSeq;
   runId: RunId;
   goal: string;
   acceptanceCriteria: string[];
@@ -191,6 +194,7 @@ export interface ReadResult {
 }
 
 export interface WaitResult extends AttentionSummary {
+  fromSeq: EventSeq;
   runId: RunId;
   waiting: boolean;
   worker: WorkerSummary;
@@ -631,6 +635,61 @@ export class Collaboration {
     });
   }
 
+  /**
+   * Host-only receipt after the exact model-facing Session content has been flushed.
+   * Updates technical display evidence only; never answers a request, confirms an agreement,
+   * clears a wait, emits an event, or wakes another worker. Replays and older versions are harmless.
+   */
+  async recordShown(sessionId: string, receipt: ShownReceipt): Promise<void> {
+    const identity = this.identity(sessionId);
+    const membership = this.resolveWorker(sessionId);
+    if (receipt.runId !== membership.run.id) {
+      throw new SwarmError('SWARM_FORBIDDEN', 'Display receipt belongs to another run');
+    }
+    await this.store.update(receipt.runId, (run) => {
+      const draft = structuredClone(run);
+      const worker = this.draftWorker(draft, identity);
+      let changed = false;
+      let shown = shownEventSeq(worker);
+      for (const range of receipt.ranges) {
+        if (range.through >= draft.nextSeq) throw new SwarmError('SWARM_INVALID_CURSOR', 'Display receipt is beyond the event log');
+        // Never bridge an unprovided prefix; cumulative replay can later fill the gap.
+        if (range.from <= shown && range.through > shown) { shown = range.through; changed = true; }
+      }
+      if (shown > (worker.shownSeq ?? 0)) { worker.shownSeq = shown; changed = true; }
+      const now = this.now();
+      for (const reference of receipt.notifications) {
+        const notification = draft.notifications[reference.id];
+        if (!notification || notification.workerId !== worker.id) {
+          throw new SwarmError('SWARM_FORBIDDEN', 'Display receipt contains another worker notification');
+        }
+        // A coalesced newer notification has not been shown by this receipt.
+        if (notification.seq === reference.seq && notification.acknowledgedAt === null) {
+          notification.acknowledgedAt = now;
+          changed = true;
+        }
+      }
+      for (const reference of receipt.messages) {
+        const message = draft.publicMessages[reference.id];
+        if (!message || message.channelId !== reference.channelId || reference.revision > message.revision) {
+          throw new SwarmError('SWARM_INVALID_INPUT', 'Display receipt contains an invalid public message version');
+        }
+        const key = JSON.stringify([worker.id, message.channelId]);
+        const read = draft.channelReads[key] ??= { id: key, workerId: worker.id, channelId: message.channelId,
+          offeredMessageRevisions: {}, readMessageRevisions: {} };
+        if ((read.readMessageRevisions[message.id] ?? 0) < reference.revision) {
+          read.offeredMessageRevisions[message.id] = Math.max(read.offeredMessageRevisions[message.id] ?? 0, reference.revision);
+          read.readMessageRevisions[message.id] = reference.revision;
+          changed = true;
+        }
+      }
+      if (!changed) return run;
+      draft.revision++;
+      draft.updatedAt = Math.max(draft.updatedAt, now);
+      return draft;
+    });
+  }
+
   /* ----------------------------- sync ----------------------------- */
 
   /** 增量同步：确认 ack、清除等待登记、返回可见事件与 run 摘要。 */
@@ -645,7 +704,7 @@ export class Collaboration {
       const worker = this.draftWorker(draft, identity);
       this.assertRunning(draft);
 
-      let start = worker.observedSeq;
+      let start = shownEventSeq(worker);
       if (input.ackSeq !== undefined) {
         if (!isNonNegativeInteger(input.ackSeq)) {
           throw new SwarmError('SWARM_INVALID_INPUT', 'ackSeq must be a non-negative integer', {
@@ -662,7 +721,7 @@ export class Collaboration {
           });
         }
         worker.observedSeq = input.ackSeq;
-        start = input.ackSeq;
+        start = shownEventSeq(worker);
       }
 
       worker.waitRegistration = null;
@@ -732,7 +791,8 @@ export class Collaboration {
   /**
    * 登记或立即完成一次等待。
    *
-   * busy=true 直接拒绝。afterSeq 必须先满足 observedSeq <= afterSeq <= offeredSeq；
+   * busy=true 直接拒绝。省略 afterSeq 时使用 Host 已持久展示位置；
+   * 旧显式 afterSeq 仍检查 observedSeq <= afterSeq <= offeredSeq。
    * 若该前缀之后已有匹配事件，立即返回 waiting=false 与可见增量，否则登记等待。
    */
   async wait(
@@ -749,21 +809,21 @@ export class Collaboration {
         details: { workerId: identity.workerId },
       });
     }
-    if (!isNonNegativeInteger(input.afterSeq)) {
+    if (input.afterSeq !== undefined && !isNonNegativeInteger(input.afterSeq)) {
       throw new SwarmError('SWARM_INVALID_INPUT', 'afterSeq must be a non-negative integer', {
         details: { field: 'afterSeq' },
       });
     }
     const taskIds = this.normalizeIds(input.taskIds, 'taskIds');
     const proposalIds = this.normalizeIds(input.proposalIds, 'proposalIds');
-    const afterSeq = input.afterSeq;
     let result: WaitResult | undefined;
 
     await this.store.update(runId, (run) => {
       const draft = structuredClone(run);
       const worker = this.draftWorker(draft, identity);
       this.assertRunning(draft);
-      if (afterSeq < worker.observedSeq || afterSeq > worker.offeredSeq) {
+      const afterSeq = input.afterSeq ?? shownEventSeq(worker);
+      if (input.afterSeq !== undefined && (afterSeq < worker.observedSeq || afterSeq > worker.offeredSeq)) {
         throw new SwarmError('SWARM_INVALID_INPUT', 'afterSeq outside [observedSeq, offeredSeq]', {
           details: {
             afterSeq,
@@ -779,7 +839,7 @@ export class Collaboration {
         taskIds: [...taskIds],
         proposalIds: [...proposalIds],
       };
-      worker.observedSeq = afterSeq;
+      if (input.afterSeq !== undefined) worker.observedSeq = afterSeq;
       worker.waitRegistration = registration;
 
       const attention = this.attentionSummary(draft, worker.id);
@@ -793,6 +853,7 @@ export class Collaboration {
         result = {
           runId: draft.id,
           waiting: true,
+          fromSeq: afterSeq,
           ...attention,
           worker: summarizeWorker(worker),
           events: [],
@@ -814,6 +875,7 @@ export class Collaboration {
       result = {
         runId: draft.id,
         waiting: false,
+        fromSeq: afterSeq,
         ...attention,
         worker: summarizeWorker(worker),
         events: page.events,
@@ -1073,6 +1135,7 @@ export class Collaboration {
   ): SyncResult {
     return {
       runId: run.id,
+      fromSeq: shownEventSeq(worker),
       goal: run.goal,
       acceptanceCriteria: activeAcceptanceCriteria(run),
       originalAcceptanceCriteria: [...run.acceptanceCriteria],

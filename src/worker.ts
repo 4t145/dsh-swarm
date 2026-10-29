@@ -15,13 +15,14 @@ import type {} from '@deepseek-ai/dsh-tools';
 // Type-only: pulls in the `Context.swarm` augmentation without a runtime cycle.
 import type {} from './index.ts';
 import { registerWorkerTools } from './tools.ts';
+import { registerWorkerReceipts } from './worker-receipts.ts';
 import { WORKER_POLICY } from './worker-policy.ts';
 import { registerWorkerContext, type WorkerContextConfig } from './worker-context.ts';
 
 export const name = 'swarm-worker';
 
 /** Preset services the plugin needs before `apply` runs. */
-export const inject = ['swarm', 'tools', 'systemPrompt', 'jobs'];
+export const inject = ['swarm', 'tools', 'systemPrompt', 'jobs', 'sessions', 'sessionProjections'];
 
 /** Section order in the gap between TOOL_REPORT (2900) and MCP_SERVERS (3100). */
 const POLICY_SECTION_ORDER = 2950;
@@ -35,6 +36,10 @@ export const Config = Schema.object({
 export async function apply(ctx: Context, config: WorkerContextConfig = DEFAULT_CONTEXT): Promise<void> {
   const runtime = await ctx.swarm.ready;
 
+  ctx.effect(() => {
+    const receipts = registerWorkerReceipts(ctx, runtime.collaboration);
+    return () => receipts.dispose();
+  });
   ctx.effect(() => registerWorkerTools(ctx, runtime, ctx.swarm.artifacts));
   ctx.effect(() => registerWorkerContext(ctx, runtime.collaboration, config));
   ctx.effect(() => ctx.tools.presentAs('native'));

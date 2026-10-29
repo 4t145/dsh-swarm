@@ -72,7 +72,7 @@ export class PublicCollaboration {
     return JSON.parse(receipt.result) as PublicMutationResult;
   }
 
-  /** Public history is visible to every member; full current message reads separately record offered versions. */
+  /** Prepare bounded public history. Only subsequent Host display receipts record full-message versions. */
   async query(sessionId: string, input: PublicQuery): Promise<PublicPage> {
     const identity = this.identity(sessionId);
     const parsed = publicQuerySchema.safeParse(input);
@@ -80,14 +80,8 @@ export class PublicCollaboration {
     assert(parsed.data.workerId === undefined || parsed.data.workerId === identity.worker.id,
       'SWARM_FORBIDDEN', 'Personal attention belongs to the current worker');
     const page = buildPublicPage(identity.run, parsed.data, identity.worker.id);
-    const messages = page.items.flatMap((item) => item.kind === 'message' ? [item.message] : []);
-    if (messages.length) await this.store.update(identity.run.id, (run) => {
-      for (const message of messages) {
-        const read = this.readState(run, identity.worker.id, message.channelId);
-        read.offeredMessageRevisions[message.id] = Math.max(read.offeredMessageRevisions[message.id] ?? 0, message.revision);
-      }
-      return run;
-    });
+    // Preparing a result is not evidence that it survived cancellation/output policies.
+    // Worker Session display receipts record exact full versions after durable publication.
     return page;
   }
 

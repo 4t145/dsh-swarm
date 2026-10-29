@@ -1,6 +1,8 @@
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { SessionId } from '@deepseek-ai/dsh-session';
+import { createUserMessage, type MessageSource, type ContentBlock } from '@deepseek-ai/dsh-llm';
+import { deliverSubagentPrompt } from '@deepseek-ai/dsh-subagent/internal';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -8,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DshWorkerHost } from '../src/dsh-worker-host.ts';
 import { MemoryStateStore, type RunTable } from '../src/store.ts';
 import { createRun, type Run } from '../src/types.ts';
+import type { NotificationRecord } from '../src/public-types.ts';
 
 async function initializationHarness() {
   const root = await mkdtemp(join(tmpdir(), 'swarm-native-init-'));
@@ -55,16 +58,38 @@ async function initializationHarness() {
     return { result: new Promise(() => {}), dispose: async () => {} };
   });
   ctx.provide('agents', { get: (id: string) => id === 'owner' ? owner : undefined });
-  ctx.provide('subagents', { getProvider: () => ({}), startActivation });
+  const deliver = vi.fn(async (_parent: Agent, _child: string, content: ContentBlock[], source: MessageSource) =>
+    createUserMessage({ source, content }).id);
+  ctx.provide('subagents', { getProvider: () => ({}), startActivation, [deliverSubagentPrompt]: deliver,
+    sendMessage: () => { throw new Error('model-authored messaging must not carry Host protocol'); } });
   ctx.provide('worktrees', { create });
   ctx.provide('workingDirectory', { set });
   const host = new DshWorkerHost(ctx, store);
-  return { root, integration, worktree, ctx, store, host, create, set, emit, startActivation,
+  return { root, integration, worktree, ctx, store, host, create, set, emit, startActivation, deliver,
     close: async () => { await host.dispose(); await store.close(); await ctx.fiber.dispose(); await rm(root, { recursive: true, force: true }); },
   };
 }
 
 describe('native initialization cancellation', () => {
+  it('uses the native host delivery adapter and preserves exact receipt source without acknowledging inbox acceptance', async () => {
+    const h = await initializationHarness();
+    try {
+      const { deliver } = h;
+      const run = h.store.get('r');
+      const notification: NotificationRecord = { id: 'n1', seq: 3, workerId: 'w', channelId: 'r:general',
+        threadId: null, messageId: null, requestId: null, agreementId: null,
+        reasons: ['mention'], priority: 'immediate', createdAt: 0, deliveredAt: null, acknowledgedAt: null };
+      await h.host.notify(run, run.workers.w!, 3, new AbortController().signal, [notification]);
+      expect(deliver).toHaveBeenCalledTimes(1);
+      expect(deliver.mock.calls[0]?.[3]).toMatchObject({ kind: 'swarm-context', proof: { receipt: {
+        runId: 'r', ranges: [], notifications: [{ id: 'n1', seq: 3 }], messages: [],
+      } } });
+      expect(deliver.mock.calls[0]?.[1]).toBe('worker');
+      expect(h.store.get('r').workers.w?.shownSeq).toBeUndefined();
+      expect(notification.acknowledgedAt).toBeNull();
+    } finally { await h.close(); }
+  });
+
   it('keeps a pre-create abort pending and later starts with readable name at acceptedHead', async () => {
     const h = await initializationHarness();
     try {

@@ -12,7 +12,7 @@
  */
 
 import { isSwarmError, SwarmError } from './errors.ts';
-import { pendingNotifications } from './events.ts';
+import { pendingNotifications, shownEventSeq } from './events.ts';
 import type { NotificationRecord } from './public-types.ts';
 import type { WorkerHost } from './ports.ts';
 import { SerialQueue } from './serial.ts';
@@ -149,7 +149,7 @@ export class Delivery {
       const permit = await this.options.admitWorkerOperation(runId, workerId, 'notify');
       try {
         permit.signal.throwIfAborted();
-        const through = Math.max(worker.observedSeq, run.nextSeq - 1);
+        const through = Math.max(shownEventSeq(worker), run.nextSeq - 1);
         const notifications = pendingNotifications(run, worker.id).slice(0, NOTIFICATION_BATCH_SIZE);
         await this.host.notify(run, worker, through, permit.signal, notifications);
         state.notifiedGeneration = state.generation;
@@ -227,7 +227,7 @@ export class Delivery {
     }
     for (const worker of Object.values(run.workers)) {
       this.sessionIndex.set(worker.sessionId, { runId: run.id, workerId: worker.id });
-      if (worker.wakeTargetSeq > worker.observedSeq || latestUnreadMessageSeq(run, worker) !== null
+      if (worker.wakeTargetSeq > shownEventSeq(worker) || latestUnreadMessageSeq(run, worker) !== null
         || pendingNotifications(run, worker.id).length > 0) {
         this.scheduleKick(run.id, worker.id);
       }
@@ -359,7 +359,7 @@ export class Delivery {
       return null;
     }
     const unreadMessage = latestUnreadMessageSeq(run, worker);
-    const pendingWake = worker.wakeTargetSeq > worker.observedSeq ? worker.wakeTargetSeq : null;
+    const pendingWake = worker.wakeTargetSeq > shownEventSeq(worker) ? worker.wakeTargetSeq : null;
     const waiting = worker.waitRegistration !== null && status === 'running';
 
     // 等待中的 activation 不能被打断：pending 只置位，settled 之后才发。
@@ -436,7 +436,7 @@ export class Delivery {
         const permit = await this.options.admitWorkerOperation(runId, workerId, 'notify');
         try {
           permit.signal.throwIfAborted();
-          const through = Math.max(worker.observedSeq, run.nextSeq - 1);
+          const through = Math.max(shownEventSeq(worker), run.nextSeq - 1);
           // No task is assigned here: peers choose what to inspect, claim, help with, or finish.
           await this.host.notify(run, worker, through, permit.signal);
           state.notifiedGeneration = state.generation;
@@ -466,7 +466,7 @@ export class Delivery {
       return false;
     }
     const attention = pendingNotifications(run, workerId).map((item) => `${item.id}:${item.seq}`).join(',');
-    const marker = `${worker.observedSeq}:${run.nextSeq}:${attention}`;
+    const marker = `${shownEventSeq(worker)}:${run.nextSeq}:${attention}`;
     if (state.settledMarker !== null && marker === state.settledMarker) {
       state.settledWithoutProgress += 1;
     } else {
@@ -483,7 +483,7 @@ export class Delivery {
       new SwarmError(
         'SWARM_WORKER_BUSY',
         `worker ${workerId} settled twice without progress after activation ${activationId}; consider pausing the run`,
-        { details: { runId, workerId, activationId, observedSeq: worker.observedSeq } },
+        { details: { runId, workerId, activationId, shownSeq: shownEventSeq(worker), observedSeq: worker.observedSeq } },
       ),
     );
     return false;
@@ -615,7 +615,7 @@ function latestUnreadMessageSeq(run: Run, worker: WorkerRecord): EventSeq | null
     if (event.kind !== 'message' || event.targetWorkerId !== worker.id) {
       continue;
     }
-    if (event.seq <= worker.observedSeq) {
+    if (event.seq <= shownEventSeq(worker)) {
       continue;
     }
     if (latest === null || event.seq > latest) {

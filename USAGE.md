@@ -149,7 +149,7 @@ overlay 禁用 `headless-startup`/`headless-runner`、挂载 Agent preset regist
 
 worker 自主创建/认领任务，默认在公共频道线程里协商，并通过结构化 @/回应请求明确谁需要行动；只有有限可见性确有必要时才用原私信。知识条目为 `observed`、`fact`、`fail`、`patch_summary`；重要已确认结论带证据发布 Finding，再链接来源讨论。模型看到的工具结果与输入由原生 Session 日志记录。
 
-无需另开模式：仍用 `swarm_manage start` 提供共同目标，不预先给每个 worker 指派分工。worker 自己观察缺口、认领、公开协商、提交，再寻找下一项工作。普通工具成功返回时附上有界同伴摘要，公共活动按线程合并为标题与数量，**不把全部公共正文灌给每个人**。默认最多 6 条、标题/旧事件片段 400 字符，由 worker Config 的 `peerNoticeItems` / `peerNoticeChars` 调整。明确待关注通知另按优先级展示引用。摘要不自动确认任何游标，正式事件同步仍由 swarm_sync 完成。
+无需另开模式：仍用 `swarm_manage start` 提供共同目标，不预先给每个 worker 指派分工。worker 自己观察缺口、认领、公开协商、提交，再寻找下一项工作。普通工具成功返回时附上有界同伴摘要，公共活动按线程合并为标题与数量，**不把全部公共正文灌给每个人**。默认最多 6 条、标题/旧事件片段 400 字符，由 worker Config 的 `peerNoticeItems` / `peerNoticeChars` 调整。明确待关注通知另按优先级展示引用。摘要的技术展示位置由 Host 在日志落盘后自动记录；这不等于全文已读或业务已回应，不需要模型额外 ACK。
 
 若 worker 只是普通结束了一个 activation，却没有明确 wait 或 finish，Host 会通过已有原生消息通道提醒它自主继续；不会指定它做哪个任务。显式等待、暂停、终态不会被这个提醒唤醒，连续无进展仍暂停，预算边界保持不变。本轮公共协议有确定性投递回归，但尚未进行新版真实模型验收。
 
@@ -195,8 +195,8 @@ git show <acceptedHead>
 | create_agreement | threadId、title、content、sourceMessageIds、stakeholderWorkerIds、taskIds? |
 | revise_agreement / confirm_agreement | agreementId、expectedVersion、完整新版 content/sourceMessageIds/stakeholderWorkerIds/taskIds / agreementId、version |
 | link_finding | threadId、findingId、expectedRevision、messageId?；先用 swarm_publish 发布有证据的 Finding |
-| ack_notifications | notifications:[{id,seq}]；仅确认自己的精确通知版本，合并后旧 seq 会拒绝 |
-| mark_read | channelId、messages:[{messageId,revision}]；只能确认实际提供的当前全文版本 |
+| ack_notifications（仅旧调用兼容） | notifications:[{id,seq}]；正常工作无需调用，Host 自动记精确通知展示版本 |
+| mark_read（仅旧调用兼容） | channelId、messages:[{messageId,revision}]；正常工作无需调用，Host 自动记实际展示全文版本 |
 
 例如，先 `swarm_public_read {"view":"channels"}` 获得频道 ID，再创建线程和提问（下面 ID 为工具实际返回值的占位）：
 
@@ -218,9 +218,9 @@ B 用 `swarm_public_read {"view":"attention"}` 先看待回应，再用 messages
 
 ### 阅读不等于确认或回应
 
-- `swarm_sync` 的 offeredSeq/observedSeq 是原全局事件扫描/ACK，保持有界分页规则；只有 sync/wait 返回的合法 cursor 可用于原 ACK。
-- public activity、通知、GUI 和历史版本摘要都不是 worker 的全文阅读。只有 messages 返回的当前全文版本成为可 mark_read 的 offered 版本；旧版已读不会自动覆盖新版。
-- 通知 deliveredAt 仅证明 inbox 收到，acknowledgedAt 需显式 id+seq 确认。通知 ACK 后回应请求仍可能 pending，attention 仍将其放在普通更新前。
+- 技术回执由 Host 自动完成。正常调用 `swarm_sync()` 读取增量、`swarm_wait()` 等待即可，不需要专门发 ack_seq、ack_notifications、mark_read 或“收到，谢谢”。旧调用保留兼容校验。
+- Host 只在最终内容进入原生 Session 并持久化后更新 shownSeq/精确通知版本。public activity、通知、GUI 和历史版本摘要都不是 worker 的全文阅读；只有实际展示的当前 messages 全文版本会自动记入 offered/read，旧版展示不会覆盖新版。
+- deliveredAt 仅证明 inbox 收到；acknowledgedAt 兼容字段记录技术展示确认，不代表已理解、已答复或已同意。请求仍可能 pending，attention 仍将其放在普通更新前，必须显式 respond/withdraw；约定仍必须 confirm_agreement。
 - `snapshotSeq`/`nextCursor` 只用于公共查询分页，不可拿去推进全局 ACK。cursor 绑定 run/筛选，新增消息不会挤掉已打开分页；要看到新内容应刷新首屏。
 - 新成员可依次读 channels、activity/threads、agreements 和 requests(status=pending)，然后按来源消息展开；不需要重放所有聊天到上下文。
 - 普通未关闭线程、未答问题不自动阻塞 finish。真正阻塞交付要建立 Task/带修复任务的 fail Finding；讨论不能替代 Task CAS、Git 提案/验证或 owner 需求。

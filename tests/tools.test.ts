@@ -11,8 +11,9 @@
 import { describe, expect, it } from 'vitest';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { ToolCallId } from '@deepseek-ai/dsh-llm';
-import { SessionId } from '@deepseek-ai/dsh-session';
+import { ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm';
+import { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
+import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
 import { createScope, scopeOf } from '@deepseek-ai/dsh-scope';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
 import { ToolRuntime, type ToolExecutionResult } from '@deepseek-ai/dsh-tools';
@@ -38,6 +39,7 @@ import {
   type WorkerRecord,
 } from '../src/types.ts';
 import { registerWorkerTools } from '../src/tools.ts';
+import { registerWorkerReceipts } from '../src/worker-receipts.ts';
 import { apply, inject, name as pluginName } from '../src/worker.ts';
 
 /* ------------------------------------------------------------------ */
@@ -467,8 +469,38 @@ describe('worker tools', () => {
     );
   });
 
+  it('logs real tool output metadata and waits without an ACK-only model call', async () => {
+    const h = await makeHarness();
+    await h.ctx.plugin(SessionStore);
+    await h.ctx.plugin(SessionProjectionRegistry);
+    h.ctx.on('session/flush', () => {}); // controlled persistence boundary
+    const session = h.ctx.sessions.create(SessionId('s1'));
+    const agent = { id: session.id, session } as Agent;
+    const receipts = registerWorkerReceipts(h.ctx, h.runtime.collaboration);
+    try {
+      await h.runtime.collaboration.message('s2', { target: 'w1', body: 'interface ready' }, 'peer-message');
+      const result = await h.call('swarm_sync', {}, agent);
+      expect(result.isError).toBe(false);
+      expect(result.meta).toHaveProperty('swarmDisplay');
+      expect(h.store.get('run-1').workers.w1?.shownSeq).toBeUndefined();
+      const callId = ToolCallId('call-1');
+      const call = session.append('tool/call', { turn: 1, step: 1, callId, name: 'swarm_sync', arguments: '{}' });
+      session.append('tool/result', { turn: 1, step: 1,
+        message: createToolResultMessage({ callId, content: result.content, isError: result.isError }), meta: result.meta },
+      { surfaceOp: 'append', sourceEventSeqs: [call.seq] });
+      // The next ordinary tool is the durability barrier; the model never submits ack_seq.
+      const parked = await h.call('swarm_wait', {}, agent);
+      expect(parked).toMatchObject({ isError: false, concludesTurn: true });
+      expect(h.store.get('run-1').workers.w1).toMatchObject({ shownSeq: 1, observedSeq: 0 });
+      expect(Object.keys(h.store.get('run-1').messages)).toHaveLength(1);
+      expect(h.store.get('run-1').nextSeq).toBe(2);
+    } finally { await receipts.dispose(); await h.ctx.fiber.dispose(); await h.store.close(); }
+  });
+
   it('installs tools and the worker policy in the preset scope and cleans them up', async () => {
     const harness = await makeHarness({ registerTools: false });
+    await harness.ctx.plugin(SessionStore);
+    await harness.ctx.plugin(SessionProjectionRegistry);
     const scope = createScope(harness.ctx, {});
     const key = scopeOf(scope.ctx);
 
@@ -482,7 +514,7 @@ describe('worker tools', () => {
     await apply(scope.ctx);
 
     expect(pluginName).toBe('swarm-worker');
-    expect(inject).toEqual(['swarm', 'tools', 'systemPrompt', 'jobs']);
+    expect(inject).toEqual(['swarm', 'tools', 'systemPrompt', 'jobs', 'sessions', 'sessionProjections']);
     // The two public tools join the nine legacy tools only in the worker preset scope.
     expect(toolNames(harness.ctx, key)).toHaveLength(11);
     expect(toolNames(harness.ctx)).toHaveLength(0);

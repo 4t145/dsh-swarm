@@ -19,6 +19,8 @@ import type { JobId, JobView } from '@deepseek-ai/dsh-jobs';
 import type { ContentBlock } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { SubagentActivation, SubagentRunEndInfo } from '@deepseek-ai/dsh-subagent';
+import { steerHostSubagentPrompt } from '@deepseek-ai/dsh-subagent/internal';
+import { receiptContext } from './notification-receipts.ts';
 import type { CreatedWorktree, CreateWorktreeRequest } from '@deepseek-ai/dsh-experimental-worktree';
 
 import { SwarmError, normalizeError } from './errors.ts';
@@ -270,12 +272,12 @@ export class DshWorkerHost implements WorkerHost {
     this.assertActive('notify');
     const owner = this.requireOwner(run.ownerSessionId);
     const content: ContentBlock[] = [
-      { type: 'text', text: `Swarm coordination checkpoint (event ${throughSeq}). Call swarm_sync to read current shared state. `
+      { type: 'text', text: `Swarm coordination checkpoint (event ${throughSeq}). Read swarm_sync when you need current shared state, not to send an ACK. `
         + 'Choose the next useful contribution yourself: inspect a remaining gap, claim complementary work, '
         + 'review/help a peer, or resolve a dependency. No manager is assigning you a task. '
         + 'After an accepted contribution, share a patch summary and repeat the work cycle. '
         + 'If all original criteria have evidence, propose swarm_finish. If truly blocked on peers, '
-        + 'use swarm_wait with a cursor returned by swarm_sync; do not just end with a completion report.' },
+        + 'use swarm_wait without a cursor: Host manages technical display receipts. Do not send receipt-only replies.' },
     ];
     const attention = notifications.filter((item) => item.workerId === worker.id).slice(0, 20);
     if (attention.length) content.push({ type: 'text', text: '[Swarm public attention]\n'
@@ -283,7 +285,14 @@ export class DshWorkerHost implements WorkerHost {
       + '\nRead priority attention and pending response requests, then fetch source messages as needed. '
       + 'These references are not full-message reads, response/consent confirmations, or global ACK cursors.' });
     try {
-      await this.requireService('subagents').sendMessage(owner, SessionId(worker.sessionId), content, { signal });
+      const message = receiptContext(content, { runId: run.id, ranges: [],
+        notifications: attention.map(({ id, seq }) => ({ id, seq })), messages: [] });
+      // Verified DSH host-protocol adapter preserves our source across live steering and cold resume.
+      // Inbox acceptance remains deliveredAt; the worker records display only after Session publication.
+      const subagents = this.ctx.get('subagents');
+      if (!subagents) throw new SwarmError('SWARM_INTERNAL', 'host service subagents is unavailable');
+      await steerHostSubagentPrompt(subagents, owner, SessionId(worker.sessionId),
+        [...message.content], message.source, signal);
     } catch (error) {
       throw normalizeError(error, 'SWARM_INTERNAL', `notify worker ${worker.id}`);
     }
