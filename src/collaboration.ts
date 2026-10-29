@@ -12,6 +12,8 @@ import type { NotificationRecord } from './public-types.ts';
 import { SwarmError } from './errors.ts';
 import { isLiveFinding, liveClaims, withoutDetails } from './claims.ts';
 import { DEFAULT_CLAIM_TTL_MS, FINDING_DETAILS_MAX_CHARS, FINDING_SUMMARY_LIMITS } from './schema.ts';
+import { matchQuery, parseQuery, type QueryNode, type QuerySubject } from './query-expr.ts';
+import { workerDisplayName } from './worker-names.ts';
 import { activeAcceptanceCriteria, type GoalRecord } from './types.ts';
 import type { StateStore } from './store.ts';
 import type {
@@ -820,7 +822,7 @@ export class Collaboration {
       };
     }
 
-    const query = input.query === undefined ? null : requireText(input.query, 'query').toLowerCase();
+    const query = input.query === undefined ? null : parseQuery(requireText(input.query, 'query'));
     const all = this.readableItems(run, worker.id, query);
     const offset = this.parseCursor(input.cursor);
     const page = all.slice(offset, offset + limit);
@@ -1260,17 +1262,26 @@ export class Collaboration {
     return null;
   }
 
-  private readableItems(run: Run, workerId: WorkerId, query: string | null): ReadItem[] {
+  private readableItems(run: Run, workerId: WorkerId, query: QueryNode | null): ReadItem[] {
     const items: ReadItem[] = [];
+    // author: 同时匹配 worker id 与显示名；搜索覆盖完整历史（含已过期 claim 与 details）。
+    const authors = (...ids: (WorkerId | null | undefined)[]): string[] =>
+      ids.flatMap((id) => {
+        if (!id) return [];
+        const worker = run.workers[id];
+        return worker ? [id, workerDisplayName(worker)] : [id];
+      });
+    const hit = (subject: QuerySubject): boolean => matchQuery(query, subject);
     for (const goal of Object.values(run.goals)) {
-      if (query !== null && ![goal.text, ...goal.acceptanceCriteria].join('\n').toLowerCase().includes(query)) continue;
+      if (!hit({ text: [goal.id, goal.text, ...goal.acceptanceCriteria].join('\n'), fields: { kind: ['goal'], author: ['owner'] } })) continue;
       items.push({ kind: 'goal', goal, task: null, finding: null, message: null });
     }
     for (const task of Object.values(run.tasks)) {
-      if (query !== null) {
-        const haystack = [task.subject, task.acceptance, ...task.scope].join('\n').toLowerCase();
-        if (!haystack.includes(query)) continue;
-      }
+      const subject: QuerySubject = {
+        text: [task.id, task.subject, task.acceptance, ...task.scope, task.blockReason ?? '', task.cancellationReason ?? ''].join('\n'),
+        fields: { kind: ['task', task.kind], author: authors(task.createdByWorkerId, task.ownerWorkerId), task: [task.id] },
+      };
+      if (!hit(subject)) continue;
       items.push({ kind: 'task', task, finding: null, message: null });
     }
     items.sort((left, right) => {
@@ -1282,10 +1293,12 @@ export class Collaboration {
 
     const findings: FindingRecord[] = [];
     for (const finding of Object.values(run.findings)) {
-      if (query !== null) {
-        const haystack = [finding.summary, ...finding.scope].join('\n').toLowerCase();
-        if (!haystack.includes(query)) continue;
-      }
+      const details = (finding as { details?: unknown }).details;
+      const subject: QuerySubject = {
+        text: [finding.id, finding.summary, typeof details === 'string' ? details : '', ...finding.scope, ...finding.evidenceRefs].join('\n'),
+        fields: { kind: ['finding', finding.kind], author: authors(finding.authorWorkerId), task: [finding.taskId] },
+      };
+      if (!hit(subject)) continue;
       findings.push(finding);
     }
     findings.sort((left, right) => left.seq - right.seq);
@@ -1296,7 +1309,7 @@ export class Collaboration {
     const messages: MessageRecord[] = [];
     for (const message of Object.values(run.messages)) {
       if (message.authorWorkerId !== workerId && message.targetWorkerId !== workerId) continue;
-      if (query !== null && !message.body.toLowerCase().includes(query)) continue;
+      if (!hit({ text: message.body, fields: { kind: ['message'], author: authors(message.authorWorkerId) } })) continue;
       messages.push(message);
     }
     messages.sort((left, right) => left.seq - right.seq);

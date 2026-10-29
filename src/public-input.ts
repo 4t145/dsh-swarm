@@ -38,7 +38,7 @@ export const publicQuerySchema = z.strictObject({
   view: z.enum(['channels', 'threads', 'messages', 'requests', 'agreements', 'attention', 'activity', 'message_revisions', 'agreement_versions']),
   channelId: id.optional(), threadId: id.optional(), taskId: id.optional(), messageId: id.optional(),
   agreementId: id.optional(), findingId: id.optional(), workerId: id.optional(),
-  query: z.string().trim().max(200).optional(), status: z.enum(['active', 'archived', 'open', 'resolved', 'pending', 'responded', 'withdrawn']).optional(),
+  query: z.string().trim().max(200).optional().describe('Search expression: terms (case-insensitive substring), \"quoted phrases\", AND via & or whitespace, OR via |, NOT via - or !, parentheses, field filters kind:, author: (worker id or display name), task:. Example: (build | test) -kind:claim author:w2. Invalid expressions fail with SWARM_INVALID_INPUT naming the position.'), status: z.enum(['active', 'archived', 'open', 'resolved', 'pending', 'responded', 'withdrawn']).optional(),
   cursor: z.string().max(2000).optional(), limit: z.number().int().min(1).max(20).default(20),
   includeAcknowledged: z.boolean().default(false),
   /** `desc` pages newest first, for chat-style "load older" readers. */
