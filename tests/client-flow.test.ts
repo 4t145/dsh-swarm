@@ -6,10 +6,12 @@ interface Interaction { seq: number; kind: string; status: string; actorWorkerId
 interface Progress { runId: string; workers: { id: string; displayName?: string }[]; interactions?: Interaction[] }
 interface Mark { item: Interaction; y: number; targetY: number | null; lane: { key: string | null } }
 interface Client {
-  flowLayout(progress: Progress, kind: string): { lanes: { key: string | null; host?: boolean; unknown?: boolean }[]; marks: Mark[] };
+  flowLayout(progress: Progress, kind: string): { lanes: { key: string | null; host?: boolean; unknown?: boolean; color: string }[]; marks: Mark[] };
   messagePairs(progress: Progress): { from: string; to: string; count: number }[];
   flowHoverPosition(mark: { x: number; y: number }, view: { headWidth: number; scrollLeft: number; scrollTop: number; top: number; width: number; height: number }): { left: number; top: number; above: boolean };
   FlowSection(props: Record<string, unknown>): unknown;
+  trackLanes(worktrees: { workerId: string | null; branch: string; displayName: string | null; worktreePath: string | null }[], items: unknown[]): { color: string }[];
+  trackLayout(items: unknown[], worktrees: unknown[], tips: unknown[], more: boolean): { height: number };
   readFrame(item: unknown): unknown;
   dictionaries: Record<'en' | 'zh', Record<string, string>>;
 }
@@ -84,6 +86,37 @@ describe('collaboration flow layout', () => {
       expect.objectContaining({ from: 'w1', to: 'w2', count: 2 }),
       expect.objectContaining({ from: 'w2', to: 'w1', count: 1 }),
     ]);
+  });
+
+  it('shares the Git track lane geometry and palette', () => {
+    const { lanes, marks } = client.flowLayout(progress, 'all');
+    const git = client.trackLanes([{ workerId: null, branch: 'result', displayName: null, worktreePath: null }, { workerId: 'w1', branch: 'b1', displayName: null, worktreePath: null }, { workerId: 'w2', branch: 'b2', displayName: null, worktreePath: null }], []);
+    expect(lanes.slice(0, 3).map((lane) => lane.color)).toEqual(git.map((lane) => lane.color));
+    const layout = client.trackLayout([], [], [], false);
+    const rowY = (index: number) => 22 + index * 84 + 42; // TRACK.pad + index * TRACK.lane + TRACK.lane / 2
+    expect(layout.height).toBe(22 * 2 + 84);
+    expect(marks.find((mark) => mark.lane.key === 'w1')?.y).toBe(rowY(1));
+  });
+
+  it('draws the chart with Git track rails, station rings, legend and axis', () => {
+    const { all } = renderFlow(null, new Map());
+    const svg = (type: string, match: (props: Record<string, unknown>) => boolean) => all.filter((node) => node.type === type && match(node.props));
+    // Wide faint rail per lane (Git rails) and solid 4px track segments between stations.
+    expect(svg('line', (props) => props.className === 'dshSwarm_trackRail' && props.strokeWidth === 8)).toHaveLength(4);
+    expect(svg('path', (props) => props.strokeWidth === 4).length).toBeGreaterThan(0);
+    // Message stations are Git commit rings: r=6, 3px stroke on the layer background.
+    expect(svg('circle', (props) => props.r === 6 && props.strokeWidth === 3 && (props.style as { fill: string }).fill === 'var(--dsw-alias-bg-layer-1)').length).toBeGreaterThanOrEqual(3);
+    const legend = all.find((node) => node.props.className === 'dshSwarm_trackLegend');
+    expect(legend?.children.filter((child) => (child as { type?: unknown }).type === 'span')).toHaveLength(6);
+    expect(all.some((node) => node.props.className === 'dshSwarm_flowKey')).toBe(false);
+    expect(all.some((node) => node.props.className === 'dshSwarm_trackAxis' && node.children.includes('flow.axis'))).toBe(true);
+    const heads = all.filter((node) => node.props.className === 'dshSwarm_laneHead');
+    expect(heads.map((node) => (node.props.style as { height: string }).height)).toEqual(Array(4).fill('84px'));
+  });
+
+  it('reads oldest-left on both charts with the same axis wording', () => {
+    expect(client.dictionaries.en['flow.axis']).toMatch(/^← Older/);
+    expect(client.dictionaries.zh['flow.axis']).toMatch(/^← 更早/);
   });
 
   it('has matching bilingual flow labels', () => {
