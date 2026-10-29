@@ -103,6 +103,7 @@ worktree 不是安全沙箱。worker 仍遵守 DSH 的权限与工具策略。�
 | 私有 checkout + Git 平台 | 本地 worktree + result 分支 |
 | Issues / 工作声明 | 插件 Task 数据 |
 | 公共频道 / 私信 | 独立 Channel/Thread/PublicMessage 与 Notification；旧 Message 保持私信语义（§14） |
+| 私信 = 紧急一对一、高优先级 | `swarm_message`：运行中的目标在下一个工具结果边界看到私信（被动 context 首段“urgent direct messages”，不占普通更新名额，有界批次），空闲/等待的目标仍由 Delivery 唤醒；公共 digest 仍只在空闲/结算边界投递。去重沿用显示回执游标，不承诺 exactly-once |
 | 共享 context board | 追加式 Finding + 增量读取 / 搜索 |
 | CLAIM（软声明） | Finding kind `claim`：开始某范围时的简短公告，可关联 task；不是锁，Task CAS 仍是归属权威。超过可配置 TTL（Host `claimTtlMs`，默认 1 小时）退出 sync `claims`/事件页与推送通知；同作者同 task 的新 claim 在实时视图替换旧 claim；历史与搜索保留全部 |
 | 简短 gist + 按需展开 | Finding summary 按类型限长（observed/fact/fail/claim 100、patch_summary 300，`FINDING_SUMMARY_LIMITS`）；可选 `details`（≤4000）不进推送，`swarm_read` 按 id 展开 |
