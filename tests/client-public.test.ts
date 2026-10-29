@@ -22,6 +22,36 @@ function load() {
   const t = (key: string, vars: Props = {}) => (client.dictionaries.en[key] ?? key).replace(/\{(\w+)\}/gu, (_, name: string) => String(vars[name]));
   return { client, t };
 }
+function hookHarness() {
+  const cells: unknown[] = [];
+  const effects = new Map<number, { dependencies: unknown[]; cleanup: (() => void) | undefined }>();
+  let cursor = 0;
+  let pending: (() => void)[] = [];
+  const loading = new Set<number>();
+  const idleWaiters: (() => void)[] = [];
+  const react = {
+    createElement: (type: Element['type'], props: Props, ...children: unknown[]): Element => ({ type, props: props ?? {}, children: children.flat(Infinity) }), Fragment: 'fragment',
+    useState(initial: unknown) { const index = cursor++; if (!(index in cells)) cells[index] = typeof initial === 'function' ? initial() : initial;
+      return [cells[index], (value: unknown) => {
+        const next: unknown = typeof value === 'function' ? value(cells[index]) : value; cells[index] = next;
+        if (next !== null && typeof next === 'object' && 'loading' in next) {
+          if (next.loading === true) loading.add(index); else loading.delete(index);
+          if (!loading.size) idleWaiters.splice(0).forEach((resolve) => resolve());
+        }
+      }]; },
+    useRef(initial: unknown) { const index = cursor++; if (!(index in cells)) cells[index] = { current: initial }; return cells[index]; },
+    useEffect(effect: () => (() => void) | undefined, dependencies: unknown[]) {
+      const index = cursor++; const previous = effects.get(index);
+      if (previous && previous.dependencies.length === dependencies.length && dependencies.every((value, i) => Object.is(value, previous.dependencies[i]))) return;
+      pending.push(() => { previous?.cleanup?.(); effects.set(index, { dependencies, cleanup: effect() }); });
+    },
+  };
+  const client = loadClient<{ progressClient: Client }>(react).progressClient;
+  const t = (key: string, vars: Props = {}) => (client.dictionaries.en[key] ?? key).replace(/\{(\w+)\}/gu, (_, name: string) => String(vars[name]));
+  return { client, render(props: Props) { cursor = 0; const tree = client.PublicSection({ t, ...props }); const queued = pending; pending = []; queued.forEach((effect) => effect()); return tree; },
+    idle() { return loading.size ? new Promise<void>((resolve) => idleWaiters.push(resolve)) : Promise.resolve(); },
+    dispose() { for (const effect of effects.values()) effect.cleanup?.(); effects.clear(); } };
+}
 function elements(value: unknown): Element[] {
   if (!value || typeof value !== 'object' || !('children' in value)) return [];
   const node = value as Element; return [node, ...node.children.flatMap(elements)];
@@ -97,6 +127,50 @@ describe('public client validation and bounded pagination', () => {
     const wrong = pager.reset({ view: 'threads' }); resolve(page([], { runId: 'foreign' })); await wrong;
     expect(states.at(-1)?.error?.code).toBe('history/run-changed');
     pager.dispose();
+  });
+});
+
+describe('live public pane lifecycle', () => {
+  it('preserves a deep page on metadata updates, advertises refresh and replaces only on explicit action', async () => {
+    const ui = hookHarness();
+    let snapshotSeq = 10;
+    const loadPublic = vi.fn(async (_session: string, runId: string, query: PublicQuery) => query.view === 'threads'
+      ? page([{ kind: 'thread', thread: { id: query.cursor ? 'second' : 'first', channelId: 'r:general', title: 'Thread', createdByWorkerId: 'a', participantWorkerIds: ['a'], taskIds: [], status: 'open', conclusionMessageId: null, findingIds: [], revision: 1, seq: 1, updatedSeq: 1, createdAt: 1, updatedAt: 1 } }],
+        { runId, snapshotSeq, total: 2, hasMore: !query.cursor, truncated: !query.cursor, nextCursor: query.cursor ? null : 'page2' })
+      : page([], { runId, snapshotSeq }));
+    const props = { progress: { ...progress, publicActivity: { protocolVersion: 1, latestSeq: 10 } }, sessionId: 'owner', loadPublic };
+    const mainReader = (tree: Element) => elements(tree).filter((node) => typeof node.type === 'function' && node.type.name === 'PublicPagination').at(-1)!.props.reader as { state: PageState; pager: { current: Pager | null } };
+    try {
+      ui.render(props);
+      await ui.idle();
+      let tree = ui.render(props);
+      expect(mainReader(tree).state.error).toBeNull();
+      expect(mainReader(tree).state.page).toMatchObject({ hasMore: true, nextCursor: 'page2' });
+      await mainReader(tree).pager.current!.next();
+      tree = ui.render(props);
+      expect(mainReader(tree).state.history).toEqual([null]);
+      expect(mainReader(tree).state.page?.items[0]).toMatchObject({ thread: { id: 'second' } });
+      const callsBeforeMetadata = loadPublic.mock.calls.length;
+      const updated = { ...props, progress: { ...props.progress, publicActivity: { protocolVersion: 1, latestSeq: 11 } } };
+      tree = ui.render(updated);
+      expect(loadPublic).toHaveBeenCalledTimes(callsBeforeMetadata);
+      expect(mainReader(tree).state.history).toEqual([null]);
+      expect(text(tree)).toContain('New public activity is available');
+      snapshotSeq = 11;
+      const refresh = elements(tree).find((node) => node.type === 'button' && text(node) === 'Refresh this scope')!;
+      (refresh.props.onClick as () => void)();
+      await ui.idle();
+      tree = ui.render(updated);
+      expect(mainReader(tree).state.history).toEqual([]);
+      expect(mainReader(tree).state.page?.items[0]).toMatchObject({ thread: { id: 'first' } });
+      expect(text(tree)).not.toContain('New public activity is available');
+      const previous = mainReader(tree);
+      const switched = ui.render({ ...updated, sessionId: 'other-owner', progress: { ...updated.progress, runId: 'other-run' } });
+      expect(mainReader(switched).state.page).toBeNull();
+      expect(loadPublic.mock.calls.at(-1)?.slice(0, 2)).toEqual(['other-owner', 'other-run']);
+      ui.dispose();
+      expect(previous.pager.current).toBeNull();
+    } finally { ui.dispose(); }
   });
 });
 
