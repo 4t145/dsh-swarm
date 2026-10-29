@@ -21,6 +21,7 @@ import {
   type VerificationOutcome,
   type WorkspacePort,
 } from './ports.ts';
+import { recordProposalRejection } from './proposal-state.ts';
 import { KeyedSerialQueue, type PublicationGate } from './serial.ts';
 import type { StateStore } from './store.ts';
 import type {
@@ -685,51 +686,7 @@ export class IntegrationQueue {
       if (run.activeAttemptId === input.attemptId) {
         run.activeAttemptId = null;
       }
-      run.proposals[input.proposalId] = {
-        ...proposal,
-        status: 'rejected',
-        rejectionReason: input.proposalReason,
-        diagnosticsRef: input.proposalDiagnosticsRef ?? proposal.diagnosticsRef,
-        updatedAt: now,
-      };
-      const task = run.tasks[proposal.taskId];
-      let reclaimed = false;
-      if (task !== undefined && task.status === 'proposed') {
-        run.tasks[task.id] = {
-          ...task,
-          status: 'claimed',
-          proposalId: null,
-          revision: task.revision + 1,
-          updatedAt: now,
-        };
-        reclaimed = true;
-      }
-      appendEvent(
-        run,
-        {
-          kind: 'proposal',
-          proposalId: proposal.id,
-          taskId: proposal.taskId,
-          status: 'rejected',
-          authorWorkerId: null,
-          audience: { kind: 'all' },
-        },
-        now,
-      );
-      if (task !== undefined && reclaimed) {
-        appendEvent(
-          run,
-          {
-            kind: 'task',
-            taskId: task.id,
-            status: 'claimed',
-            ownerWorkerId: task.ownerWorkerId,
-            authorWorkerId: null,
-            audience: { kind: 'all' },
-          },
-          now,
-        );
-      }
+      recordProposalRejection(run, proposal, input.proposalReason, now, input.proposalDiagnosticsRef);
       run.revision += 1;
       run.updatedAt = now;
       return run;
@@ -1118,50 +1075,7 @@ export class IntegrationQueue {
             run.integrationAttempts[attemptId] = { ...attempt, status: 'interrupted', updatedAt: now };
           }
         }
-        run.proposals[proposal.id] = {
-          ...proposal,
-          status: 'rejected',
-          rejectionReason: reason,
-          updatedAt: now,
-        };
-        const task = run.tasks[proposal.taskId];
-        let reclaimed = false;
-        if (task !== undefined && task.status === 'proposed') {
-          run.tasks[task.id] = {
-            ...task,
-            status: 'claimed',
-            proposalId: null,
-            revision: task.revision + 1,
-            updatedAt: now,
-          };
-          reclaimed = true;
-        }
-        appendEvent(
-          run,
-          {
-            kind: 'proposal',
-            proposalId: proposal.id,
-            taskId: proposal.taskId,
-            status: 'rejected',
-            authorWorkerId: null,
-            audience: { kind: 'all' },
-          },
-          now,
-        );
-        if (task !== undefined && reclaimed) {
-          appendEvent(
-            run,
-            {
-              kind: 'task',
-              taskId: task.id,
-              status: 'claimed',
-              ownerWorkerId: task.ownerWorkerId,
-              authorWorkerId: null,
-              audience: { kind: 'all' },
-            },
-            now,
-          );
-        }
+        recordProposalRejection(run, proposal, reason, now);
         changed = true;
       }
       for (const verification of Object.values(run.verifications)) {
