@@ -25,11 +25,13 @@ import type { Session } from '@deepseek-ai/dsh-session';
 import type { JsonSchemaNode, ToolDefinition } from '@deepseek-ai/dsh-tools';
 
 import type {
+  RestartWorkerReceipt,
   SwarmCommandContext,
   SwarmRunStatusView,
   SwarmRunView,
   SwarmRuntimePort,
 } from './commands.ts';
+import { restartWorker } from './commands.ts';
 import { SwarmError, normalizeError } from './errors.ts';
 import { parseRunSpec, runSpecSchema } from './spec.ts';
 import { loadRunSpecFile } from './spec-file.ts';
@@ -38,7 +40,7 @@ import type { AddWorkerReceipt, AppendGoalReceipt, RunSpec } from './types.ts';
 /** Runtime calls the owner tool needs; the real `SwarmRuntime` satisfies this. */
 export type SwarmOwnerRuntimePort = Pick<
   SwarmRuntimePort,
-  'start' | 'status' | 'pause' | 'resume' | 'stop' | 'appendGoal' | 'continueGoals' | 'addWorker'
+  'start' | 'status' | 'pause' | 'resume' | 'stop' | 'appendGoal' | 'continueGoals' | 'addWorker' | 'reenableWorker'
 >;
 
 /**
@@ -67,7 +69,7 @@ export interface SwarmOwnerInvocation {
 }
 
 /** Actions exposed to the model. `task` mutation stays on the `/swarm` command. */
-export type SwarmManageAction = 'start' | 'status' | 'pause' | 'resume' | 'stop' | 'append' | 'continue' | 'add_workers';
+export type SwarmManageAction = 'start' | 'status' | 'pause' | 'resume' | 'stop' | 'append' | 'continue' | 'add_workers' | 'restart_worker';
 
 /** Validated `swarm_manage` input. */
 export type SwarmManageInput = z.output<typeof manageInput>;
@@ -80,8 +82,9 @@ const MAX_ADD_WORKERS = 4;
 
 /** Wire schema: snake_case top level, spec file fields keep their file names. */
 const manageInput = z.strictObject({
-  action: z.enum(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers']),
+  action: z.enum(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers', 'restart_worker']),
   count: z.number().int().min(1).max(MAX_ADD_WORKERS).optional(),
+  worker_id: z.string().trim().min(1).optional(),
   goal: z.string().trim().min(1).optional(),
   acceptance_criteria: z.array(z.string().trim().min(1)).min(1).optional(),
   spec_path: z.string().min(1).optional(),
@@ -211,7 +214,7 @@ export async function handleSwarmManage(
   runtime: SwarmOwnerRuntimePort,
   invocation: SwarmOwnerInvocation,
   input: SwarmManageInput,
-): Promise<SwarmManageReceipt | SwarmManageStatus | SwarmAddWorkersReceipt | (AppendGoalReceipt & { action: 'append' })> {
+): Promise<SwarmManageReceipt | SwarmManageStatus | SwarmAddWorkersReceipt | RestartWorkerReceipt | (AppendGoalReceipt & { action: 'append' })> {
   assertOwnerSession(invocation.agent);
   const ownerSessionId = invocation.agent.id;
 
@@ -256,6 +259,18 @@ export async function handleSwarmManage(
         }
       }
       return { action: 'add_workers', requested, added, error: null };
+    }
+    case 'restart_worker': {
+      if (ctx.sandboxPolicy.resolve({ session: invocation.agent.session }).mode === 'read-only') {
+        throw new SwarmError('SWARM_FORBIDDEN', 'session sandbox mode is read-only; re-enabling a worker requires a writable session');
+      }
+      if (input.worker_id === undefined) {
+        throw new SwarmError('SWARM_INVALID_INPUT', 'action=restart_worker requires worker_id');
+      }
+      if (invocation.signal.aborted) {
+        throw new SwarmError('SWARM_INVALID_STATE', 'swarm_manage was cancelled; the worker was not re-enabled');
+      }
+      return restartWorker(runtime, ownerSessionId, input.worker_id);
     }
     case 'status': {
       const status = runtime.status(ownerSessionId, input.details ?? false);
@@ -314,7 +329,8 @@ export const SWARM_MANAGE_DESCRIPTION =
   + 'Verification runs in a fresh checkout without ignored files (no node_modules), so put dependency install in setup. '
   + 'Commit the baseline first (ask before committing user work). Validation errors name each failing field. '
   + '`append` saves a concrete goal without replacing history; check its disposition: executing, paused, or deferred. '
-  + '`add_workers` scales a running or paused run up by `count` members. `continue` explicitly starts a new round '
+  + '`add_workers` scales a running or paused run up by `count` members. `restart_worker` re-enables one worker '
+  + 'that Host marked unavailable after repeated failures (see status unavailableReason), without resuming or restarting the run. `continue` explicitly starts a new round '
   + 'for deferred goals after the old run ends; paused runs use resume. Subagent and worker sessions '
   + 'are refused. Never starts a run from ordinary chat text.';
 
@@ -354,13 +370,14 @@ const INLINE_SPEC_PROPERTIES: Record<string, JsonSchemaNode> = {
 const MANAGE_PROPERTIES: Record<string, JsonSchemaNode> = {
   action: {
     type: 'string',
-    enum: ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers'],
-    description: 'Control action. start requires spec/spec_path; append requires goal; add_workers adds members mid-run; continue starts deferred goals in a new round after termination.',
+    enum: ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers', 'restart_worker'],
+    description: 'Control action. start requires spec/spec_path; append requires goal; add_workers adds members mid-run; restart_worker requires worker_id; continue starts deferred goals in a new round after termination.',
   },
   count: {
     type: 'integer',
     description: `For add_workers: members to add in this call (1–${MAX_ADD_WORKERS}, default 1); this batch bound is not the team limit. Host enforces the current effective team limit and native capacity; reports actual additions.`,
   },
+  worker_id: { type: 'string', description: 'For restart_worker: id of one unavailable worker (from status). Clears its unavailable reason, resets its retry counter and wakes only that worker; the run phase is unchanged.' },
   goal: { type: 'string', description: 'For append: concrete additional goal; existing goals and acceptance history stay unchanged.' },
   acceptance_criteria: {
     type: 'array', items: { type: 'string' },

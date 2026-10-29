@@ -388,3 +388,9 @@ Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19
 - 私信语义：`swarm_message` 用于需要对方及时处理的紧急一对一协调（重叠编辑、阻塞依赖、直接请求），优先级高于公共流量；公共线程仍是默认协作途径，未经授权不得把私信抄到公共历史。WORKER_POLICY 与工具描述同步写明。
 - 运行中的目标：[worker-context](<src/worker-context.ts>) 的 `tools/post-execute` 被动 context 在每个工具结果边界先列出该 worker 未显示的私信（`directMessages`，有界 `peerNoticeItems` 条、正文截断 `peerNoticeChars`、`directMessagesHasMore`），再给普通更新；私信不受普通更新上限挤压。显示范围游标绝不越过本页未展示的私信，因此超出批次的私信在下一个边界继续出现。仅当日志确认显示后才推进 shownSeq（与原回执语义相同），重放可能重复，不承诺 exactly-once。
 - 空闲/等待目标：Delivery 原有唤醒与 wait/settled 屏障不变；公共 digest 仍只在空闲/结算边界发送（[测试](<tests/urgent-dm.test.ts>) 用假工具与显式屏障验证三种情况）。
+
+## Owner 重新启用单个 worker（失败隔离配套，2026-10-30）
+
+- `swarm_manage action=restart_worker worker_id=<id>` 与 `/swarm worker restart <id> [--json]` 共用 [restartWorker](<src/commands.ts>)：先按 status 校验 owner，再要求该成员存在且带 `unavailableReason`，否则分别报 `SWARM_FORBIDDEN` / `SWARM_NOT_FOUND` / `SWARM_INVALID_STATE`；随后只调用 runtime `reenableWorker(runId, workerId)`，不 resume、不重启 run，回执带当前 phase。宿主缺少该能力时明确报 `SWARM_INVALID_STATE`，不回退为整 run resume。只读 sandbox、已取消调用与子代理会话在调用 runtime 之前被拒绝。
+- `/swarm status` 的成员行显示 `UNAVAILABLE=<reason>` 与有界诊断；owner 前台状态新增 `unavailableWorkers`（id、显示名、原因码、≤160 字诊断，最多 8 项并给出省略数），并提示用 restart_worker 而非 resume/stop/start。
+- 进度 DTO 的成员新增 `unavailableReason`，`diagnostic` 优先显示 `原因: 诊断`。面板把带原因码的就绪成员显示为“已被 Host 隔离 / Isolated by Host”（初始化失败仍是 failed），并提供中英文原因说明与“重新启用”按钮。按钮只对 Host 生成的安全 id 发送 `/swarm worker restart <id> --json`，并校验回执的 runId/workerId。
