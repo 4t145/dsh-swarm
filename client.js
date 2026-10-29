@@ -72,12 +72,11 @@ window.__ModuleLoader__.load({
 .dshSwarm_kpiBar{display:flex;gap:2px;height:6px;border-radius:999px;overflow:hidden;background:var(--dsw-alias-bg-layer-2)}.dshSwarm_kpiBar span{min-width:4px}.dshSwarm_kpiLegend{display:flex;flex-wrap:wrap;gap:3px 10px;font-size:10px;font-weight:400;letter-spacing:0;color:var(--dsw-alias-label-secondary)}.dshSwarm_kpiLegend i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-inline-end:4px}
 .dshSwarm_root [data-seg=done]{background:var(--dsw-alias-state-success-primary)}.dshSwarm_root [data-seg=proposed]{background:color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, var(--dsw-alias-bg-layer-1))}.dshSwarm_root [data-seg=claimed]{background:var(--dsw-alias-state-business-primary)}.dshSwarm_root [data-seg=open]{background:var(--dsw-alias-border-l2)}.dshSwarm_root [data-seg=blocked]{background:var(--dsw-alias-state-warn-primary)}.dshSwarm_root [data-seg=cancelled]{background:var(--dsw-alias-label-secondary);opacity:.5}
 .dshSwarm_kpiFlag{justify-self:start;padding:1px 7px;border-radius:5px;font-size:10px;font-weight:600;letter-spacing:0;color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-bg-layer-2)}
-.dshSwarm_dashGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:12px;margin:12px 0 0}.dshSwarm_dashGrid .dshSwarm_delivery{margin:0;padding:16px 18px;border-radius:12px}.dshSwarm_dashGrid .dshSwarm_deliveryRevision>code{font-size:20px}
-.dshSwarm_teamCard{min-width:0;padding:16px 18px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_teamCard .dshSwarm_deliveryTop{justify-content:space-between}.dshSwarm_teamList{display:grid;gap:2px}.dshSwarm_teamRow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:6px;border-radius:8px}.dshSwarm_teamRow:hover{background:var(--dsw-alias-bg-layer-2)}
-.dshSwarm_avatarSmall{width:28px;height:28px;border-radius:8px;font-size:10px}.dshSwarm_teamName{display:grid;min-width:0;line-height:1.35}.dshSwarm_teamName strong{font-size:12px;font-weight:650}.dshSwarm_teamTask{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dshSwarm_teamTask[data-empty=true]{color:var(--dsw-alias-label-secondary)}
 .dshSwarm_collaboration{gap:12px;margin-top:12px}.dshSwarm_collaboration>.dshSwarm_section{margin-top:0;padding:16px 18px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}
 .dshSwarm_timeline{border-inline-start:2px solid var(--dsw-alias-border-l1)}.dshSwarm_event:before{display:none}.dshSwarm_eventDot{position:absolute;inset-inline-start:-20px;top:6px;width:8px;height:8px;border-radius:50%;box-shadow:0 0 0 3px var(--dsw-alias-bg-layer-1)}.dshSwarm_event[data-kind=run] .dshSwarm_eventDot{border-radius:2px}.dshSwarm_event[data-kind=proposal] .dshSwarm_eventDot{border-radius:2px;transform:rotate(45deg)}
-@container(max-width:760px){.dshSwarm_dashGrid,.dshSwarm_kpis{grid-template-columns:1fr}.dshSwarm_collaboration{gap:12px}}@container(max-width:620px){.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:18px}.dshSwarm_step:nth-child(2):after{display:none}}
+.dshSwarm_avatarSmall{width:28px;height:28px;border-radius:8px;font-size:10px}
+.dshSwarm_dashDelivery{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 0;font-size:12px}
+@container(max-width:760px){.dshSwarm_kpis{grid-template-columns:1fr}.dshSwarm_collaboration{gap:12px}}@container(max-width:620px){.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:18px}.dshSwarm_step:nth-child(2):after{display:none}}
 .dshSwarm_conv{margin-top:28px}.dshSwarm_convDivider{width:1px;align-self:stretch;margin:2px 4px;background:var(--dsw-alias-border-l1)}
 .dshSwarm_convList{display:grid;gap:10px}.dshSwarm_convItem{padding:12px 14px;border:1px solid var(--dsw-alias-border-l1);border-inline-start:3px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}
 .dshSwarm_convItem[data-kind=finding]{background:var(--dsw-alias-bg-layer-2)}.dshSwarm_convItem[data-finding=fail]{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent)}
@@ -96,10 +95,10 @@ window.__ModuleLoader__.load({
 		const worktreeCss = `.dshSwarm_wtHead{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:10px}.dshSwarm_wtTitle{font-size:14px;line-height:20px;font-weight:600}.dshSwarm_wtRepo{color:var(--dsw-alias-label-secondary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}.dshSwarm_wtList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}.dshSwarm_wtItem{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:10px 12px}.dshSwarm_wtTop{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}.dshSwarm_wtPath{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;font-weight:600;overflow-wrap:anywhere}.dshSwarm_wtBadge{border-radius:6px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);padding:1px 6px;font-size:11px}.dshSwarm_wtBranch{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}.dshSwarm_wtMeta{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--dsw-alias-label-secondary);font-size:11px;margin-top:4px}.dshSwarm_wtSubject{overflow-wrap:anywhere;margin-top:4px}.dshSwarm_wtCommits{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}.dshSwarm_wtCommit{display:flex;gap:8px;font-size:11px;min-width:0}.dshSwarm_wtSha{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dsw-alias-label-secondary);flex:none}.dshSwarm_wtNote{border:1px dashed var(--dsw-alias-border-l2);border-radius:8px;padding:10px 12px;margin-bottom:10px;color:var(--dsw-alias-label-secondary)}.dshSwarm_form{border-top:1px solid var(--dsw-alias-border-l1);margin-top:14px;padding-top:10px;display:flex;flex-direction:column;gap:8px}.dshSwarm_formRow{display:flex;flex-wrap:wrap;gap:10px}.dshSwarm_field{display:flex;flex-direction:column;gap:3px;flex:1;min-width:160px}.dshSwarm_label{font-size:11px;color:var(--dsw-alias-label-secondary)}.dshSwarm_input{box-sizing:border-box;width:100%;padding:5px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}.dshSwarm_success{color:var(--dsw-alias-state-success-primary);overflow-wrap:anywhere}`;
 		const zh = {
 			"view.label": "◈ 协作群", "title": "Swarm 协作群",
-			"tabs.flow": "协作流", "flow.title": "成员之间在做什么", "flow.note": "每条泳道是一名成员，最上方是 Host 与已接受结果；事件按发生顺序从左到右。鼠标移到任意节点上即可看到发生了什么，私信和发现会显示正文；点击可固定卡片。", "flow.host": "Host · 结果", "flow.hostNote": "集成与验收", "flow.filter": "按事件类型筛选", "flow.chart": "成员协作时间线", "flow.axis": "← 更早 · 最新 →", "flow.empty": "还没有成员之间的协作事件", "flow.unavailable": "当前 Host 未提供协作事件；重启 DSH 后可用", "flow.kind.all": "全部", "flow.kind.message": "私信", "flow.kind.finding": "发现", "flow.kind.task": "任务", "flow.kind.proposal": "提交与集成", "flow.legend.head": "结果推进", "flow.stat.message": "条私信", "flow.stat.finding": "条发现", "flow.stat.proposal": "次提交", "flow.stat.head": "次结果推进", "flow.pairs": "谁在和谁沟通", "flow.noPairs": "还没有成员互发私信", "flow.to": "发给", "flow.feed": "最近动态", "flow.say.message": "{actor} 给 {peer} 发了私信", "flow.say.finding": "{actor} 发布了{kind}", "flow.say.task": "{peer} 的任务「{task}」→ {status}", "flow.say.proposal": "{actor} 的提案（{task}）→ {status}", "flow.say.head": "{peer} 的结果已合入 {id}", "flow.say.headHost": "结果推进到 {id}", "flow.finding.observed": "观察", "flow.finding.fact": "事实", "flow.finding.fail": "失败报告", "flow.finding.patch_summary": "改动摘要", "dash.team": "团队现状", "dash.teamNote": "{busy} 执行中 · {waiting} 等待", "dash.noWorkers": "还没有成员", "conv.title": "成员对话与发现", "conv.note": "仅 run owner 可读：成员之间私信的正文，以及发布的事实、观察、失败报告和改动摘要（含范围与证据）。最新在前，有新消息时自动刷新。", "conv.refresh": "刷新", "conv.filter": "按类型和成员筛选", "conv.kind.all": "全部", "conv.kind.message": "私信", "conv.kind.finding": "发现", "conv.empty": "还没有私信或发现", "conv.noMatch": "已加载内容中没有匹配项", "conv.loading": "正在读取…", "conv.more": "加载更早的内容", "conv.end": "已加载全部 {count} 条", "conv.failed": "读取失败", "conv.invalid": "Host 返回了无法识别的对话数据", "conv.unavailable": "当前 Host 不提供对话读取；重启 DSH 后可用", "conv.truncated": "正文过长，已截断显示", "conv.task": "任务", "conv.scope": "范围", "conv.evidence": "证据", "conv.supersedes": "取代", "hover.pin": "点击固定卡片 · Esc 关闭", "hover.close": "关闭", "hover.noBody": "当前 Host 不提供正文；重启 DSH 后可在这里看到内容", "hover.failed": "正文读取失败，见下方“成员对话与发现”", "tabs.label": "协作视图", "tabs.dashboard": "Dashboard", "tabs.members": "成员列表", "tabs.goals": "目标看板", "tabs.worktrees": "Git 工作树",
+			"tabs.flow": "协作流", "flow.title": "成员之间在做什么", "flow.note": "每条泳道是一名成员，最上方是 Host 与已接受结果；事件按发生顺序从左到右。鼠标移到任意节点上即可看到发生了什么，私信和发现会显示正文；点击可固定卡片。", "flow.host": "Host · 结果", "flow.hostNote": "集成与验收", "flow.filter": "按事件类型筛选", "flow.chart": "成员协作时间线", "flow.axis": "← 更早 · 最新 →", "flow.empty": "还没有成员之间的协作事件", "flow.unavailable": "当前 Host 未提供协作事件；重启 DSH 后可用", "flow.kind.all": "全部", "flow.kind.message": "私信", "flow.kind.finding": "发现", "flow.kind.task": "任务", "flow.kind.proposal": "提交与集成", "flow.legend.head": "结果推进", "flow.stat.message": "条私信", "flow.stat.finding": "条发现", "flow.stat.proposal": "次提交", "flow.stat.head": "次结果推进", "flow.pairs": "谁在和谁沟通", "flow.noPairs": "还没有成员互发私信", "flow.to": "发给", "flow.feed": "最近动态", "flow.say.message": "{actor} 给 {peer} 发了私信", "flow.say.finding": "{actor} 发布了{kind}", "flow.say.task": "{peer} 的任务「{task}」→ {status}", "flow.say.proposal": "{actor} 的提案（{task}）→ {status}", "flow.say.head": "{peer} 的结果已合入 {id}", "flow.say.headHost": "结果推进到 {id}", "flow.finding.observed": "观察", "flow.finding.fact": "事实", "flow.finding.fail": "失败报告", "flow.finding.patch_summary": "改动摘要", "conv.title": "成员对话与发现", "conv.note": "仅 run owner 可读：成员之间私信的正文，以及发布的事实、观察、失败报告和改动摘要（含范围与证据）。最新在前，有新消息时自动刷新。", "conv.refresh": "刷新", "conv.filter": "按类型和成员筛选", "conv.kind.all": "全部", "conv.kind.message": "私信", "conv.kind.finding": "发现", "conv.empty": "还没有私信或发现", "conv.noMatch": "已加载内容中没有匹配项", "conv.loading": "正在读取…", "conv.more": "加载更早的内容", "conv.end": "已加载全部 {count} 条", "conv.failed": "读取失败", "conv.invalid": "Host 返回了无法识别的对话数据", "conv.unavailable": "当前 Host 不提供对话读取；重启 DSH 后可用", "conv.truncated": "正文过长，已截断显示", "conv.task": "任务", "conv.scope": "范围", "conv.evidence": "证据", "conv.supersedes": "取代", "hover.pin": "点击固定卡片 · Esc 关闭", "hover.close": "关闭", "hover.noBody": "当前 Host 不提供正文；重启 DSH 后可在这里看到内容", "hover.failed": "正文读取失败，见下方“成员对话与发现”", "tabs.label": "协作视图", "tabs.dashboard": "Dashboard", "tabs.members": "成员列表", "tabs.goals": "目标看板", "tabs.worktrees": "Git 工作树",
 			"goals.todo": "代办", "goals.doing": "办理中", "goals.done": "办结", "goals.wish": "添加新的愿望", "goals.laneEmpty": "此池暂无目标", "goals.flowNote": "愿望提交后自动加入本轮办理；暂停时保留目标，收尾后存入代办等待下一轮。办结仅代表 Host 已完成验收。",
 			"workers.add": "添加成员", "workers.adding": "正在添加…", "workers.addUnavailable": "成员上限不可用；请查看 Host 诊断", "workers.addLimit": "已达到 {count} 名成员上限", "workers.addPhase": "仅协作中或暂停时可添加成员", "workers.addPaused": "新成员将在恢复后启动", "workers.added.started": "已添加 {name}", "workers.added.paused": "已添加 {name} · 恢复后启动", "workers.addFailed": "添加结果未确认，请检查成员列表后重试", "workers.addReceipt": "成员回执不完整，请检查列表后再重试。", "workers.addReady": "为新成员创建独立工作树与随机可读名字", "workers.capacity": "团队规模", "workers.limitHost": "继承宿主上限", "workers.limitOverride": "显式覆盖上限", "workers.limitUnknown": "上限来源不可用", "workers.limitNotCapacity": "团队配置上限不是宿主实时剩余槽位；原生容量与权限仍由 Host 验证。", "workers.summary": "{total} 名成员 · {busy} 名执行中 · {waiting} 名等待协作或集成", "goals.criteriaCount": "{count} 条验收", "goals.doneCount": "个目标已办结",
-			"git.title": "Git 工作树", "git.note": "各成员工作树与已接受结果的合并历史流 · 同一提交只显示一次。来源分支表示可达关系，不代表作者。", "git.refresh": "更新历史", "git.loading": "正在读取 Git 历史…", "git.more": "加载更早提交", "git.end": "已到达历史起点", "git.empty": "当前没有可显示的提交。", "git.unavailable": "当前 Host 不支持工作树历史，请更新 Host 后重连。", "git.failed": "Git 历史读取失败", "git.retry": "重试", "git.loaded": "已显示 {count} 个提交", "git.worktrees": "工作树与版本快照", "git.result": "已接受结果", "git.source": "来源分支", "git.merge": "合并提交", "git.parents": "父提交", "git.commit": "完整提交 SHA", "git.details": "提交详情", "git.snapshot": "分页固定于首次读取的版本；更新历史可查看最新提交。", "git.missingRun": "运行已变化或不可用，请重新连接。", "git.invalid": "Host 返回了无效的 Git 历史。", "git.worktreeMissing": "工作树尚未准备完成", "git.base": "Run 基线", "git.legendCommit": "提交", "git.legendMerge": "合并（换乘站）", "git.legendHead": "工作树当前 HEAD", "git.axis": "← 最新 · 更早 →",
+			"git.title": "Git 工作树", "git.note": "各成员工作树与已接受结果的合并历史流 · 同一提交只显示一次。来源分支表示可达关系，不代表作者。", "git.refresh": "更新历史", "git.loading": "正在读取 Git 历史…", "git.more": "加载更早提交", "git.end": "已到达历史起点", "git.empty": "当前没有可显示的提交。", "git.unavailable": "当前 Host 不支持工作树历史，请更新 Host 后重连。", "git.failed": "Git 历史读取失败", "git.retry": "重试", "git.loaded": "已显示 {count} 个提交", "git.worktrees": "工作树与版本快照", "git.result": "已接受结果", "git.source": "来源分支", "git.merge": "合并提交", "git.parents": "父提交", "git.commit": "完整提交 SHA", "git.details": "提交详情", "git.snapshot": "分页固定于首次读取的版本；更新历史可查看最新提交。", "git.missingRun": "运行已变化或不可用，请重新连接。", "git.invalid": "Host 返回了无效的 Git 历史。", "git.worktreeMissing": "工作树尚未准备完成", "git.base": "Run 基线", "git.legendCommit": "提交", "git.legendMerge": "合并提交", "git.legendHead": "工作树当前 HEAD", "git.axis": "← 更早 · 最新 →",
 			"goals.title": "目标", "goals.add": "追加目标", "goals.placeholder": "接下来还需要做什么？", "goals.criteria": "验收条件（可选，每行一项）", "goals.publish": "发布目标", "goals.publishing": "正在提交…", "goals.scope": "当前会话 · 当前仓库", "goals.original": "初始目标", "goal.active": "本轮待完成", "goal.deferred": "待下一轮", "goal.completed": "已处理", "goal.continued": "已转下一轮", "goals.paused": "追加后仍保持暂停", "goals.deferred": "本轮已收尾，追加将保存到下一轮", "goals.resume": "恢复本轮", "goals.continue": "开始下一轮", "goals.criteriaTitle": "验收条件", "goals.more": "显示 {shown}/{total} 项；其余记录已保存，暂不在面板展示", "goals.clipped": "此处内容已截断；完整内容保存在运行记录中", "goals.publishFirst": "先发布或清空草稿", "goals.unavailable": "当前 Host 不支持追加目标，请更新 Host 后重连。", "goals.sent.executing": "已发布 · 已加入本轮工作", "goals.sent.paused": "已保存 · 恢复后处理", "goals.sent.deferred": "已保存 · 等待下一轮", "goals.sent.continue": "下一轮已启动", "goals.sent.resume": "本轮已恢复", "goals.unknownReceipt": "回执不完整，请检查目标列表后再决定是否重试。", "goals.commandUnavailable": "命令服务不可用", "goals.pending": "{count} 项待下一轮", "goals.failed": "提交失败，草稿已保留", "goals.uncertain": "未确认提交结果；请检查目标列表后再重试。", "goals.nextRun": "下一轮运行", "goals.commit": "完成版本", "loading": "正在连接进度流…", "refresh": "更新连接", "unknown": "未知", "unavailable": "不可用",
 			"connection.live": "实时连接", "connection.loading": "连接中", "connection.ended": "订阅已结束", "connection.error": "连接中断", "connection.unavailable": "服务不可用",
 			"updated": "快照更新于 {time}", "stale.title": "非实时 · 最后已知快照", "stale.body": "连接中断后保留已知状态，工作可能仍在继续。请更新连接。", "ended.body": "当前订阅已结束。请手动更新以查看此会话的新运行。",
@@ -118,19 +117,19 @@ window.__ModuleLoader__.load({
 			"init.pending": "待准备", "init.initializing": "准备中", "init.ready": "就绪", "init.failed": "失败", "task.open": "待认领", "task.claimed": "已认领", "task.proposed": "待集成", "task.done": "已完成", "task.blocked": "阻塞", "task.cancelled": "已取消",
 			"tasks.title": "任务板", "tasks.empty": "尚未创建任务。", "tasks.missing": "当前 Host 未提供任务板。", "tasks.more": "显示 {shown}/{total} 项（优先展示活跃任务）", "tasks.unowned": "未分配", "tasks.details": "更多任务（{count}）",
 			"events.title": "公开活动", "events.note": "仅任务、提案、结果与运行状态；不含私信或推理", "events.empty": "暂无公开状态变更。", "events.missing": "当前 Host 未提供公开活动。", "events.more": "更早活动（{count}）", "event.task": "任务", "event.proposal": "提案", "event.head": "结果版本", "event.run": "运行", "event.updated": "已更新", "proposal.queued": "排队中", "proposal.integrating": "集成中", "proposal.accepted": "已接受", "proposal.rejected": "已拒绝",
-			"result.title": "结果与运行细节", "result.ref": "结果分支", "result.head": "已接受 SHA", "result.base": "基线 SHA", "result.run": "运行 ID", "result.verification": "验证计数", "result.proposals": "提案计数", "result.finish": "交付验证请求", "result.noFinish": "尚未请求", "result.note": "已接受版本不等于整个目标已验收；仅运行状态为“已完成”时表示交付完成。", "reason": "当前原因：{reason}", "detail.error": "部分详情不可用：{message}",
+			"result.note": "已接受版本不等于整个目标已验收；仅运行状态为“已完成”时表示交付完成。", "reason": "当前原因：{reason}", "detail.error": "部分详情不可用：{message}",
 			"overview.goal": "本轮目标 · 展开全文", "overview.goalMissing": "Host 未提供目标", "filter.all": "全部", "tasks.flow": "任务认领与推进", "tasks.noMatch": "本快照中没有此状态的任务。", "task.revision": "修订", "task.owner": "当前成员", "task.identity": "任务 ID", "task.proposal": "关联提案", "tasks.snapshot": "Host 仅提供 {shown}/{total} 项；筛选限于当前快照。",
 			"events.recent": "最近公开活动", "events.scope": "最近 {count} 条", "events.noMatch": "最近活动中没有此类记录。", "events.source": "活动范围", "events.sourceNote": "仅 Host 提供的最近公开状态变更，不含完整历史、私信或推理。", "events.revision": "结果",
-			"delivery.title": "当前交付", "delivery.baseline": "仍为基线", "delivery.integrated": "已集成 · 待整体验收", "delivery.verifying": "整体验证中", "delivery.closing": "交付收尾中", "delivery.completed": "交付完成", "delivery.stopped": "运行已停止", "delivery.failed": "运行失败", "delivery.accepted": "已集成 {count} 个提案", "delivery.pending": "待集成 {count}", "delivery.checks": "验证通过 {count}", "delivery.errors": "验证失败 {failed} · 中断 {interrupted}", "delivery.details": "版本与验证详情",
-			"verification.summary": "排队 {queued} · 执行 {running} · 通过 {passed} · 失败 {failed} · 中断 {interrupted}", "proposal.summary": "排队 {queued} · 集成 {integrating} · 接受 {accepted} · 拒绝 {rejected}",
+			"delivery.title": "当前交付", "result.run": "运行 ID", "delivery.baseline": "仍为基线", "delivery.integrated": "已集成 · 待整体验收", "delivery.verifying": "整体验证中", "delivery.closing": "交付收尾中", "delivery.completed": "交付完成", "delivery.stopped": "运行已停止", "delivery.failed": "运行失败", "delivery.errors": "验证失败 {failed} · 中断 {interrupted}", 
+			
 			"wt.title": "Git 工作树", "wt.loading": "正在读取工作树…", "wt.error": "读取工作树失败：{message}", "wt.unavailable": "工作树连接失败：{message}", "wt.repo": "仓库：{name}", "wt.directory": "会话目录：{directory}", "wt.notRepo": "当前会话目录不是 Git 仓库", "wt.notRepoBody": "读取 {directory} 所在的仓库；初始化 Git 仓库后刷新即可。", "wt.unborn": "仓库还没有提交", "wt.unbornBody": "还没有可显示的工作树提交记录；先创建第一个提交，再刷新。", "wt.empty": "没有已登记的工作树", "wt.emptyBody": "git worktree list 没有返回任何工作树。", "wt.main": "主工作树", "wt.detached": "分离 HEAD @ {sha}", "wt.head": "HEAD {sha}", "wt.noHead": "尚无提交", "wt.locked": "已锁定：{reason}", "wt.prunable": "已失效：{reason}", "wt.commits": "最近提交", "wt.noCommits": "没有额外提交", "wt.limit": "仅显示最近 {count} 条", "wt.refresh": "刷新", "wt.create.title": "新建工作树", "wt.create.hint": "在会话仓库的 .agents/worktrees/ 下创建独立分支和检出；不会切换当前会话的工作目录，也不会改动当前检出。", "wt.create.name": "名称（可选）", "wt.create.namePlaceholder": "自动生成，例如 worktree-20260101-120000", "wt.create.base": "基准 ref（可选）", "wt.create.basePlaceholder": "HEAD", "wt.create.submit": "创建工作树", "wt.create.pending": "正在创建…", "wt.create.success": "已创建工作树 {name}", "wt.create.error": "创建失败：{message}"
 		};
 		const en = {
 			"view.label": "◈ Swarm", "title": "Swarm",
-			"tabs.flow": "Collaboration flow", "flow.title": "What members are doing together", "flow.note": "Each swimlane is a member; the top lane is the Host and accepted result. Events run left to right in order. Hover any point to see what happened, including message and finding bodies; click to pin the card.", "flow.host": "Host · result", "flow.hostNote": "Integration and acceptance", "flow.filter": "Filter by event type", "flow.chart": "Member collaboration timeline", "flow.axis": "← Older · Newest →", "flow.empty": "No collaboration events between members yet", "flow.unavailable": "This Host does not provide collaboration events; restart DSH to enable it", "flow.kind.all": "All", "flow.kind.message": "Messages", "flow.kind.finding": "Findings", "flow.kind.task": "Tasks", "flow.kind.proposal": "Proposals & integration", "flow.legend.head": "Result advanced", "flow.stat.message": "messages", "flow.stat.finding": "findings", "flow.stat.proposal": "proposals", "flow.stat.head": "result advances", "flow.pairs": "Who talks to whom", "flow.noPairs": "No direct messages between members yet", "flow.to": "to", "flow.feed": "Latest activity", "flow.say.message": "{actor} messaged {peer}", "flow.say.finding": "{actor} posted a {kind}", "flow.say.task": "{peer}'s task “{task}” → {status}", "flow.say.proposal": "{actor}'s proposal ({task}) → {status}", "flow.say.head": "{peer}'s result merged at {id}", "flow.say.headHost": "Result advanced to {id}", "flow.finding.observed": "observation", "flow.finding.fact": "fact", "flow.finding.fail": "failure report", "flow.finding.patch_summary": "patch summary", "dash.team": "Team now", "dash.teamNote": "{busy} executing · {waiting} waiting", "dash.noWorkers": "No members yet", "conv.title": "Conversations and findings", "conv.note": "Run owner only: the bodies of members' direct messages and their published facts, observations, failure reports and patch summaries, with scope and evidence. Newest first; refreshes when new ones arrive.", "conv.refresh": "Refresh", "conv.filter": "Filter by type and member", "conv.kind.all": "All", "conv.kind.message": "Messages", "conv.kind.finding": "Findings", "conv.empty": "No messages or findings yet", "conv.noMatch": "Nothing loaded matches this filter", "conv.loading": "Loading…", "conv.more": "Load older", "conv.end": "All {count} loaded", "conv.failed": "Could not load", "conv.invalid": "The Host returned conversation data this panel cannot read", "conv.unavailable": "This Host cannot serve conversations; restart DSH to enable it", "conv.truncated": "Body is long and shown truncated", "conv.task": "Task", "conv.scope": "Scope", "conv.evidence": "Evidence", "conv.supersedes": "Supersedes", "hover.pin": "Click to pin · Esc to close", "hover.close": "Close", "hover.noBody": "This Host does not serve bodies; restart DSH to see the content here", "hover.failed": "Could not load the body; see “Conversations and findings” below", "tabs.label": "Collaboration views", "tabs.dashboard": "Dashboard", "tabs.members": "Members", "tabs.goals": "Goal board", "tabs.worktrees": "Git worktrees",
+			"tabs.flow": "Collaboration flow", "flow.title": "What members are doing together", "flow.note": "Each swimlane is a member; the top lane is the Host and accepted result. Events run left to right in order. Hover any point to see what happened, including message and finding bodies; click to pin the card.", "flow.host": "Host · result", "flow.hostNote": "Integration and acceptance", "flow.filter": "Filter by event type", "flow.chart": "Member collaboration timeline", "flow.axis": "← Older · Newest →", "flow.empty": "No collaboration events between members yet", "flow.unavailable": "This Host does not provide collaboration events; restart DSH to enable it", "flow.kind.all": "All", "flow.kind.message": "Messages", "flow.kind.finding": "Findings", "flow.kind.task": "Tasks", "flow.kind.proposal": "Proposals & integration", "flow.legend.head": "Result advanced", "flow.stat.message": "messages", "flow.stat.finding": "findings", "flow.stat.proposal": "proposals", "flow.stat.head": "result advances", "flow.pairs": "Who talks to whom", "flow.noPairs": "No direct messages between members yet", "flow.to": "to", "flow.feed": "Latest activity", "flow.say.message": "{actor} messaged {peer}", "flow.say.finding": "{actor} posted a {kind}", "flow.say.task": "{peer}'s task “{task}” → {status}", "flow.say.proposal": "{actor}'s proposal ({task}) → {status}", "flow.say.head": "{peer}'s result merged at {id}", "flow.say.headHost": "Result advanced to {id}", "flow.finding.observed": "observation", "flow.finding.fact": "fact", "flow.finding.fail": "failure report", "flow.finding.patch_summary": "patch summary", "conv.title": "Conversations and findings", "conv.note": "Run owner only: the bodies of members' direct messages and their published facts, observations, failure reports and patch summaries, with scope and evidence. Newest first; refreshes when new ones arrive.", "conv.refresh": "Refresh", "conv.filter": "Filter by type and member", "conv.kind.all": "All", "conv.kind.message": "Messages", "conv.kind.finding": "Findings", "conv.empty": "No messages or findings yet", "conv.noMatch": "Nothing loaded matches this filter", "conv.loading": "Loading…", "conv.more": "Load older", "conv.end": "All {count} loaded", "conv.failed": "Could not load", "conv.invalid": "The Host returned conversation data this panel cannot read", "conv.unavailable": "This Host cannot serve conversations; restart DSH to enable it", "conv.truncated": "Body is long and shown truncated", "conv.task": "Task", "conv.scope": "Scope", "conv.evidence": "Evidence", "conv.supersedes": "Supersedes", "hover.pin": "Click to pin · Esc to close", "hover.close": "Close", "hover.noBody": "This Host does not serve bodies; restart DSH to see the content here", "hover.failed": "Could not load the body; see “Conversations and findings” below", "tabs.label": "Collaboration views", "tabs.dashboard": "Dashboard", "tabs.members": "Members", "tabs.goals": "Goal board", "tabs.worktrees": "Git worktrees",
 			"goals.todo": "To do", "goals.doing": "In progress", "goals.done": "Done", "goals.wish": "Add a wish", "goals.laneEmpty": "No goals in this pool", "goals.flowNote": "Submitted wishes join this round automatically. Paused goals stay in this round; closing runs save new wishes for the next round. Only Host-verified goals are done.",
 			"workers.add": "Add worker", "workers.adding": "Adding…", "workers.addUnavailable": "Worker limit unavailable; check Host diagnostics", "workers.addLimit": "Maximum of {count} workers reached", "workers.addPhase": "Workers can be added while running or paused", "workers.addPaused": "New workers start after resume", "workers.added.started": "Added {name}", "workers.added.paused": "Added {name} · Starts after resume", "workers.addFailed": "Addition not confirmed; check the member list before retrying", "workers.addReceipt": "Incomplete worker receipt. Check the list before retrying.", "workers.addReady": "Create a private worktree and a random readable name", "workers.capacity": "Team size", "workers.limitHost": "Inherited Host limit", "workers.limitOverride": "Explicit override", "workers.limitUnknown": "Limit source unavailable", "workers.limitNotCapacity": "The configured team limit is not native free capacity. Host still checks native capacity and permissions.", "workers.summary": "{total} members · {busy} executing · {waiting} waiting on collaboration or integration", "goals.criteriaCount": "{count} criteria", "goals.doneCount": "goals done",
-			"git.title": "Git worktrees", "git.note": "Merged history of worker worktrees and accepted results · Each commit appears once. Source branch means reachability, not authorship.", "git.refresh": "Refresh history", "git.loading": "Reading Git history…", "git.more": "Load earlier commits", "git.end": "Beginning of history reached", "git.empty": "No commits to display yet.", "git.unavailable": "This Host does not support worktree history. Update the Host and reconnect.", "git.failed": "Could not read Git history", "git.retry": "Retry", "git.loaded": "Showing {count} commits", "git.worktrees": "Worktrees & revision snapshot", "git.result": "Accepted result", "git.source": "Source branch", "git.merge": "Merge commit", "git.parents": "Parent commits", "git.commit": "Full commit SHA", "git.details": "Commit details", "git.snapshot": "Pages are pinned to the first read. Refresh history to see newer commits.", "git.missingRun": "The run changed or is unavailable. Reconnect to update.", "git.invalid": "Host returned invalid Git history.", "git.worktreeMissing": "Worktree is not ready yet", "git.base": "Run base", "git.legendCommit": "Commit", "git.legendMerge": "Merge (interchange)", "git.legendHead": "Worktree HEAD", "git.axis": "← Newest · Older →",
+			"git.title": "Git worktrees", "git.note": "Merged history of worker worktrees and accepted results · Each commit appears once. Source branch means reachability, not authorship.", "git.refresh": "Refresh history", "git.loading": "Reading Git history…", "git.more": "Load earlier commits", "git.end": "Beginning of history reached", "git.empty": "No commits to display yet.", "git.unavailable": "This Host does not support worktree history. Update the Host and reconnect.", "git.failed": "Could not read Git history", "git.retry": "Retry", "git.loaded": "Showing {count} commits", "git.worktrees": "Worktrees & revision snapshot", "git.result": "Accepted result", "git.source": "Source branch", "git.merge": "Merge commit", "git.parents": "Parent commits", "git.commit": "Full commit SHA", "git.details": "Commit details", "git.snapshot": "Pages are pinned to the first read. Refresh history to see newer commits.", "git.missingRun": "The run changed or is unavailable. Reconnect to update.", "git.invalid": "Host returned invalid Git history.", "git.worktreeMissing": "Worktree is not ready yet", "git.base": "Run base", "git.legendCommit": "Commit", "git.legendMerge": "Merge commit", "git.legendHead": "Worktree HEAD", "git.axis": "← Older · Newer →",
 			"goals.title": "Goals", "goals.add": "Add a goal", "goals.placeholder": "What else should we work on?", "goals.criteria": "Acceptance criteria (optional, one per line)", "goals.publish": "Publish goal", "goals.publishing": "Submitting…", "goals.scope": "This session · This repository", "goals.original": "Initial goal", "goal.active": "Open this round", "goal.deferred": "Next round", "goal.completed": "Handled", "goal.continued": "Moved to next round", "goals.paused": "Adding a goal will not resume this run", "goals.deferred": "This round is closing; new goals are saved for the next round", "goals.resume": "Resume this round", "goals.continue": "Start next round", "goals.criteriaTitle": "Acceptance criteria", "goals.more": "Showing {shown}/{total}; other records are saved but not shown in this panel", "goals.clipped": "Content clipped here; the complete content is saved in the run record", "goals.publishFirst": "Publish or clear the draft first", "goals.unavailable": "This Host cannot append goals. Update the Host and reconnect.", "goals.sent.executing": "Published · Added to this round", "goals.sent.paused": "Saved · Waiting for resume", "goals.sent.deferred": "Saved · Waiting for next round", "goals.sent.continue": "Next round started", "goals.sent.resume": "This round resumed", "goals.unknownReceipt": "Incomplete receipt. Check the goal list before retrying.", "goals.commandUnavailable": "Command service unavailable", "goals.pending": "{count} goals for next round", "goals.failed": "Submission failed; draft retained", "goals.uncertain": "Submission not confirmed; check the goal list before retrying.", "goals.nextRun": "Next run", "goals.commit": "Completed revision", "loading": "Connecting to progress…", "refresh": "Reconnect", "unknown": "Unknown", "unavailable": "Unavailable",
 			"connection.live": "Live", "connection.loading": "Connecting", "connection.ended": "Subscription ended", "connection.error": "Disconnected", "connection.unavailable": "Service unavailable",
 			"updated": "Snapshot updated {time}", "stale.title": "Not live · Last known snapshot", "stale.body": "The connection was lost; work may still be continuing. Reconnect to update this view.", "ended.body": "This subscription has ended. Reconnect manually to see a new run in this session.",
@@ -149,11 +148,11 @@ window.__ModuleLoader__.load({
 			"init.pending": "Pending", "init.initializing": "Initializing", "init.ready": "Ready", "init.failed": "Failed", "task.open": "Open", "task.claimed": "Claimed", "task.proposed": "Proposed", "task.done": "Done", "task.blocked": "Blocked", "task.cancelled": "Cancelled",
 			"tasks.title": "Task board", "tasks.empty": "No tasks created yet.", "tasks.missing": "Task board is unavailable from this Host.", "tasks.more": "Showing {shown}/{total} tasks (active first)", "tasks.unowned": "Unassigned", "tasks.details": "More tasks ({count})",
 			"events.title": "Public activity", "events.note": "Task, proposal, result and run states only; no private messages or reasoning", "events.empty": "No public state changes yet.", "events.missing": "Public activity is unavailable from this Host.", "events.more": "Earlier activity ({count})", "event.task": "Task", "event.proposal": "Proposal", "event.head": "Result revision", "event.run": "Run", "event.updated": "Updated", "proposal.queued": "Queued", "proposal.integrating": "Integrating", "proposal.accepted": "Accepted", "proposal.rejected": "Rejected",
-			"result.title": "Result & run details", "result.ref": "Result branch", "result.head": "Accepted SHA", "result.base": "Base SHA", "result.run": "Run ID", "result.verification": "Verification counts", "result.proposals": "Proposal counts", "result.finish": "Finish verification", "result.noFinish": "Not requested", "result.note": "An accepted revision is not acceptance of the whole goal. Delivery is complete only when the run is Completed.", "reason": "Current reason: {reason}", "detail.error": "Some details are unavailable: {message}",
+			"result.note": "An accepted revision is not acceptance of the whole goal. Delivery is complete only when the run is Completed.", "reason": "Current reason: {reason}", "detail.error": "Some details are unavailable: {message}",
 			"overview.goal": "Run goal · Expand", "overview.goalMissing": "Goal unavailable from Host", "filter.all": "All", "tasks.flow": "Task ownership & progress", "tasks.noMatch": "No tasks with this status in the snapshot.", "task.revision": "Revision", "task.owner": "Current worker", "task.identity": "Task ID", "task.proposal": "Linked proposal", "tasks.snapshot": "Host provides {shown}/{total} tasks; filters use this snapshot only.",
 			"events.recent": "Recent public activity", "events.scope": "Latest {count} events", "events.noMatch": "No matching events in recent activity.", "events.source": "Activity scope", "events.sourceNote": "Recent public state changes from Host only, not full history, private messages or reasoning.", "events.revision": "Results",
-			"delivery.title": "Current delivery", "delivery.baseline": "Baseline only", "delivery.integrated": "Integrated · Delivery pending", "delivery.verifying": "Verifying delivery", "delivery.closing": "Closing delivery resources", "delivery.completed": "Delivery complete", "delivery.stopped": "Run stopped", "delivery.failed": "Run failed", "delivery.accepted": "{count} proposals accepted", "delivery.pending": "{count} pending integration", "delivery.checks": "{count} verifications passed", "delivery.errors": "{failed} failed · {interrupted} interrupted", "delivery.details": "Revision & verification details",
-			"verification.summary": "Queued {queued} · running {running} · passed {passed} · failed {failed} · interrupted {interrupted}", "proposal.summary": "Queued {queued} · integrating {integrating} · accepted {accepted} · rejected {rejected}",
+			"delivery.title": "Current delivery", "result.run": "Run ID", "delivery.baseline": "Baseline only", "delivery.integrated": "Integrated · Delivery pending", "delivery.verifying": "Verifying delivery", "delivery.closing": "Closing delivery resources", "delivery.completed": "Delivery complete", "delivery.stopped": "Run stopped", "delivery.failed": "Run failed", "delivery.errors": "{failed} failed · {interrupted} interrupted", 
+			
 			"wt.title": "Git worktrees", "wt.loading": "Reading worktrees…", "wt.error": "Failed to read worktrees: {message}", "wt.unavailable": "Could not connect to worktrees: {message}", "wt.repo": "Repository: {name}", "wt.directory": "Session directory: {directory}", "wt.notRepo": "The session directory is not a Git repository", "wt.notRepoBody": "This view reads the repository containing {directory}; initialize Git, then refresh.", "wt.unborn": "The repository has no commits yet", "wt.unbornBody": "There are no worktree commit records to show yet; create the first commit, then refresh.", "wt.empty": "No registered worktrees", "wt.emptyBody": "git worktree list returned no worktrees.", "wt.main": "main worktree", "wt.detached": "detached HEAD @ {sha}", "wt.head": "HEAD {sha}", "wt.noHead": "no commits yet", "wt.locked": "locked: {reason}", "wt.prunable": "prunable: {reason}", "wt.commits": "Recent commits", "wt.noCommits": "No extra commits", "wt.limit": "Showing the latest {count}", "wt.refresh": "Refresh", "wt.create.title": "New worktree", "wt.create.hint": "Creates a branch and checkout under the session repository's .agents/worktrees/; it never changes this session's working directory or the current checkout.", "wt.create.name": "Name (optional)", "wt.create.namePlaceholder": "Generated, e.g. worktree-20260101-120000", "wt.create.base": "Base ref (optional)", "wt.create.basePlaceholder": "HEAD", "wt.create.submit": "Create worktree", "wt.create.pending": "Creating…", "wt.create.success": "Created worktree {name}", "wt.create.error": "Create failed: {message}"
 		};
 
@@ -330,6 +329,13 @@ window.__ModuleLoader__.load({
 			const ready = p.workers.filter((worker) => worker.initializationState === "ready").length;
 			const active = ["preparing", "running", "draining", "quiescing"].includes(p.phase);
 			const pending = p.proposals.queued + p.proposals.integrating;
+			// A completed run has passed every stage; never leave middle stages pending/dark.
+			if (p.phase === "completed") return [
+				{ id: "prepare", state: "complete", counts: { ready, total: p.workers.length } },
+				{ id: "collaborate", state: "complete", counts: p.tasks },
+				{ id: "integrate", state: "complete", counts: { accepted: p.proposals.accepted, pending } },
+				{ id: "deliver", state: "complete", counts: p.tasks }
+			];
 			return [
 				{ id: "prepare", state: ready === p.workers.length && ready > 0 ? "complete" : p.phase === "preparing" ? "active" : "pending", counts: { ready, total: p.workers.length } },
 				{ id: "collaborate", state: p.phase === "running" ? "active" : "pending", counts: p.tasks },
@@ -548,10 +554,13 @@ window.__ModuleLoader__.load({
 			};
 			return { loadMore, refresh() { if (disposed) return; request?.abort(); request = null; cursors.clear(); state = initialHistory(sessionId, runId); return loadMore(); }, dispose() { disposed = true; request?.abort(); request = null; } };
 		}
-		/** IntersectionObserver is only an enhancement; the load-more button always remains. */
+		/**
+		 * IntersectionObserver is only an enhancement; the load-more button always remains.
+		 * Older commits live at the left edge of the track, so the margin extends leftward.
+		 */
 		function observeHistoryEnd(root, target, loadMore) {
 			if (!target || typeof IntersectionObserver !== "function") return undefined;
-			const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadMore(); }, { root, rootMargin: "0px 0px 240px 0px" });
+			const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadMore(); }, { root, rootMargin: "0px 0px 0px 240px" });
 			observer.observe(target);
 			return () => observer.disconnect();
 		}
@@ -613,15 +622,15 @@ window.__ModuleLoader__.load({
 		}
 
 		/*
-		 * Metro-style worktree tracks. One horizontal track per worktree (accepted result
-		 * first as the trunk, then workers in roster order), newest on the left. A commit
+		 * Worktree tracks. One horizontal track per worktree (accepted result first as the
+		 * trunk, then workers in roster order); time flows left (oldest) to right (newest). A commit
 		 * sits on the first track whose first-parent chain claims it: the trunk from its HEAD,
 		 * then worker HEADs, then proposal tips (the commits each worker submitted). `--source`
 		 * only means reachability, so it is the last fallback. Cross-track curves
-		 * always bend in the label-free gutter beside a station:
-		 * - first parent on another track (branch-off): ride the child's track, bend just
-		 *   before the parent station;
-		 * - extra parents (merge): ride the parent's track, bend just after the merge station,
+		 * always bend in the label-free gutter beside a node:
+		 * - first parent on another track (branch-off): ride the child's track leftward, bend
+		 *   just right of the parent node;
+		 * - extra parents (merge): ride the parent's track, bend just left of the merge node,
 		 *   and the merge label flips away from the incoming curve.
 		 */
 		const TRACK = Object.freeze({ column: 196, lane: 84, pad: 22, label: 150, bend: 40, tail: 56 });
@@ -661,8 +670,9 @@ window.__ModuleLoader__.load({
 		 * @param items commits in Git date order (children before parents).
 		 * @param worktrees lane snapshot from the history page.
 		 * @param tips proposal source commits with their author worker, newest first.
-		 * @param more whether older pages exist; missing parents then fade out to the right,
-		 *   otherwise they meet the run base terminus.
+		 * @param more whether older pages exist; missing parents then fade out to the left,
+		 *   otherwise they meet the run base terminus at the far left. Columns count from the
+		 *   oldest loaded commit, so an older page only prepends columns on the left.
 		 */
 		function trackLayout(items, worktrees, tips, more) {
 			const lanes = trackLanes(worktrees, items);
@@ -672,15 +682,18 @@ window.__ModuleLoader__.load({
 			const claim = (lane, start) => { for (let sha = start; lane && sha && itemOf.has(sha) && !claimed.has(sha); sha = itemOf.get(sha).parents[0]) claimed.set(sha, lane); };
 			for (const lane of lanes) claim(lane, lane.head);
 			for (const tip of tips) claim(laneOf.get("worker:" + tip.workerId), tip.sha);
-			const x = (column) => TRACK.pad + 8 + column * TRACK.column;
+			const missing = items.some((item) => item.parents.some((parent) => !itemOf.has(parent)));
+			const hasBase = !more && missing;
+			const x = (column) => TRACK.pad + 8 + (more ? TRACK.tail : 0) + column * TRACK.column;
 			const y = (lane) => TRACK.pad + lane * TRACK.lane + TRACK.lane / 2;
-			const nodes = items.map((item, column) => {
+			// Items arrive newest first; the oldest loaded commit takes the leftmost column.
+			const nodes = items.map((item, index) => {
 				const lane = claimed.get(item.sha) ?? laneOf.get(laneKey(item));
+				const column = (hasBase ? 1 : 0) + items.length - 1 - index;
 				return { column, item, lane, x: x(column), y: y(lane.index), merge: item.parents.length > 1, head: lane.head === item.sha, labelAbove: false };
 			});
 			const bySha = new Map(nodes.map((node) => [node.item.sha, node]));
-			const missing = nodes.some((node) => node.item.parents.some((parent) => !bySha.has(parent)));
-			const base = !more && missing ? { x: x(items.length), y: y(0), lane: lanes[0] } : null;
+			const base = hasBase ? { x: x(0), y: y(0), lane: lanes[0] } : null;
 			const width = TRACK.pad * 2 + (items.length + (base ? 1 : 0)) * TRACK.column + (more ? TRACK.tail : 0);
 			const height = TRACK.pad * 2 + Math.max(1, lanes.length) * TRACK.lane;
 			const edges = [];
@@ -688,29 +701,29 @@ window.__ModuleLoader__.load({
 				node.item.parents.forEach((parent, order) => {
 					const target = bySha.get(parent) ?? base;
 					if (target === null) {
-						if (order === 0) edges.push({ key: node.item.id + ":open", kind: "open", color: node.lane.color, path: `M ${node.x} ${node.y} H ${width - TRACK.pad / 2}` });
+						if (order === 0) edges.push({ key: node.item.id + ":open", kind: "open", color: node.lane.color, path: `M ${node.x} ${node.y} H ${TRACK.pad / 2}` });
 						return;
 					}
 					const key = node.item.id + ":" + parent;
 					if (target.y === node.y) { edges.push({ key, kind: "track", color: node.lane.color, path: `M ${node.x} ${node.y} H ${target.x}` }); return; }
 					const half = TRACK.bend / 2;
 					if (order === 0) {
-						const start = Math.max(node.x, target.x - TRACK.bend);
-						edges.push({ key, kind: "branch", color: node.lane.color, path: `M ${node.x} ${node.y} H ${start} C ${start + half} ${node.y}, ${target.x - half} ${target.y}, ${target.x} ${target.y}` });
+						const start = Math.min(node.x, target.x + TRACK.bend);
+						edges.push({ key, kind: "branch", color: node.lane.color, path: `M ${node.x} ${node.y} H ${start} C ${start - half} ${node.y}, ${target.x + half} ${target.y}, ${target.x} ${target.y}` });
 					} else {
-						const end = Math.min(target.x, node.x + TRACK.bend);
-						edges.push({ key, kind: "merge", color: target.lane.color, path: `M ${node.x} ${node.y} C ${node.x + half} ${node.y}, ${end - half} ${target.y}, ${end} ${target.y} H ${target.x}` });
+						const end = Math.max(target.x, node.x - TRACK.bend);
+						edges.push({ key, kind: "merge", color: target.lane.color, path: `M ${node.x} ${node.y} C ${node.x - half} ${node.y}, ${end + half} ${target.y}, ${end} ${target.y} H ${target.x}` });
 						if (target.y > node.y) node.labelAbove = true;
 					}
 				});
 			}
-			// Cross-track curves under same-track rails so stations read as joined to their own line.
+			// Cross-track curves under same-track rails so nodes read as joined to their own line.
 			const rank = { open: 0, branch: 1, merge: 1, track: 2 };
 			edges.sort((a, b) => rank[a.kind] - rank[b.kind]);
 			return { lanes, nodes, edges, base, width, height };
 		}
 
-		/** Station glyph: plain stop, interchange ring for merges, halo for a live HEAD. */
+		/** Commit node glyph: plain dot, double ring for merges, halo for a live HEAD. */
 		function station(node) {
 			const color = node.lane.color;
 			return h("g", { key: "s" + node.item.id, className: "dshSwarm_station" },
@@ -729,7 +742,7 @@ window.__ModuleLoader__.load({
 					h("span", { className: "dshSwarm_laneHeadSha" }, lane.head ? h("code", { style: { color: lane.color } }, "HEAD " + lane.head.slice(0, 7)) : lane.diagnostic ?? t("git.worktreeMissing", {})))));
 		}
 
-		/** Track canvas for the loaded prefix; a later page appends more stations to the right. */
+		/** Track canvas for the loaded prefix; an older page prepends nodes on the left (scroll stays anchored to the right). */
 		function renderCommitTrack(t, items, worktrees, tips, more) {
 			const { lanes, nodes, edges, base, width, height } = trackLayout(items, worktrees, tips, more);
 			const rails = lanes.map((lane) => h("line", { key: "rail" + lane.key, x1: TRACK.pad / 2, y1: TRACK.pad + lane.index * TRACK.lane + TRACK.lane / 2, x2: width - TRACK.pad / 2, y2: TRACK.pad + lane.index * TRACK.lane + TRACK.lane / 2, strokeWidth: 8, strokeLinecap: "round", style: { stroke: lane.color, opacity: 0.08 } }));
@@ -769,11 +782,22 @@ window.__ModuleLoader__.load({
 				h("span", { className: "dshSwarm_trackAxis" }, t("git.axis", {})));
 		}
 
+		/**
+		 * Horizontal scroll position after the loaded prefix changed width. The first render
+		 * shows the newest (rightmost) commits; an older page grows the canvas on the left, so
+		 * the view shifts by the added width and the commits being read stay in place.
+		 */
+		function anchorHistoryScroll(previousWidth, scrollLeft, scrollWidth) {
+			if (!previousWidth) return scrollWidth;
+			return scrollLeft + Math.max(0, scrollWidth - previousWidth);
+		}
+
 		function GitStreamSection({ t, progress, sessionId, loadHistory }) {
 			const [state, setState] = React.useState(() => initialHistory(sessionId, progress.runId));
 			const pager = React.useRef(null);
 			const scroll = React.useRef(null);
 			const sentinel = React.useRef(null);
+			const width = React.useRef(0);
 			const current = state.sessionId === sessionId && state.runId === progress.runId ? state : initialHistory(sessionId, progress.runId);
 			const available = typeof loadHistory === "function";
 			React.useEffect(() => {
@@ -784,6 +808,13 @@ window.__ModuleLoader__.load({
 				return () => { owned.dispose(); if (pager.current === owned) pager.current = null; };
 			}, [sessionId, progress.runId, loadHistory, available]);
 			React.useEffect(() => {
+				const node = scroll.current;
+				if (!node) return;
+				if (!current.items.length) { width.current = 0; return; }
+				node.scrollLeft = anchorHistoryScroll(width.current, node.scrollLeft, node.scrollWidth);
+				width.current = node.scrollWidth;
+			}, [sessionId, progress.runId, current.items.length]);
+			React.useEffect(() => {
 				if (current.loading || current.error || !current.started || current.nextCursor === null) return undefined;
 				return observeHistoryEnd(scroll.current, sentinel.current, () => void pager.current?.loadMore());
 			}, [sessionId, progress.runId, current.loading, current.error, current.started, current.nextCursor]);
@@ -791,7 +822,7 @@ window.__ModuleLoader__.load({
 			const missing = !available || ["gateway/invocation-unavailable", "gateway/method-unavailable"].includes(current.error?.code);
 			const errorText = current.error?.code === "history/run-changed" ? t("git.missingRun", {}) : current.error?.code === "history/invalid" ? t("git.invalid", {}) : current.error?.message;
 			return h("section", { className: "dshSwarm_section", "aria-label": t("git.title", {}) },
-				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("git.title", {})), h("button", { type: "button", className: "dshSwarm_button", disabled: !available || current.loading, onClick: () => { if (scroll.current) { scroll.current.scrollTop = 0; scroll.current.scrollLeft = 0; } void pager.current?.refresh(); } }, t("git.refresh", {}))),
+				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("git.title", {})), h("button", { type: "button", className: "dshSwarm_button", disabled: !available || current.loading, onClick: () => { width.current = 0; if (scroll.current) scroll.current.scrollTop = 0; void pager.current?.refresh(); } }, t("git.refresh", {}))),
 				h("p", { className: "dshSwarm_scopeNote" }, t("git.note", {})),
 				h("p", { className: "dshSwarm_scopeNote" }, t("git.snapshot", {})),
 				missing ? h("p", { className: "dshSwarm_notice", role: "status" }, t("git.unavailable", {})) : null,
@@ -800,8 +831,8 @@ window.__ModuleLoader__.load({
 					current.items.length
 						? h("div", { className: "dshSwarm_trackRow" },
 							renderLaneHeads(t, trackLanes(current.worktrees, current.items), name),
-							renderCommitTrack(t, current.items, current.worktrees, current.tips ?? [], current.nextCursor !== null),
-							h("div", { ref: sentinel, className: "dshSwarm_gitSentinel", "aria-hidden": true }))
+							h("div", { ref: sentinel, className: "dshSwarm_gitSentinel", "aria-hidden": true }),
+							renderCommitTrack(t, current.items, current.worktrees, current.tips ?? [], current.nextCursor !== null))
 						: current.started ? h("p", { className: "dshSwarm_empty" }, t("git.empty", {})) : null,
 					current.error && !missing ? h("p", { className: "dshSwarm_notice", role: "alert" }, t("git.failed", {}), ": ", errorText) : null),
 				h("div", { className: "dshSwarm_gitFooter" }, h("span", { className: "dshSwarm_subtle", role: "status", "aria-live": "polite" }, t(current.loading ? "git.loading" : "git.loaded", { count: current.items.length })),
@@ -903,15 +934,6 @@ window.__ModuleLoader__.load({
 			if (progress.phase === "quiescing" && progress.quiesceTarget === "completed") return "closing";
 			if (progress.phase === "draining") return "verifying";
 			return progress.acceptedHead === progress.baseCommit ? "baseline" : "integrated";
-		}
-		function DeliveryCard({ t, progress: p }) {
-			const delivery = deliveryState(p);
-			return h("section", { className: "dshSwarm_delivery", "aria-label": t("delivery.title", {}) },
-				h("div", { className: "dshSwarm_deliveryTop" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("delivery.title", {})), badge(t("delivery." + delivery, {}), tone(delivery))),
-				h("div", { className: "dshSwarm_deliveryRevision" }, h("code", { title: p.acceptedHead, "aria-label": t("result.head", {}) + ": " + p.acceptedHead }, p.acceptedHead.slice(0, 12)), h("span", { className: "dshSwarm_subtle" }, t("result.ref", {}), " · ", h("code", {}, p.resultRef))),
-				h("div", { className: "dshSwarm_deliveryChecks" }, h("span", {}, t("delivery.accepted", { count: p.proposals.accepted })), p.proposals.queued + p.proposals.integrating ? h("span", { className: "dshSwarm_active" }, t("delivery.pending", { count: p.proposals.queued + p.proposals.integrating })) : null, h("span", {}, t("delivery.checks", { count: p.verifications.passed })), p.verifications.failed + p.verifications.interrupted ? h("span", { className: "dshSwarm_warn" }, t("delivery.errors", p.verifications)) : null),
-				h("details", { className: "dshSwarm_details" }, h("summary", {}, t("delivery.details", {})), h("dl", { className: "dshSwarm_facts" },
-					fact(t("result.head", {}), h("code", {}, p.acceptedHead)), fact(t("result.base", {}), h("code", {}, p.baseCommit)), fact(t("result.run", {}), h("code", {}, p.runId)), fact(t("result.proposals", {}), t("proposal.summary", p.proposals)), fact(t("result.verification", {}), t("verification.summary", p.verifications)), fact(t("result.finish", {}), p.finishRequest?.verificationId ?? (p.finishRequest ? p.finishRequest.id : t("result.noFinish", {}))))));
 		}
 		/** Original peer-orbit mark; follows the Host theme, never patches Host DOM. */
 		function SwarmMark() {
@@ -1024,23 +1046,7 @@ window.__ModuleLoader__.load({
 					goals.length ? h("div", { className: "dshSwarm_goalList" }, goals.map((goal) => h(GoalCard, { key: goal.id, t, goal, phase: p.phase }))) : h("p", { className: "dshSwarm_laneEmpty" }, t("goals.laneEmpty", {}))))),
 				board?.truncated ? h("p", { className: "dshSwarm_subtle" }, t("goals.more", { shown: board.items.length, total: board.total })) : null);
 		}
-		/** Compact roster for the dashboard: identity color, current task and work state. */
-		function TeamCard({ t, progress: p, live }) {
-			const views = p.workers.map(deriveWorker);
-			const busy = views.filter((view) => ["executing", "running"].includes(view.activity)).length;
-			const waiting = views.filter((view) => ["waiting", "integration", "integrating"].includes(view.work)).length;
-			return h("section", { className: "dshSwarm_teamCard", "aria-label": t("dash.team", {}) },
-				h("div", { className: "dshSwarm_deliveryTop" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("dash.team", {})), h("span", { className: "dshSwarm_subtle" }, t("dash.teamNote", { busy, waiting }))),
-				p.workers.length ? h("ul", { className: "dshSwarm_teamList" }, p.workers.map((worker, index) => {
-					const view = views[index];
-					const name = workerName(t, worker, index + 1);
-					return h("li", { key: worker.id, className: "dshSwarm_teamRow" },
-						h("span", { className: "dshSwarm_avatar dshSwarm_avatarSmall", "aria-hidden": true, style: { background: workerColor(index) } }, initials(name)),
-						h("span", { className: "dshSwarm_teamName" }, h("strong", {}, name), h("span", { className: "dshSwarm_teamTask", "data-empty": !view.task }, view.task?.subject ?? t("worker.noTask", {}))),
-						h("span", { className: "dshSwarm_workPill", "data-tone": workTone(view.work) }, h("i", { className: "dshSwarm_pulse", "data-live": live && ["executing", "running"].includes(view.activity), "aria-hidden": true }), t("work." + view.work, {})));
-				})) : h("p", { className: "dshSwarm_laneEmpty" }, t("dash.noWorkers", {})));
-		}
-		/** Dashboard: goal, stage stepper, KPI cards, delivery and team, then tasks and activity. */
+		/** Dashboard: key task progress only — goal, stage stepper, KPIs, delivery state and the task board. */
 		function DashboardPanel({ t, state, now }) {
 			const p = state.progress;
 			const clock = deriveClock(state, now);
@@ -1053,6 +1059,7 @@ window.__ModuleLoader__.load({
 				h("span", { key: "legend", className: "dshSwarm_kpiLegend" }, segments.map((key) => h("span", { key }, h("i", { "data-seg": key, "aria-hidden": true }), label(t, "task", key) + " " + p.tasks[key]))),
 			] : null;
 			const failedChecks = p.verifications.failed + p.verifications.interrupted;
+			const delivery = deliveryState(p);
 			return h(React.Fragment, {},
 				h("details", { className: "dshSwarm_goalBox" }, h("summary", {}, t("overview.goal", {}), h("span", { className: "dshSwarm_goalPreview" }, p.goal ?? t("overview.goalMissing", {}))), h("p", { className: "dshSwarm_goalFull" }, p.goal)),
 				p.reason ? notice(t("reason", { reason: p.reason }), p.phase === "quiescing" && p.quiesceTarget ? label(t, "phase", p.quiesceTarget) : null) : null,
@@ -1067,9 +1074,9 @@ window.__ModuleLoader__.load({
 					kpi("verify", t("verification.kpi", {}), String(p.verifications.passed), p.verifications.running + failedChecks ? t("verification.note", p.verifications) : null, failedChecks ? h("span", { className: "dshSwarm_kpiFlag" }, t("delivery.errors", p.verifications)) : null),
 					kpi("time", t(budgetKey(p), {}), p.deadline === null ? (clock.elapsedMs === null ? "—" : duration(clock.elapsedMs)) : duration(clock.remainingMs), p.deadline === null ? t("budget.noDeadline", {}) : clock.elapsedMs === null ? t("elapsed.unknown", {}) : t("elapsed", { duration: duration(clock.elapsedMs) }))),
 				clock.remainingMs === 0 && !terminal(p.phase) ? h("p", { className: "dshSwarm_subtle dshSwarm_warn" }, t("budget.expired", {})) : null,
-				h("div", { className: "dshSwarm_dashGrid" }, h(DeliveryCard, { t, progress: p }), h(TeamCard, { t, progress: p, live })),
+				h("p", { className: "dshSwarm_dashDelivery", "aria-label": t("delivery.title", {}) }, h("span", { className: "dshSwarm_subtle" }, t("delivery.title", {})), badge(t("delivery." + delivery, {}), tone(delivery)), h("code", { title: p.acceptedHead }, p.acceptedHead.slice(0, 12)), h("span", { className: "dshSwarm_subtle" }, t("result.run", {}), " ", h("code", {}, p.runId))),
 				p.detailError ? notice(t("unavailable", {}), t("detail.error", { message: p.detailError })) : null,
-				h("div", { className: "dshSwarm_collaboration" }, h(TaskBoard, { t, progress: p }), h(Timeline, { t, progress: p })));
+				h(TaskBoard, { t, progress: p }));
 		}
 
 		/*
@@ -1721,6 +1728,6 @@ window.__ModuleLoader__.load({
 			}, "dsh-swarm: progress panel");
 		}
 		// Pure derivations and the stream owner are also exercised without emulating a browser.
-		return { apply, inject: ["slots", "locale", "remote"], progressClient: { publicQueryInput, readPublicPage, createPublicPager, PublicSection, PublicRecord, PublicPagination, readConversationPage, mergeConversation, ConversationSection, FlowPanel, flowHoverPosition, computeGraph, trackLanes, trackLayout, WorkersSection, FlowSection, flowLayout, messagePairs, readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, goalLane, goalColumns, workerName, addWorkerState, workerReceipt, nextTab, viewTabs, RunBody, GoalSection, AddWorkerControl, dictionaries: { zh, en } } };
+		return { apply, inject: ["slots", "locale", "remote"], progressClient: { publicQueryInput, readPublicPage, createPublicPager, PublicSection, PublicRecord, PublicPagination, readConversationPage, mergeConversation, ConversationSection, FlowPanel, flowHoverPosition, computeGraph, trackLanes, trackLayout, WorkersSection, FlowSection, flowLayout, messagePairs, readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, anchorHistoryScroll, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, goalLane, goalColumns, workerName, addWorkerState, workerReceipt, nextTab, viewTabs, RunBody, GoalSection, AddWorkerControl, dictionaries: { zh, en } } };
 	}
 });

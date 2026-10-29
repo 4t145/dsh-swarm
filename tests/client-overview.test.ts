@@ -56,7 +56,7 @@ describe('overview and collaboration presentation', () => {
     expect(source).toContain('"aria-pressed": selected');
     expect(source).toContain('key: sessionId + ":" + current.progress.runId');
     expect(source).toContain('board?.truncated');
-    expect(source).toContain('h(DeliveryCard, { t, progress: p })');
+    expect(source).toContain('t("delivery." + delivery, {})');
     for (const key of ['tasks.snapshot', 'tasks.noMatch', 'events.scope', 'events.sourceNote', 'delivery.integrated', 'delivery.completed']) {
       expect(client.dictionaries.zh[key]).toBeTruthy();
       expect(client.dictionaries.en[key]).toBeTruthy();

@@ -179,6 +179,28 @@ describe('dashboard facts and compatibility', () => {
     expect(source).not.toContain('role: "progressbar"');
   });
 
+  it('renders every stage as completed after the run completes (regression: middle stages went dark)', () => {
+    // Idle, finished run: no pending proposals, no running checks, no finish request left in the snapshot.
+    const done = progress({
+      phase: 'completed', finishRequest: null,
+      proposals: { queued: 0, integrating: 0, accepted: 3, rejected: 0 },
+      verifications: { queued: 0, running: 0, passed: 4, failed: 0, interrupted: 0 },
+      workers: [worker({ initializationState: 'stopped' })],
+    });
+    expect(client.deriveWorkflow(done).map((stage) => stage.state)).toEqual(['complete', 'complete', 'complete', 'complete']);
+    expect(client.deriveWorkflow(done)[2]?.counts).toEqual({ accepted: 3, pending: 0 });
+    for (const phase of ['stopped', 'failed']) expect(client.deriveWorkflow(progress({ phase })).map((stage) => stage.state)).not.toEqual(['complete', 'complete', 'complete', 'complete']);
+  });
+
+  it('keeps the dashboard to key progress: no team roster, delivery details or activity feed', () => {
+    const panel = source.slice(source.indexOf('function DashboardPanel('), source.indexOf('\n\t\t}', source.indexOf('function DashboardPanel(')));
+    expect(panel).toContain('deriveWorkflow(p)');
+    expect(panel).toContain('h(TaskBoard');
+    for (const removed of ['TeamCard', 'DeliveryCard', 'h(Timeline']) expect(panel).not.toContain(removed);
+    expect(source).not.toContain('function TeamCard(');
+    expect(source).not.toContain('function DeliveryCard(');
+  });
+
   it('keeps claimed ownership on inactive workers and hides obsolete done pointers', () => {
     const inactive = client.deriveWorker(worker({ nativeStatus: 'inactive' }));
     expect(inactive).toMatchObject({ work: 'assigned', activity: 'idle', activeTools: [] });
