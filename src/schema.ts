@@ -6,6 +6,8 @@
  */
 
 import { z } from 'zod';
+import { publicEventSchema, publicStateShape, publicReferenceIssues } from './public-schema.ts';
+import { defaultPublicState } from './public-types.ts';
 import { SwarmError, type SwarmErrorCode } from './errors.ts';
 import type { CommandSpec, Run, SwarmRuntimeConfig, VerificationConfig } from './types.ts';
 
@@ -319,6 +321,7 @@ const goalEventSchema = z.strictObject({
 });
 
 export const swarmEventSchema = z.discriminatedUnion('kind', [
+  publicEventSchema,
   goalEventSchema,
   taskEventSchema,
   findingEventSchema,
@@ -340,6 +343,7 @@ export const mutationReceiptSchema = z.strictObject({
 /* --------------------------- run 聚合 --------------------------- */
 
 const runShape = z.strictObject({
+  ...publicStateShape,
   id: idSchema,
   ownerSessionId: z.string().min(1),
   repositoryRoot: z.string().min(1),
@@ -391,6 +395,7 @@ const runShape = z.strictObject({
  * 每个 map 的键等于实体自身 id；事件 seq 严格递增且 nextSeq 大于最大 seq。
  */
 export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
+  for (const issue of publicReferenceIssues(run)) ctx.addIssue({ code: 'custom', ...issue });
   const checkKeys = (field: string, entries: [string, { id: string }][]): void => {
     for (const [key, value] of entries) {
       if (key !== value.id) {
@@ -403,6 +408,8 @@ export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
     }
   };
 
+  for (const field of ['channels', 'threads', 'publicMessages', 'notifications', 'subscriptions',
+    'channelReads', 'responseRequests', 'agreements'] as const) checkKeys(field, Object.entries(run[field]));
   checkKeys('goals', Object.entries(run.goals));
   checkKeys('workers', Object.entries(run.workers));
   checkKeys('tasks', Object.entries(run.tasks));
@@ -441,6 +448,9 @@ export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
       path: ['nextSeq'],
     });
   }
+}).transform((run) => {
+  if (Object.keys(run.channels).length === 0) run.channels = defaultPublicState(run.id, run.createdAt).channels;
+  return run;
 });
 
 /**

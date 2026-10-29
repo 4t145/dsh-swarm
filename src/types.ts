@@ -9,6 +9,10 @@
  * - 有限状态使用带判别字段的 union；未知值必须在入口被拒绝。
  */
 
+import { defaultPublicState, type PublicEvent, type PublicState } from './public-types.ts';
+export type { ChannelRecord, ThreadRecord, PublicMessageRecord, NotificationRecord, PublicEvent,
+  ResponseRequestRecord, AgreementRecord, SubscriptionRecord, ChannelReadRecord } from './public-types.ts';
+
 export type RunId = string;
 export type WorkerId = string;
 export type TaskId = string;
@@ -438,7 +442,7 @@ export interface GoalEvent extends SwarmEventBase {
   audience: { kind: 'all' };
 }
 
-export type SwarmEvent = TaskEvent | FindingEvent | MessageEvent | ProposalEvent | HeadEvent | RunEvent | GoalEvent;
+export type SwarmEvent = TaskEvent | FindingEvent | MessageEvent | ProposalEvent | HeadEvent | RunEvent | GoalEvent | PublicEvent;
 
 /**
  * 幂等 mutation 记录，键为 `${workerSessionId}:${toolCallId}`。
@@ -461,7 +465,7 @@ export interface MutationReceipt {
  * 一个 run 的全部协作业务数据。一次业务变更必须在一个 update 内完成：
  * 检查条件、改对象、加 revision、追加事件、加 nextSeq。
  */
-export interface Run {
+export interface Run extends PublicState {
   id: RunId;
   ownerSessionId: string;
   /** 用户源仓库绝对路径（不是任何 worktree）。 */
@@ -573,6 +577,7 @@ export function createRun(input: CreateRunInput): Run {
     acceptedHead: input.baseCommit,
     resultRef: input.resultRef,
     integrationWorktree: null,
+    ...defaultPublicState(input.id, createdAt),
     workers: {},
     tasks: {},
     findings: {},

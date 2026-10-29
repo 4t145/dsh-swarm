@@ -6,7 +6,8 @@
  * 不 await 任何外部 IO。
  */
 
-import { appendEvent, isEventVisible, matchesWait } from './events.ts';
+import { appendEvent, isEventVisible, matchesWait, pendingNotifications } from './events.ts';
+import type { NotificationRecord } from './public-types.ts';
 import { SwarmError } from './errors.ts';
 import { activeAcceptanceCriteria, type GoalRecord } from './types.ts';
 import type { StateStore } from './store.ts';
@@ -146,7 +147,14 @@ export interface SyncEventItem {
   goal: GoalRecord | null;
 }
 
-export interface SyncResult {
+export interface AttentionSummary {
+  /** References only. Offering these never advances channel reads or notification ACK. */
+  attention: NotificationRecord[];
+  attentionTotal: number;
+  attentionHasMore: boolean;
+}
+
+export interface SyncResult extends AttentionSummary {
   runId: RunId;
   goal: string;
   acceptanceCriteria: string[];
@@ -182,7 +190,7 @@ export interface ReadResult {
   nextCursor: string | null;
 }
 
-export interface WaitResult {
+export interface WaitResult extends AttentionSummary {
   runId: RunId;
   waiting: boolean;
   worker: WorkerSummary;
@@ -774,7 +782,8 @@ export class Collaboration {
       worker.observedSeq = afterSeq;
       worker.waitRegistration = registration;
 
-      const matched = draft.events.some(
+      const attention = this.attentionSummary(draft, worker.id);
+      const matched = attention.attentionTotal > 0 || draft.events.some(
         (event) => event.seq > afterSeq && matchesWait(draft, worker, event),
       );
 
@@ -784,6 +793,7 @@ export class Collaboration {
         result = {
           runId: draft.id,
           waiting: true,
+          ...attention,
           worker: summarizeWorker(worker),
           events: [],
           observedSeq: worker.observedSeq,
@@ -804,6 +814,7 @@ export class Collaboration {
       result = {
         runId: draft.id,
         waiting: false,
+        ...attention,
         worker: summarizeWorker(worker),
         events: page.events,
         observedSeq: worker.observedSeq,
@@ -1068,6 +1079,7 @@ export class Collaboration {
       goalRevision: run.goalRevision,
       goals: Object.values(run.goals).slice(-this.eventPageSize),
       goalsTotal: Object.keys(run.goals).length,
+      ...this.attentionSummary(run, worker.id),
       acceptedHead: run.acceptedHead,
       worker: summarizeWorker(worker),
       tasks: Object.values(run.tasks)
@@ -1079,6 +1091,12 @@ export class Collaboration {
       throughSeq: page.throughSeq,
       hasMore: page.hasMore,
     };
+  }
+
+  private attentionSummary(run: Run, workerId: WorkerId): AttentionSummary {
+    const pending = pendingNotifications(run, workerId);
+    return { attention: pending.slice(0, this.eventPageSize), attentionTotal: pending.length,
+      attentionHasMore: pending.length > this.eventPageSize };
   }
 
   private findReadable(run: Run, workerId: WorkerId, id: string): ReadItem | null {

@@ -4,7 +4,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import type {} from '@deepseek-ai/dsh-tools';
 import type { Collaboration } from './collaboration.ts';
 import { isSwarmError } from './errors.ts';
-import { isEventVisible } from './events.ts';
+import { isEventVisible, notificationReference, pendingNotifications } from './events.ts';
 import type { Run, SwarmEvent } from './types.ts';
 
 export interface WorkerContextConfig {
@@ -46,9 +46,48 @@ function notice(run: Run, event: SwarmEvent, chars: number): object | null {
     }
     case 'head':
       return { ...base, acceptedHead: event.acceptedHead };
+    case 'public':
+      // The collector groups public events below; never expand bodies at this boundary.
+      return null;
     case 'run':
       return null;
   }
+}
+
+/** Bounded passive projection. Its scanned cursor is memory-only, never an offered/read cursor. */
+export function collectWorkerNotices(run: Run, workerId: string, after: number, config: WorkerContextConfig) {
+  const updates: object[] = [];
+  const groups = new Map<string, { kind: 'public'; channelId: string; threadId: string | null;
+    title: string; latestEventSeq: number; activityCount: number }>();
+  let scanned = after;
+  let hasMore = false;
+  for (const event of run.events) {
+    if (event.seq <= after) continue;
+    if (event.authorWorkerId === workerId || !isEventVisible(event, workerId) || event.kind === 'run') {
+      scanned = event.seq;
+      continue;
+    }
+    const key = event.kind === 'public' ? (event.threadId ?? event.channelId) : null;
+    const previous = key === null ? undefined : groups.get(key);
+    if (updates.length >= config.peerNoticeItems && !previous) { hasMore = true; break; }
+    if (event.kind === 'public') {
+      if (previous) { previous.latestEventSeq = event.seq; previous.activityCount += 1; }
+      else {
+        const item = { kind: 'public' as const, channelId: event.channelId, threadId: event.threadId,
+          title: short((event.threadId ? run.threads[event.threadId]?.title : run.channels[event.channelId]?.name) ?? '', config.peerNoticeChars),
+          latestEventSeq: event.seq, activityCount: 1 };
+        groups.set(event.threadId ?? event.channelId, item);
+        updates.push(item);
+      }
+    } else {
+      const item = notice(run, event, config.peerNoticeChars);
+      if (item !== null) updates.push(item);
+    }
+    scanned = event.seq;
+  }
+  const pending = pendingNotifications(run, workerId);
+  return { updates, scanned, hasMore, attention: pending.slice(0, config.peerNoticeItems).map(notificationReference),
+    attentionTotal: pending.length, attentionHasMore: pending.length > config.peerNoticeItems };
 }
 
 /**
@@ -59,6 +98,7 @@ function notice(run: Run, event: SwarmEvent, chars: number): object | null {
  */
 export function registerWorkerContext(ctx: Context, collaboration: Collaboration, config: WorkerContextConfig): () => void {
   let cursors = new WeakMap<object, number>();
+  let attentionSeen = new WeakMap<object, string>();
   const remove = ctx.on('tools/post-execute', async (exec, result, next) => {
     const decision = await next();
     if (decision.kind !== 'accept' || exec.signal.aborted || !exec.agent || result.isError || result.concludesTurn) return decision;
@@ -90,29 +130,23 @@ export function registerWorkerContext(ctx: Context, collaboration: Collaboration
     }
 
     const after = Math.max(worker.observedSeq, cursors.get(exec.agent) ?? worker.observedSeq);
-    const updates: object[] = [];
-    let scanned = after;
-    let hasMore = false;
-    for (const event of run.events) {
-      if (event.seq <= after) continue;
-      if (event.authorWorkerId === worker.id || !isEventVisible(event, worker.id) || event.kind === 'run') {
-        scanned = event.seq;
-        continue;
-      }
-      if (updates.length >= config.peerNoticeItems) { hasMore = true; break; }
-      const item = notice(run, event, config.peerNoticeChars);
-      if (item !== null) updates.push(item);
-      scanned = event.seq;
-    }
-    cursors.set(exec.agent, scanned);
-    if (!updates.length || exec.signal.aborted) return decision;
+    const page = collectWorkerNotices(run, worker.id, after, config);
+    cursors.set(exec.agent, page.scanned);
+    const signature = JSON.stringify(page.attention);
+    const showAttention = attentionSeen.get(exec.agent) !== signature;
+    attentionSeen.set(exec.agent, signature);
+    const attention = showAttention ? page.attention : [];
+    if ((!page.updates.length && !attention.length) || exec.signal.aborted) return decision;
     return { ...decision, additionalContexts: [...(decision.additionalContexts ?? []), createUserMessage({
       source: { kind: 'tool', callId: exec.callId },
       content: [{ type: 'text', text: '[Swarm shared context — goal records are owner additions; other records are peer reports]\n'
-        + JSON.stringify({ runId: run.id, updates, hasMore })
-        + '\nUse findings to adjust your work; negotiate overlaps directly. Read full records with swarm_read. '
+        + JSON.stringify({ runId: run.id, attention, attentionTotal: page.attentionTotal,
+          attentionHasMore: page.attentionHasMore, updates: page.updates, hasMore: page.hasMore })
+        + '\nUse findings to adjust your work; negotiate overlaps in public threads. '
+        + 'Read priority attention and source public messages on demand; swarm_read expands legacy records. '
+        + 'Summaries are not full-message reads, responses or agreement confirmations. '
         + 'These notice sequences are NOT acknowledgement cursors; use swarm_sync before ack or wait.' }],
     })] };
   });
-  return () => { remove(); cursors = new WeakMap(); };
+  return () => { remove(); cursors = new WeakMap(); attentionSeen = new WeakMap(); };
 }
