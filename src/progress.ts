@@ -27,6 +27,10 @@ import {
 import { isSwarmError } from './errors.ts';
 import { markRemoteMethod } from './remote-marker.ts';
 import { ConversationLog, type ConversationPage } from './conversation-log.ts';
+import { PublicHistoryReader, type PublicReaderPort } from './public-remote.ts';
+import type { PublicQuery } from './public-input.ts';
+import type { PublicPage } from './public-query.ts';
+import type { ChannelRecord, ThreadRecord, ResponseRequestRecord, AgreementRecord } from './public-types.ts';
 import { WorktreeHistory, type WorktreeHistoryGitPort, type WorktreeHistoryPage } from './worktree-history.ts';
 import { workerDisplayName } from './worker-names.ts';
 import { isTerminalRunPhase } from './types.ts';
@@ -175,9 +179,20 @@ export interface ProgressGoalBoard {
   readonly counts: { readonly active: number; readonly deferred: number; readonly completed: number; readonly continued: number };
 }
 
+/** Public protocol capability and bounded invalidation metadata; bodies stay on demand. */
+export interface PublicActivitySummary {
+  readonly protocolVersion: 1;
+  readonly latestSeq: number;
+  readonly channels: number;
+  readonly threads: number;
+  readonly pendingRequests: number;
+  readonly agreements: number;
+}
+
 /** 面板渲染所需的全部公开事实；不含私信、finding 正文或完整事件日志。 */
 export interface ProgressSnapshot {
   readonly protocolVersion: 2;
+  readonly publicActivity: PublicActivitySummary | null;
   readonly goal: string | null;
   readonly acceptanceCriteria: readonly string[];
   readonly originalGoalTruncated: boolean;
@@ -222,11 +237,16 @@ export interface ProgressWatchItem {
 /** 只读 runtime 端口；真实 `SwarmRuntime` 直接满足。 */
 export interface ProgressRuntimePort {
   status(ownerSessionId: string, details?: boolean): RunStatus;
+  readonly publicCollaboration?: PublicReaderPort;
 }
 
 /** 任务板/worker 归属的最小只读视图；真实 `Run` 直接满足。 */
 export interface ProgressRunDetail {
   readonly ownerSessionId?: string;
+  readonly channels?: Readonly<Record<string, ChannelRecord>>;
+  readonly threads?: Readonly<Record<string, ThreadRecord>>;
+  readonly responseRequests?: Readonly<Record<string, ResponseRequestRecord>>;
+  readonly agreements?: Readonly<Record<string, AgreementRecord>>;
   readonly goal?: string;
   readonly acceptanceCriteria?: readonly string[];
   readonly goals?: Readonly<Record<string, ProgressGoal>>;
@@ -478,6 +498,11 @@ export function toProgressSnapshot(
 ): ProgressSnapshot {
   return {
     protocolVersion: 2,
+    publicActivity: detail?.channels ? { protocolVersion: 1,
+      latestSeq: detail.events?.findLast((event) => event.kind === 'public')?.seq ?? 0,
+      channels: Object.keys(detail.channels).length, threads: Object.keys(detail.threads ?? {}).length,
+      pendingRequests: Object.values(detail.responseRequests ?? {}).filter((request) => request.status === 'pending').length,
+      agreements: Object.keys(detail.agreements ?? {}).length } : null,
     goal: bounded(detail?.goal, PROGRESS_LIMITS.goalChars),
     acceptanceCriteria: goalCriteria(detail?.acceptanceCriteria ?? [], detail?.goal ?? ''),
     originalGoalTruncated: goalTruncated(detail?.goal ?? '', detail?.acceptanceCriteria ?? []),
@@ -748,7 +773,7 @@ function progressReadError(error: unknown, sessionId: string, inputPath: string)
   if (error.code === 'SWARM_FORBIDDEN') {
     return new RemoteError('swarm-progress/forbidden', error.message, { sessionId, runId: '' });
   }
-  if (error.code === 'SWARM_INVALID_INPUT') {
+  if (error.code === 'SWARM_INVALID_INPUT' || error.code === 'SWARM_INVALID_CURSOR' || error.code === 'SWARM_NOT_FOUND') {
     return new RemoteError('gateway/bad-request', error.message, { issues: [{ path: inputPath, message: error.message }] });
   }
   return new RemoteError('gateway/internal', error.message, {});
@@ -759,6 +784,7 @@ function progressReadError(error: unknown, sessionId: string, inputPath: string)
  */
 export class ProgressService extends TypertRemoteService<never> {
   private readonly feed: ProgressFeed;
+  private readonly publicHistory: PublicHistoryReader | null;
 
   constructor(
     ctx: Context,
@@ -769,6 +795,7 @@ export class ProgressService extends TypertRemoteService<never> {
   ) {
     super(ctx, 'swarmProgress');
     this.feed = new ProgressFeed(runtime, options);
+    this.publicHistory = runtime.publicCollaboration ? new PublicHistoryReader(runtime, runtime.publicCollaboration) : null;
   }
 
   /** 当前快照；没有 run 时返回 null。 */
@@ -811,8 +838,18 @@ export class ProgressService extends TypertRemoteService<never> {
     catch (error) { throw progressReadError(error, sessionId, 'beforeSeq'); }
   }
 
+  /** Owner-only public records, bounded and validated by the same domain query as worker tools. */
+  async publicDiscussion(sessionId: string, runId: string, query: PublicQuery, signal?: AbortSignal): Promise<PublicPage> {
+    assertSessionId(sessionId);
+    signal?.throwIfAborted();
+    if (!this.publicHistory) throw new RemoteError('gateway/internal', 'Public collaboration is unavailable on this Host', {});
+    try { return this.publicHistory.page(sessionId, runId, query); }
+    catch (error) { throw progressReadError(error, sessionId, 'query'); }
+  }
+
   /** 停止全部 watch 和 Git 读取；由 Host 卸载时调用。 */
   async dispose(): Promise<void> {
+    this.publicHistory?.dispose();
     await this.feed.dispose();
     await this.history?.dispose();
   }
@@ -822,6 +859,7 @@ export class ProgressService extends TypertRemoteService<never> {
 // 因此 snapshot/watch 必须保持简单的具名参数。
 markRemoteMethod(ProgressService.prototype, 'worktreeHistory');
 markRemoteMethod(ProgressService.prototype, 'conversation');
+markRemoteMethod(ProgressService.prototype, 'publicDiscussion');
 markRemoteMethod(ProgressService.prototype, 'snapshot');
 markRemoteMethod(ProgressService.prototype, 'watch', { mode: 'stream' });
 markRemoteMethod(ProgressService.prototype, 'watchSession', { mode: 'stream' });

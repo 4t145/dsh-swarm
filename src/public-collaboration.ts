@@ -119,10 +119,16 @@ export class PublicCollaboration {
     for (const id of input.proposalIds ?? []) publicRecord(run.proposals, id, 'proposal');
   }
   private emit(ctx: Context, action: PublicEvent['action'], channelId: string,
-    refs: Partial<Pick<PublicEvent, 'threadId' | 'messageId' | 'requestId' | 'agreementId'>> = {}, notificationIds: string[] = []): void {
+    refs: Partial<Pick<PublicEvent, 'threadId' | 'messageId' | 'requestId' | 'agreementId' | 'findingId'>> = {}, notificationIds: string[] = []): void {
+    if (refs.threadId) {
+      const thread = publicRecord(ctx.run.threads, refs.threadId, 'thread');
+      thread.updatedSeq = ctx.run.nextSeq;
+      thread.updatedAt = ctx.now;
+    }
     appendEvent(ctx.run, { kind: 'public', action, authorWorkerId: ctx.worker.id, audience: { kind: 'all' },
       channelId, threadId: refs.threadId ?? null, messageId: refs.messageId ?? null,
-      requestId: refs.requestId ?? null, agreementId: refs.agreementId ?? null, notificationIds }, ctx.now);
+      requestId: refs.requestId ?? null, agreementId: refs.agreementId ?? null, notificationIds,
+      ...(refs.findingId ? { findingId: refs.findingId } : {}) }, ctx.now);
   }
   private notify(ctx: Context, channelId: string, threadId: string | null, workerId: string,
     reasons: NotificationReason[], refs: { messageId?: string; requestId?: string; agreementId?: string } = {}): string | null {
@@ -356,7 +362,7 @@ export class PublicCollaboration {
         if (input.messageId) assert(publicRecord(run.publicMessages, input.messageId, 'public source').threadId === thread.id, 'SWARM_INVALID_INPUT', 'Source must belong to thread');
         thread.findingIds = distinct([...thread.findingIds, input.findingId]); thread.revision++;
         thread.updatedAt = now; thread.updatedSeq = run.nextSeq;
-        this.emit(ctx, 'finding_linked', thread.channelId, { threadId: thread.id, messageId: input.messageId }, this.notifyThread(ctx, thread));
+        this.emit(ctx, 'finding_linked', thread.channelId, { threadId: thread.id, messageId: input.messageId, findingId: input.findingId }, this.notifyThread(ctx, thread));
         return thread;
       }
       case 'ack_notifications': {

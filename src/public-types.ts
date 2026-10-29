@@ -140,6 +140,8 @@ export interface PublicEvent {
   requestId: string | null;
   agreementId: string | null;
   notificationIds: string[];
+  /** Present on finding_linked; optional only for older public-event records. */
+  findingId?: string;
 }
 
 export interface PublicState {

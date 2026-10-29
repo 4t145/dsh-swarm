@@ -19,7 +19,7 @@ function worker(id: string): WorkerRecord {
     initializationError: null, unavailableReason: null, offeredSeq: 0, observedSeq: 0, notifiedSeq: 0,
     wakeTargetSeq: 0, waitRegistration: null, currentTaskId: null, createdAt: 0 };
 }
-async function setup() {
+async function setup(options: { now?: () => number } = {}) {
   const store = new MemoryStateStore(new Table());
   const run = createRun({ id: 'r', ownerSessionId: 'owner', repositoryRoot: '/tmp/repo', gitCommonDir: '/tmp/repo/.git',
     goal: 'public collaboration', acceptanceCriteria: ['complete'], verification: { setup: [], test: [{ argv: ['true'], timeoutMs: 1000 }] },
@@ -27,7 +27,7 @@ async function setup() {
   run.phase = 'running'; run.workers = { a: worker('a'), b: worker('b'), c: worker('c') };
   await store.create(run);
   let counter = 0;
-  const api = new PublicCollaboration(store, { id: () => `public-${++counter}`, now: () => 1000 });
+  const api = new PublicCollaboration(store, { id: () => `public-${++counter}`, now: options.now ?? (() => 1000) });
   const legacy = new Collaboration(store, { id: () => `legacy-${++counter}`, now: () => 1000 });
   const call = (who: string, command: PublicCommand, callId = `call-${++counter}`) => api.execute(`s-${who}`, command, callId);
   const thread = await call('a', { action: 'create_thread', channelId: 'r:general', title: 'Protocol' }) as ThreadRecord;
@@ -269,6 +269,66 @@ describe('persistent public collaboration', () => {
     await legacy.updateTask('s-c', { taskId: task.id, expectedRevision: released.revision, action: 'claim' }, 'claim-c');
     const after = await post('a', 'after', { taskIds: [task.id] });
     expect(Object.values(store.get('r').notifications).some((notice) => notice.messageId === after.id && notice.workerId === 'c' && notice.reasons.includes('task_owner'))).toBe(true);
+  });
+
+  it('advances thread activity for request/response/agreement events, not passive reads', async () => {
+    let tick = 0;
+    const { post, call, api, thread, store } = await setup({ now: () => ++tick });
+    const assertLatest = () => {
+      const run = store.get('r');
+      expect(run.threads[thread.id]).toMatchObject({ updatedSeq: run.events.at(-1)!.seq, updatedAt: run.events.at(-1)!.createdAt, revision: 1 });
+    };
+    const message = await post('a', 'request', { responseRequestedFrom: ['b'] }); assertLatest();
+    const request = Object.values(store.get('r').responseRequests)[0]!;
+    const response = await post('b', 'answer');
+    await call('b', { action: 'respond', requestId: request.id, expectedRevision: 1, responseMessageId: response.id }); assertLatest();
+    const fields = { content: 'contract', sourceMessageIds: [message.id], stakeholderWorkerIds: ['b'] };
+    const agreement = await call('a', { action: 'create_agreement', threadId: thread.id, title: 'API', ...fields }) as AgreementRecord; assertLatest();
+    await call('b', { action: 'confirm_agreement', agreementId: agreement.id, version: 1 }); assertLatest();
+    await call('a', { action: 'revise_agreement', agreementId: agreement.id, expectedVersion: 1, ...fields, content: 'revision' }); assertLatest();
+    const beforeRead = store.get('r').threads[thread.id];
+    await api.query('s-b', { view: 'activity' });
+    await api.query('s-b', { view: 'messages', messageId: message.id });
+    expect(store.get('r').threads[thread.id]).toEqual(beforeRead);
+  });
+
+  it('signals truncation of activity agreement references and offers complete paged agreement history', async () => {
+    const { post, call, api, thread } = await setup();
+    const source = await post('a');
+    for (let i = 0; i < 21; i++) await call('a', { action: 'create_agreement', threadId: thread.id,
+      title: `Decision ${i}`, content: 'contract', sourceMessageIds: [source.id], stakeholderWorkerIds: ['a'] });
+    const activity = (await api.query('s-c', { view: 'activity', threadId: thread.id })).items[0]!;
+    expect(activity).toMatchObject({ kind: 'activity', agreementCount: 21, agreementsTruncated: true });
+    if (activity.kind !== 'activity') throw new Error('Expected activity');
+    expect(activity.agreementIds).toHaveLength(20);
+    const page = await api.query('s-c', { view: 'agreements', threadId: thread.id });
+    const next = await api.query('s-c', { view: 'agreements', threadId: thread.id, cursor: page.nextCursor! });
+    expect([...page.items, ...next.items]).toHaveLength(21);
+  });
+
+  it('preserves exact immutable Finding-to-source links without editing someone else message', async () => {
+    const { post, call, legacy, api, thread, store } = await setup();
+    const source = await post('a', 'Measured result');
+    const finding = await legacy.publish('s-b', { kind: 'observed', summary: 'Confirmed result', evidenceRefs: ['measurement'] }, 'evidence');
+    await call('b', { action: 'link_finding', threadId: thread.id, findingId: finding.id, messageId: source.id, expectedRevision: 1 });
+    expect(store.get('r').events.at(-1)).toMatchObject({ kind: 'public', action: 'finding_linked', findingId: finding.id, messageId: source.id });
+    expect(store.get('r').publicMessages[source.id]).toEqual(source);
+    expect((await api.query('s-c', { view: 'messages', findingId: finding.id })).items).toMatchObject([{ kind: 'message', message: { id: source.id } }]);
+    expect((await api.query('s-c', { view: 'threads', findingId: finding.id })).total).toBe(1);
+    expect(store.get('r').findings[finding.id]).toEqual(finding);
+  });
+
+  it('requires refresh for a coalesced attention update newer than an existing page snapshot', async () => {
+    const { post, call, api, thread, store } = await setup();
+    await call('b', { action: 'subscribe', channelId: thread.channelId, threadId: thread.id, mode: 'following' });
+    await post('a', 'question', { responseRequestedFrom: ['b'] });
+    const first = await api.query('s-b', { view: 'attention', limit: 1 });
+    const updated = await post('a', 'new ordinary update');
+    const rest = await api.query('s-b', { view: 'attention', cursor: first.nextCursor!, limit: 20 });
+    expect(rest.items.some((item) => item.kind === 'notification' && item.notification.messageId === updated.id)).toBe(false);
+    const refreshed = await api.query('s-b', { view: 'attention' });
+    expect(refreshed.items.some((item) => item.kind === 'notification' && item.notification.messageId === updated.id)).toBe(true);
+    expect(Object.values(store.get('r').responseRequests)[0]?.status).toBe('pending');
   });
 
   it('enforces owner-only read access and keeps owner reads separate from worker full-read offers', async () => {
