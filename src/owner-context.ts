@@ -53,6 +53,16 @@ waiting accurately. Completed means Host finish and resource shutdown completed,
 that a worker is inactive. Present the accepted result branch and useful changes when ready;
 merge, push or deploy only with the user's authorization. Do not promise future notifications
 or claim the new code is live before deployment. Commands remain an optional fallback.
+
+After you merge a completed run's result into the user's branch and the merged tree passes the
+project's verification, clean up that run's local leftovers unless the user asked to keep them.
+Only touch resources whose names carry that exact runId: worktrees under .agents/worktrees named
+<runId>-w<N> or swarm-<runId>-build, and the branches <runId>-w<N>, swarm-<runId>-build and
+swarm-<runId>-result. Never clean up a run that is not completed, and never touch other runs,
+the user's checkout or unknown branches unless the user asks. Remove each worktree with
+git worktree remove (no --force), then delete its branch with git branch -d (never -D).
+If a worktree has uncommitted changes or a branch has commits not in the merged result, keep it
+and tell the user what is left and why, rather than forcing removal. Report what was removed.
 `;
 
 export interface OwnerContextRuntime {

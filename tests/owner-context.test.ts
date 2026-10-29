@@ -42,6 +42,14 @@ describe('owner front desk', () => {
     expect(ownerState(runtime(() => run()), 'other')).not.toContain('Build the application');
   });
 
+  it('scopes post-merge cleanup to the completed run and forbids forced removal', () => {
+    expect(OWNER_POLICY).toContain('clean up that run\'s local leftovers');
+    expect(OWNER_POLICY).toContain('swarm-<runId>-result');
+    expect(OWNER_POLICY).toContain('git worktree remove (no --force)');
+    expect(OWNER_POLICY).toContain('git branch -d (never -D)');
+    expect(OWNER_POLICY).toContain('Never clean up a run that is not completed');
+  });
+
   it('points owners straight at swarm_manage start and reports scale-up headroom', () => {
     expect(OWNER_POLICY).toContain('action "start"');
     expect(OWNER_POLICY).toContain('"verification"');
