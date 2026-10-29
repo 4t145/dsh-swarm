@@ -98,7 +98,7 @@ window.__ModuleLoader__.load({
 			"tabs.flow": "协作流", "flow.title": "成员之间在做什么", "flow.note": "每条泳道是一名成员，最上方是 Host 与已接受结果；事件按发生顺序从左到右。鼠标移到任意节点上即可看到发生了什么，私信和发现会显示正文；点击可固定卡片。", "flow.host": "Host · 结果", "flow.hostNote": "集成与验收", "flow.filter": "按事件类型筛选", "flow.chart": "成员协作时间线", "flow.axis": "← 更早 · 最新 →", "flow.empty": "还没有成员之间的协作事件", "flow.unavailable": "当前 Host 未提供协作事件；重启 DSH 后可用", "flow.kind.all": "全部", "flow.kind.message": "私信", "flow.kind.finding": "发现", "flow.kind.task": "任务", "flow.kind.proposal": "提交与集成", "flow.legend.head": "结果推进", "flow.stat.message": "条私信", "flow.stat.finding": "条发现", "flow.stat.proposal": "次提交", "flow.stat.head": "次结果推进", "flow.pairs": "谁在和谁沟通", "flow.noPairs": "还没有成员互发私信", "flow.to": "发给", "flow.feed": "最近动态", "flow.say.message": "{actor} 给 {peer} 发了私信", "flow.say.finding": "{actor} 发布了{kind}", "flow.say.task": "{peer} 的任务「{task}」→ {status}", "flow.say.proposal": "{actor} 的提案（{task}）→ {status}", "flow.say.head": "{peer} 的结果已合入 {id}", "flow.say.headHost": "结果推进到 {id}", "flow.finding.observed": "观察", "flow.finding.fact": "事实", "flow.finding.fail": "失败报告", "flow.finding.patch_summary": "改动摘要", "conv.title": "成员对话与发现", "conv.note": "仅 run owner 可读：成员之间私信的正文，以及发布的事实、观察、失败报告和改动摘要（含范围与证据）。最新在前，有新消息时自动刷新。", "conv.refresh": "刷新", "conv.filter": "按类型和成员筛选", "conv.kind.all": "全部", "conv.kind.message": "私信", "conv.kind.finding": "发现", "conv.empty": "还没有私信或发现", "conv.noMatch": "已加载内容中没有匹配项", "conv.loading": "正在读取…", "conv.more": "加载更早的内容", "conv.end": "已加载全部 {count} 条", "conv.failed": "读取失败", "conv.invalid": "Host 返回了无法识别的对话数据", "conv.unavailable": "当前 Host 不提供对话读取；重启 DSH 后可用", "conv.truncated": "正文过长，已截断显示", "conv.task": "任务", "conv.scope": "范围", "conv.evidence": "证据", "conv.supersedes": "取代", "hover.pin": "点击固定卡片 · Esc 关闭", "hover.close": "关闭", "hover.noBody": "当前 Host 不提供正文；重启 DSH 后可在这里看到内容", "hover.failed": "正文读取失败，见下方“成员对话与发现”", "tabs.label": "协作视图", "tabs.dashboard": "Dashboard", "tabs.members": "成员列表", "tabs.goals": "目标看板", "tabs.worktrees": "Git 工作树",
 			"goals.todo": "代办", "goals.doing": "办理中", "goals.done": "办结", "goals.wish": "添加新的愿望", "goals.laneEmpty": "此池暂无目标", "goals.flowNote": "愿望提交后自动加入本轮办理；暂停时保留目标，收尾后存入代办等待下一轮。办结仅代表 Host 已完成验收。",
 			"workers.add": "添加成员", "workers.adding": "正在添加…", "workers.addUnavailable": "成员上限不可用；请查看 Host 诊断", "workers.addLimit": "已达到 {count} 名成员上限", "workers.addPhase": "仅协作中或暂停时可添加成员", "workers.addPaused": "新成员将在恢复后启动", "workers.added.started": "已添加 {name}", "workers.added.paused": "已添加 {name} · 恢复后启动", "workers.addFailed": "添加结果未确认，请检查成员列表后重试", "workers.addReceipt": "成员回执不完整，请检查列表后再重试。", "workers.addReady": "为新成员创建独立工作树与随机可读名字", "workers.capacity": "团队规模", "workers.limitHost": "继承宿主上限", "workers.limitOverride": "显式覆盖上限", "workers.limitUnknown": "上限来源不可用", "workers.limitNotCapacity": "团队配置上限不是宿主实时剩余槽位；原生容量与权限仍由 Host 验证。", "workers.summary": "{total} 名成员 · {busy} 名执行中 · {waiting} 名等待协作或集成", "goals.criteriaCount": "{count} 条验收", "goals.doneCount": "个目标已办结",
-			"git.title": "Git 工作树", "git.note": "各成员工作树与已接受结果的合并历史流 · 同一提交只显示一次。来源分支表示可达关系，不代表作者。", "git.refresh": "更新历史", "git.loading": "正在读取 Git 历史…", "git.more": "加载更早提交", "git.end": "已到达历史起点", "git.empty": "当前没有可显示的提交。", "git.unavailable": "当前 Host 不支持工作树历史，请更新 Host 后重连。", "git.failed": "Git 历史读取失败", "git.retry": "重试", "git.loaded": "已显示 {count} 个提交", "git.worktrees": "工作树与版本快照", "git.result": "已接受结果", "git.source": "来源分支", "git.merge": "合并提交", "git.parents": "父提交", "git.commit": "完整提交 SHA", "git.details": "提交详情", "git.snapshot": "分页固定于首次读取的版本；更新历史可查看最新提交。", "git.missingRun": "运行已变化或不可用，请重新连接。", "git.invalid": "Host 返回了无效的 Git 历史。", "git.worktreeMissing": "工作树尚未准备完成", "git.base": "Run 基线", "git.legendCommit": "提交", "git.legendMerge": "合并（换乘站）", "git.legendHead": "工作树当前 HEAD", "git.axis": "← 最新 · 更早 →",
+			"git.title": "Git 工作树", "git.note": "各成员工作树与已接受结果的合并历史流 · 同一提交只显示一次。来源分支表示可达关系，不代表作者。", "git.refresh": "更新历史", "git.loading": "正在读取 Git 历史…", "git.more": "加载更早提交", "git.end": "已到达历史起点", "git.empty": "当前没有可显示的提交。", "git.unavailable": "当前 Host 不支持工作树历史，请更新 Host 后重连。", "git.failed": "Git 历史读取失败", "git.retry": "重试", "git.loaded": "已显示 {count} 个提交", "git.worktrees": "工作树与版本快照", "git.result": "已接受结果", "git.source": "来源分支", "git.merge": "合并提交", "git.parents": "父提交", "git.commit": "完整提交 SHA", "git.details": "提交详情", "git.snapshot": "分页固定于首次读取的版本；更新历史可查看最新提交。", "git.missingRun": "运行已变化或不可用，请重新连接。", "git.invalid": "Host 返回了无效的 Git 历史。", "git.worktreeMissing": "工作树尚未准备完成", "git.base": "Run 基线", "git.legendCommit": "提交", "git.legendMerge": "合并提交", "git.legendHead": "工作树当前 HEAD", "git.axis": "← 更早 · 最新 →",
 			"goals.title": "目标", "goals.add": "追加目标", "goals.placeholder": "接下来还需要做什么？", "goals.criteria": "验收条件（可选，每行一项）", "goals.publish": "发布目标", "goals.publishing": "正在提交…", "goals.scope": "当前会话 · 当前仓库", "goals.original": "初始目标", "goal.active": "本轮待完成", "goal.deferred": "待下一轮", "goal.completed": "已处理", "goal.continued": "已转下一轮", "goals.paused": "追加后仍保持暂停", "goals.deferred": "本轮已收尾，追加将保存到下一轮", "goals.resume": "恢复本轮", "goals.continue": "开始下一轮", "goals.criteriaTitle": "验收条件", "goals.more": "显示 {shown}/{total} 项；其余记录已保存，暂不在面板展示", "goals.clipped": "此处内容已截断；完整内容保存在运行记录中", "goals.publishFirst": "先发布或清空草稿", "goals.unavailable": "当前 Host 不支持追加目标，请更新 Host 后重连。", "goals.sent.executing": "已发布 · 已加入本轮工作", "goals.sent.paused": "已保存 · 恢复后处理", "goals.sent.deferred": "已保存 · 等待下一轮", "goals.sent.continue": "下一轮已启动", "goals.sent.resume": "本轮已恢复", "goals.unknownReceipt": "回执不完整，请检查目标列表后再决定是否重试。", "goals.commandUnavailable": "命令服务不可用", "goals.pending": "{count} 项待下一轮", "goals.failed": "提交失败，草稿已保留", "goals.uncertain": "未确认提交结果；请检查目标列表后再重试。", "goals.nextRun": "下一轮运行", "goals.commit": "完成版本", "loading": "正在连接进度流…", "refresh": "更新连接", "unknown": "未知", "unavailable": "不可用",
 			"connection.live": "实时连接", "connection.loading": "连接中", "connection.ended": "订阅已结束", "connection.error": "连接中断", "connection.unavailable": "服务不可用",
 			"updated": "快照更新于 {time}", "stale.title": "非实时 · 最后已知快照", "stale.body": "连接中断后保留已知状态，工作可能仍在继续。请更新连接。", "ended.body": "当前订阅已结束。请手动更新以查看此会话的新运行。",
@@ -129,7 +129,7 @@ window.__ModuleLoader__.load({
 			"tabs.flow": "Collaboration flow", "flow.title": "What members are doing together", "flow.note": "Each swimlane is a member; the top lane is the Host and accepted result. Events run left to right in order. Hover any point to see what happened, including message and finding bodies; click to pin the card.", "flow.host": "Host · result", "flow.hostNote": "Integration and acceptance", "flow.filter": "Filter by event type", "flow.chart": "Member collaboration timeline", "flow.axis": "← Older · Newest →", "flow.empty": "No collaboration events between members yet", "flow.unavailable": "This Host does not provide collaboration events; restart DSH to enable it", "flow.kind.all": "All", "flow.kind.message": "Messages", "flow.kind.finding": "Findings", "flow.kind.task": "Tasks", "flow.kind.proposal": "Proposals & integration", "flow.legend.head": "Result advanced", "flow.stat.message": "messages", "flow.stat.finding": "findings", "flow.stat.proposal": "proposals", "flow.stat.head": "result advances", "flow.pairs": "Who talks to whom", "flow.noPairs": "No direct messages between members yet", "flow.to": "to", "flow.feed": "Latest activity", "flow.say.message": "{actor} messaged {peer}", "flow.say.finding": "{actor} posted a {kind}", "flow.say.task": "{peer}'s task “{task}” → {status}", "flow.say.proposal": "{actor}'s proposal ({task}) → {status}", "flow.say.head": "{peer}'s result merged at {id}", "flow.say.headHost": "Result advanced to {id}", "flow.finding.observed": "observation", "flow.finding.fact": "fact", "flow.finding.fail": "failure report", "flow.finding.patch_summary": "patch summary", "conv.title": "Conversations and findings", "conv.note": "Run owner only: the bodies of members' direct messages and their published facts, observations, failure reports and patch summaries, with scope and evidence. Newest first; refreshes when new ones arrive.", "conv.refresh": "Refresh", "conv.filter": "Filter by type and member", "conv.kind.all": "All", "conv.kind.message": "Messages", "conv.kind.finding": "Findings", "conv.empty": "No messages or findings yet", "conv.noMatch": "Nothing loaded matches this filter", "conv.loading": "Loading…", "conv.more": "Load older", "conv.end": "All {count} loaded", "conv.failed": "Could not load", "conv.invalid": "The Host returned conversation data this panel cannot read", "conv.unavailable": "This Host cannot serve conversations; restart DSH to enable it", "conv.truncated": "Body is long and shown truncated", "conv.task": "Task", "conv.scope": "Scope", "conv.evidence": "Evidence", "conv.supersedes": "Supersedes", "hover.pin": "Click to pin · Esc to close", "hover.close": "Close", "hover.noBody": "This Host does not serve bodies; restart DSH to see the content here", "hover.failed": "Could not load the body; see “Conversations and findings” below", "tabs.label": "Collaboration views", "tabs.dashboard": "Dashboard", "tabs.members": "Members", "tabs.goals": "Goal board", "tabs.worktrees": "Git worktrees",
 			"goals.todo": "To do", "goals.doing": "In progress", "goals.done": "Done", "goals.wish": "Add a wish", "goals.laneEmpty": "No goals in this pool", "goals.flowNote": "Submitted wishes join this round automatically. Paused goals stay in this round; closing runs save new wishes for the next round. Only Host-verified goals are done.",
 			"workers.add": "Add worker", "workers.adding": "Adding…", "workers.addUnavailable": "Worker limit unavailable; check Host diagnostics", "workers.addLimit": "Maximum of {count} workers reached", "workers.addPhase": "Workers can be added while running or paused", "workers.addPaused": "New workers start after resume", "workers.added.started": "Added {name}", "workers.added.paused": "Added {name} · Starts after resume", "workers.addFailed": "Addition not confirmed; check the member list before retrying", "workers.addReceipt": "Incomplete worker receipt. Check the list before retrying.", "workers.addReady": "Create a private worktree and a random readable name", "workers.capacity": "Team size", "workers.limitHost": "Inherited Host limit", "workers.limitOverride": "Explicit override", "workers.limitUnknown": "Limit source unavailable", "workers.limitNotCapacity": "The configured team limit is not native free capacity. Host still checks native capacity and permissions.", "workers.summary": "{total} members · {busy} executing · {waiting} waiting on collaboration or integration", "goals.criteriaCount": "{count} criteria", "goals.doneCount": "goals done",
-			"git.title": "Git worktrees", "git.note": "Merged history of worker worktrees and accepted results · Each commit appears once. Source branch means reachability, not authorship.", "git.refresh": "Refresh history", "git.loading": "Reading Git history…", "git.more": "Load earlier commits", "git.end": "Beginning of history reached", "git.empty": "No commits to display yet.", "git.unavailable": "This Host does not support worktree history. Update the Host and reconnect.", "git.failed": "Could not read Git history", "git.retry": "Retry", "git.loaded": "Showing {count} commits", "git.worktrees": "Worktrees & revision snapshot", "git.result": "Accepted result", "git.source": "Source branch", "git.merge": "Merge commit", "git.parents": "Parent commits", "git.commit": "Full commit SHA", "git.details": "Commit details", "git.snapshot": "Pages are pinned to the first read. Refresh history to see newer commits.", "git.missingRun": "The run changed or is unavailable. Reconnect to update.", "git.invalid": "Host returned invalid Git history.", "git.worktreeMissing": "Worktree is not ready yet", "git.base": "Run base", "git.legendCommit": "Commit", "git.legendMerge": "Merge (interchange)", "git.legendHead": "Worktree HEAD", "git.axis": "← Newest · Older →",
+			"git.title": "Git worktrees", "git.note": "Merged history of worker worktrees and accepted results · Each commit appears once. Source branch means reachability, not authorship.", "git.refresh": "Refresh history", "git.loading": "Reading Git history…", "git.more": "Load earlier commits", "git.end": "Beginning of history reached", "git.empty": "No commits to display yet.", "git.unavailable": "This Host does not support worktree history. Update the Host and reconnect.", "git.failed": "Could not read Git history", "git.retry": "Retry", "git.loaded": "Showing {count} commits", "git.worktrees": "Worktrees & revision snapshot", "git.result": "Accepted result", "git.source": "Source branch", "git.merge": "Merge commit", "git.parents": "Parent commits", "git.commit": "Full commit SHA", "git.details": "Commit details", "git.snapshot": "Pages are pinned to the first read. Refresh history to see newer commits.", "git.missingRun": "The run changed or is unavailable. Reconnect to update.", "git.invalid": "Host returned invalid Git history.", "git.worktreeMissing": "Worktree is not ready yet", "git.base": "Run base", "git.legendCommit": "Commit", "git.legendMerge": "Merge commit", "git.legendHead": "Worktree HEAD", "git.axis": "← Older · Newer →",
 			"goals.title": "Goals", "goals.add": "Add a goal", "goals.placeholder": "What else should we work on?", "goals.criteria": "Acceptance criteria (optional, one per line)", "goals.publish": "Publish goal", "goals.publishing": "Submitting…", "goals.scope": "This session · This repository", "goals.original": "Initial goal", "goal.active": "Open this round", "goal.deferred": "Next round", "goal.completed": "Handled", "goal.continued": "Moved to next round", "goals.paused": "Adding a goal will not resume this run", "goals.deferred": "This round is closing; new goals are saved for the next round", "goals.resume": "Resume this round", "goals.continue": "Start next round", "goals.criteriaTitle": "Acceptance criteria", "goals.more": "Showing {shown}/{total}; other records are saved but not shown in this panel", "goals.clipped": "Content clipped here; the complete content is saved in the run record", "goals.publishFirst": "Publish or clear the draft first", "goals.unavailable": "This Host cannot append goals. Update the Host and reconnect.", "goals.sent.executing": "Published · Added to this round", "goals.sent.paused": "Saved · Waiting for resume", "goals.sent.deferred": "Saved · Waiting for next round", "goals.sent.continue": "Next round started", "goals.sent.resume": "This round resumed", "goals.unknownReceipt": "Incomplete receipt. Check the goal list before retrying.", "goals.commandUnavailable": "Command service unavailable", "goals.pending": "{count} goals for next round", "goals.failed": "Submission failed; draft retained", "goals.uncertain": "Submission not confirmed; check the goal list before retrying.", "goals.nextRun": "Next run", "goals.commit": "Completed revision", "loading": "Connecting to progress…", "refresh": "Reconnect", "unknown": "Unknown", "unavailable": "Unavailable",
 			"connection.live": "Live", "connection.loading": "Connecting", "connection.ended": "Subscription ended", "connection.error": "Disconnected", "connection.unavailable": "Service unavailable",
 			"updated": "Snapshot updated {time}", "stale.title": "Not live · Last known snapshot", "stale.body": "The connection was lost; work may still be continuing. Reconnect to update this view.", "ended.body": "This subscription has ended. Reconnect manually to see a new run in this session.",
@@ -554,10 +554,13 @@ window.__ModuleLoader__.load({
 			};
 			return { loadMore, refresh() { if (disposed) return; request?.abort(); request = null; cursors.clear(); state = initialHistory(sessionId, runId); return loadMore(); }, dispose() { disposed = true; request?.abort(); request = null; } };
 		}
-		/** IntersectionObserver is only an enhancement; the load-more button always remains. */
+		/**
+		 * IntersectionObserver is only an enhancement; the load-more button always remains.
+		 * Older commits live at the left edge of the track, so the margin extends leftward.
+		 */
 		function observeHistoryEnd(root, target, loadMore) {
 			if (!target || typeof IntersectionObserver !== "function") return undefined;
-			const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadMore(); }, { root, rootMargin: "0px 0px 240px 0px" });
+			const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadMore(); }, { root, rootMargin: "0px 0px 0px 240px" });
 			observer.observe(target);
 			return () => observer.disconnect();
 		}
@@ -619,15 +622,15 @@ window.__ModuleLoader__.load({
 		}
 
 		/*
-		 * Metro-style worktree tracks. One horizontal track per worktree (accepted result
-		 * first as the trunk, then workers in roster order), newest on the left. A commit
+		 * Worktree tracks. One horizontal track per worktree (accepted result first as the
+		 * trunk, then workers in roster order); time flows left (oldest) to right (newest). A commit
 		 * sits on the first track whose first-parent chain claims it: the trunk from its HEAD,
 		 * then worker HEADs, then proposal tips (the commits each worker submitted). `--source`
 		 * only means reachability, so it is the last fallback. Cross-track curves
-		 * always bend in the label-free gutter beside a station:
-		 * - first parent on another track (branch-off): ride the child's track, bend just
-		 *   before the parent station;
-		 * - extra parents (merge): ride the parent's track, bend just after the merge station,
+		 * always bend in the label-free gutter beside a node:
+		 * - first parent on another track (branch-off): ride the child's track leftward, bend
+		 *   just right of the parent node;
+		 * - extra parents (merge): ride the parent's track, bend just left of the merge node,
 		 *   and the merge label flips away from the incoming curve.
 		 */
 		const TRACK = Object.freeze({ column: 196, lane: 84, pad: 22, label: 150, bend: 40, tail: 56 });
@@ -667,8 +670,9 @@ window.__ModuleLoader__.load({
 		 * @param items commits in Git date order (children before parents).
 		 * @param worktrees lane snapshot from the history page.
 		 * @param tips proposal source commits with their author worker, newest first.
-		 * @param more whether older pages exist; missing parents then fade out to the right,
-		 *   otherwise they meet the run base terminus.
+		 * @param more whether older pages exist; missing parents then fade out to the left,
+		 *   otherwise they meet the run base terminus at the far left. Columns count from the
+		 *   oldest loaded commit, so an older page only prepends columns on the left.
 		 */
 		function trackLayout(items, worktrees, tips, more) {
 			const lanes = trackLanes(worktrees, items);
@@ -678,15 +682,18 @@ window.__ModuleLoader__.load({
 			const claim = (lane, start) => { for (let sha = start; lane && sha && itemOf.has(sha) && !claimed.has(sha); sha = itemOf.get(sha).parents[0]) claimed.set(sha, lane); };
 			for (const lane of lanes) claim(lane, lane.head);
 			for (const tip of tips) claim(laneOf.get("worker:" + tip.workerId), tip.sha);
-			const x = (column) => TRACK.pad + 8 + column * TRACK.column;
+			const missing = items.some((item) => item.parents.some((parent) => !itemOf.has(parent)));
+			const hasBase = !more && missing;
+			const x = (column) => TRACK.pad + 8 + (more ? TRACK.tail : 0) + column * TRACK.column;
 			const y = (lane) => TRACK.pad + lane * TRACK.lane + TRACK.lane / 2;
-			const nodes = items.map((item, column) => {
+			// Items arrive newest first; the oldest loaded commit takes the leftmost column.
+			const nodes = items.map((item, index) => {
 				const lane = claimed.get(item.sha) ?? laneOf.get(laneKey(item));
+				const column = (hasBase ? 1 : 0) + items.length - 1 - index;
 				return { column, item, lane, x: x(column), y: y(lane.index), merge: item.parents.length > 1, head: lane.head === item.sha, labelAbove: false };
 			});
 			const bySha = new Map(nodes.map((node) => [node.item.sha, node]));
-			const missing = nodes.some((node) => node.item.parents.some((parent) => !bySha.has(parent)));
-			const base = !more && missing ? { x: x(items.length), y: y(0), lane: lanes[0] } : null;
+			const base = hasBase ? { x: x(0), y: y(0), lane: lanes[0] } : null;
 			const width = TRACK.pad * 2 + (items.length + (base ? 1 : 0)) * TRACK.column + (more ? TRACK.tail : 0);
 			const height = TRACK.pad * 2 + Math.max(1, lanes.length) * TRACK.lane;
 			const edges = [];
@@ -694,29 +701,29 @@ window.__ModuleLoader__.load({
 				node.item.parents.forEach((parent, order) => {
 					const target = bySha.get(parent) ?? base;
 					if (target === null) {
-						if (order === 0) edges.push({ key: node.item.id + ":open", kind: "open", color: node.lane.color, path: `M ${node.x} ${node.y} H ${width - TRACK.pad / 2}` });
+						if (order === 0) edges.push({ key: node.item.id + ":open", kind: "open", color: node.lane.color, path: `M ${node.x} ${node.y} H ${TRACK.pad / 2}` });
 						return;
 					}
 					const key = node.item.id + ":" + parent;
 					if (target.y === node.y) { edges.push({ key, kind: "track", color: node.lane.color, path: `M ${node.x} ${node.y} H ${target.x}` }); return; }
 					const half = TRACK.bend / 2;
 					if (order === 0) {
-						const start = Math.max(node.x, target.x - TRACK.bend);
-						edges.push({ key, kind: "branch", color: node.lane.color, path: `M ${node.x} ${node.y} H ${start} C ${start + half} ${node.y}, ${target.x - half} ${target.y}, ${target.x} ${target.y}` });
+						const start = Math.min(node.x, target.x + TRACK.bend);
+						edges.push({ key, kind: "branch", color: node.lane.color, path: `M ${node.x} ${node.y} H ${start} C ${start - half} ${node.y}, ${target.x + half} ${target.y}, ${target.x} ${target.y}` });
 					} else {
-						const end = Math.min(target.x, node.x + TRACK.bend);
-						edges.push({ key, kind: "merge", color: target.lane.color, path: `M ${node.x} ${node.y} C ${node.x + half} ${node.y}, ${end - half} ${target.y}, ${end} ${target.y} H ${target.x}` });
+						const end = Math.max(target.x, node.x - TRACK.bend);
+						edges.push({ key, kind: "merge", color: target.lane.color, path: `M ${node.x} ${node.y} C ${node.x - half} ${node.y}, ${end + half} ${target.y}, ${end} ${target.y} H ${target.x}` });
 						if (target.y > node.y) node.labelAbove = true;
 					}
 				});
 			}
-			// Cross-track curves under same-track rails so stations read as joined to their own line.
+			// Cross-track curves under same-track rails so nodes read as joined to their own line.
 			const rank = { open: 0, branch: 1, merge: 1, track: 2 };
 			edges.sort((a, b) => rank[a.kind] - rank[b.kind]);
 			return { lanes, nodes, edges, base, width, height };
 		}
 
-		/** Station glyph: plain stop, interchange ring for merges, halo for a live HEAD. */
+		/** Commit node glyph: plain dot, double ring for merges, halo for a live HEAD. */
 		function station(node) {
 			const color = node.lane.color;
 			return h("g", { key: "s" + node.item.id, className: "dshSwarm_station" },
@@ -735,7 +742,7 @@ window.__ModuleLoader__.load({
 					h("span", { className: "dshSwarm_laneHeadSha" }, lane.head ? h("code", { style: { color: lane.color } }, "HEAD " + lane.head.slice(0, 7)) : lane.diagnostic ?? t("git.worktreeMissing", {})))));
 		}
 
-		/** Track canvas for the loaded prefix; a later page appends more stations to the right. */
+		/** Track canvas for the loaded prefix; an older page prepends nodes on the left (scroll stays anchored to the right). */
 		function renderCommitTrack(t, items, worktrees, tips, more) {
 			const { lanes, nodes, edges, base, width, height } = trackLayout(items, worktrees, tips, more);
 			const rails = lanes.map((lane) => h("line", { key: "rail" + lane.key, x1: TRACK.pad / 2, y1: TRACK.pad + lane.index * TRACK.lane + TRACK.lane / 2, x2: width - TRACK.pad / 2, y2: TRACK.pad + lane.index * TRACK.lane + TRACK.lane / 2, strokeWidth: 8, strokeLinecap: "round", style: { stroke: lane.color, opacity: 0.08 } }));
@@ -775,11 +782,22 @@ window.__ModuleLoader__.load({
 				h("span", { className: "dshSwarm_trackAxis" }, t("git.axis", {})));
 		}
 
+		/**
+		 * Horizontal scroll position after the loaded prefix changed width. The first render
+		 * shows the newest (rightmost) commits; an older page grows the canvas on the left, so
+		 * the view shifts by the added width and the commits being read stay in place.
+		 */
+		function anchorHistoryScroll(previousWidth, scrollLeft, scrollWidth) {
+			if (!previousWidth) return scrollWidth;
+			return scrollLeft + Math.max(0, scrollWidth - previousWidth);
+		}
+
 		function GitStreamSection({ t, progress, sessionId, loadHistory }) {
 			const [state, setState] = React.useState(() => initialHistory(sessionId, progress.runId));
 			const pager = React.useRef(null);
 			const scroll = React.useRef(null);
 			const sentinel = React.useRef(null);
+			const width = React.useRef(0);
 			const current = state.sessionId === sessionId && state.runId === progress.runId ? state : initialHistory(sessionId, progress.runId);
 			const available = typeof loadHistory === "function";
 			React.useEffect(() => {
@@ -790,6 +808,13 @@ window.__ModuleLoader__.load({
 				return () => { owned.dispose(); if (pager.current === owned) pager.current = null; };
 			}, [sessionId, progress.runId, loadHistory, available]);
 			React.useEffect(() => {
+				const node = scroll.current;
+				if (!node) return;
+				if (!current.items.length) { width.current = 0; return; }
+				node.scrollLeft = anchorHistoryScroll(width.current, node.scrollLeft, node.scrollWidth);
+				width.current = node.scrollWidth;
+			}, [sessionId, progress.runId, current.items.length]);
+			React.useEffect(() => {
 				if (current.loading || current.error || !current.started || current.nextCursor === null) return undefined;
 				return observeHistoryEnd(scroll.current, sentinel.current, () => void pager.current?.loadMore());
 			}, [sessionId, progress.runId, current.loading, current.error, current.started, current.nextCursor]);
@@ -797,7 +822,7 @@ window.__ModuleLoader__.load({
 			const missing = !available || ["gateway/invocation-unavailable", "gateway/method-unavailable"].includes(current.error?.code);
 			const errorText = current.error?.code === "history/run-changed" ? t("git.missingRun", {}) : current.error?.code === "history/invalid" ? t("git.invalid", {}) : current.error?.message;
 			return h("section", { className: "dshSwarm_section", "aria-label": t("git.title", {}) },
-				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("git.title", {})), h("button", { type: "button", className: "dshSwarm_button", disabled: !available || current.loading, onClick: () => { if (scroll.current) { scroll.current.scrollTop = 0; scroll.current.scrollLeft = 0; } void pager.current?.refresh(); } }, t("git.refresh", {}))),
+				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("git.title", {})), h("button", { type: "button", className: "dshSwarm_button", disabled: !available || current.loading, onClick: () => { width.current = 0; if (scroll.current) scroll.current.scrollTop = 0; void pager.current?.refresh(); } }, t("git.refresh", {}))),
 				h("p", { className: "dshSwarm_scopeNote" }, t("git.note", {})),
 				h("p", { className: "dshSwarm_scopeNote" }, t("git.snapshot", {})),
 				missing ? h("p", { className: "dshSwarm_notice", role: "status" }, t("git.unavailable", {})) : null,
@@ -806,8 +831,8 @@ window.__ModuleLoader__.load({
 					current.items.length
 						? h("div", { className: "dshSwarm_trackRow" },
 							renderLaneHeads(t, trackLanes(current.worktrees, current.items), name),
-							renderCommitTrack(t, current.items, current.worktrees, current.tips ?? [], current.nextCursor !== null),
-							h("div", { ref: sentinel, className: "dshSwarm_gitSentinel", "aria-hidden": true }))
+							h("div", { ref: sentinel, className: "dshSwarm_gitSentinel", "aria-hidden": true }),
+							renderCommitTrack(t, current.items, current.worktrees, current.tips ?? [], current.nextCursor !== null))
 						: current.started ? h("p", { className: "dshSwarm_empty" }, t("git.empty", {})) : null,
 					current.error && !missing ? h("p", { className: "dshSwarm_notice", role: "alert" }, t("git.failed", {}), ": ", errorText) : null),
 				h("div", { className: "dshSwarm_gitFooter" }, h("span", { className: "dshSwarm_subtle", role: "status", "aria-live": "polite" }, t(current.loading ? "git.loading" : "git.loaded", { count: current.items.length })),
@@ -1723,6 +1748,6 @@ window.__ModuleLoader__.load({
 			}, "dsh-swarm: progress panel");
 		}
 		// Pure derivations and the stream owner are also exercised without emulating a browser.
-		return { apply, inject: ["slots", "locale", "remote"], progressClient: { publicQueryInput, readPublicPage, createPublicPager, PublicSection, PublicRecord, PublicPagination, readConversationPage, mergeConversation, ConversationSection, FlowPanel, flowHoverPosition, computeGraph, trackLanes, trackLayout, WorkersSection, FlowSection, flowLayout, messagePairs, readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, goalLane, goalColumns, workerName, addWorkerState, workerReceipt, nextTab, viewTabs, RunBody, GoalSection, AddWorkerControl, dictionaries: { zh, en } } };
+		return { apply, inject: ["slots", "locale", "remote"], progressClient: { publicQueryInput, readPublicPage, createPublicPager, PublicSection, PublicRecord, PublicPagination, readConversationPage, mergeConversation, ConversationSection, FlowPanel, flowHoverPosition, computeGraph, trackLanes, trackLayout, WorkersSection, FlowSection, flowLayout, messagePairs, readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, anchorHistoryScroll, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, goalLane, goalColumns, workerName, addWorkerState, workerReceipt, nextTab, viewTabs, RunBody, GoalSection, AddWorkerControl, dictionaries: { zh, en } } };
 	}
 });
