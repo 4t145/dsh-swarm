@@ -23,7 +23,7 @@
 - “再加两个人”：Agent 调用 `add_workers` 中途扩容，不停止当前 run。
 - “现在进展怎么样”“暂停一下”“继续工作”：Agent 查询状态或执行相应控制，不把命令教程交给你。
 
-owner Agent 的系统提示和 `swarm_manage` 工具描述都直接写明：启动开发就是调用 `swarm_manage {action:"start", spec:{...}}`，并附一份内联 spec 模板（repository、baseRef、goal、acceptanceCriteria、workers、allowDirtyBaseline、verification）。Agent 不需要先去找 CLI、脚本或斜杠命令；它只需读项目的构建/测试配置，填入真实的验证命令。
+owner Agent 的系统提示和 `swarm_manage` 工具描述都直接写明：启动开发就是调用 `swarm_manage {action:"start", spec:{...}}`，并附一份最小内联 spec 模板：只需 repository、goal、acceptanceCriteria、verification.test。其余字段有默认值：baseRef 为 `HEAD`，workers 为 2，allowDirtyBaseline 为 false，setup 为 `[]`，每条命令的 timeoutMs 为 600000。校验失败时，错误消息会逐项写出出错字段与原因。Agent 不需要先去找 CLI、脚本或斜杠命令；它只需读项目的构建/测试配置，填入真实的验证命令。
 - 前台 Agent 组织共同目标、用户决策和交付；worker 自主拆分/认领/协商，前台不逐个派工。
 
 这些动作仍需 Agent 实际调用 `swarm_manage`，不是关键词匹配的隐藏后台程序；咨询、讨论或未确定的想法不会被当成已授权工作。插件向普通 owner Agent 提供简洁的当前 run/目标状态，worker 和子会话不获得这套控制指令。暂停和已停止状态仍受原有授权约束。

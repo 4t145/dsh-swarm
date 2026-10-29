@@ -24,14 +24,17 @@ export const jsonValueSchema = z.json();
 
 /* --------------------------- 执行配置 --------------------------- */
 
+/** Per-command wall-clock limit used when a spec omits `timeoutMs`. */
+export const DEFAULT_COMMAND_TIMEOUT_MS = 600_000;
+
 export const commandSpecSchema = z.strictObject({
   argv: z.array(z.string().min(1)).min(1),
-  timeoutMs: z.number().int().positive(),
+  timeoutMs: z.number().int().positive().default(DEFAULT_COMMAND_TIMEOUT_MS),
 });
 
 /** setup 可为空；test 必须至少一条，否则 run 无法判定候选能否发布。 */
 export const verificationConfigSchema = z.strictObject({
-  setup: z.array(commandSpecSchema),
+  setup: z.array(commandSpecSchema).default([]),
   test: z.array(commandSpecSchema).min(1),
 });
 

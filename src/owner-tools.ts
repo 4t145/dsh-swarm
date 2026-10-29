@@ -122,13 +122,14 @@ export type SwarmManageStatus = SwarmRunStatusView;
 export function parseManageInput(args: unknown): SwarmManageInput {
   const parsed = manageInput.safeParse(args);
   if (!parsed.success) {
-    throw new SwarmError('SWARM_INVALID_INPUT', 'swarm_manage arguments are invalid', {
-      details: {
-        issues: parsed.error.issues.map((issue) => ({
-          path: issue.path.map((segment) => String(segment)).join('.'),
-          message: issue.message,
-        })),
-      },
+    const issues = parsed.error.issues.map((issue) => ({
+      path: issue.path.map((segment) => String(segment)).join('.'),
+      message: issue.message,
+    }));
+    // The Host may render only the message, so the field diagnostics go in it too.
+    const summary = issues.map((issue) => `${issue.path || '(root)'}: ${issue.message}`).join('; ');
+    throw new SwarmError('SWARM_INVALID_INPUT', `swarm_manage arguments are invalid: ${summary}`, {
+      details: { issues },
     });
   }
   return parsed.data;
@@ -307,9 +308,11 @@ export async function handleSwarmManage(
 export const SWARM_MANAGE_DESCRIPTION =
   'The only way to start and control Swarm collaborative development (parallel peer workers in isolated '
   + 'Git worktrees) for the caller\'s own owner session/repository; there is no other start command to look for. '
-  + 'Start a run with action=start and an inline spec: {repository:".", baseRef:"HEAD", goal, acceptanceCriteria:[...], '
-  + 'workers:2, allowDirtyBaseline:false, verification:{setup:[], test:[{argv:[...]}]}} using the project\'s real '
-  + 'build/test commands; commit the baseline first (ask before committing user work). '
+  + 'Start a run with action=start and a minimal inline spec: {repository:".", goal, acceptanceCriteria:[...], '
+  + 'verification:{test:[{argv:[...]}]}} using the project\'s real build/test commands; baseRef (HEAD), workers (2), '
+  + 'allowDirtyBaseline (false), setup ([]) and per-command timeoutMs (600000) have defaults. '
+  + 'Verification runs in a fresh checkout without ignored files (no node_modules), so put dependency install in setup. '
+  + 'Commit the baseline first (ask before committing user work). Validation errors name each failing field. '
   + '`append` saves a concrete goal without replacing history; check its disposition: executing, paused, or deferred. '
   + '`add_workers` scales a running or paused run up by `count` members. `continue` explicitly starts a new round '
   + 'for deferred goals after the old run ends; paused runs use resume. Subagent and worker sessions '
@@ -318,7 +321,11 @@ export const SWARM_MANAGE_DESCRIPTION =
 /** Tool properties mirroring {@link manageInput}. */
 const COMMAND_PROPERTIES: Record<string, JsonSchemaNode> = {
   argv: { type: 'array', items: { type: 'string' }, description: 'Command argv; never shell-split.' },
-  timeoutMs: { type: 'integer', description: 'Wall-clock timeout in milliseconds.' },
+  timeoutMs: { type: 'integer', description: 'Optional wall-clock timeout in milliseconds (default 600000).' },
+};
+
+const COMMAND_SCHEMA: JsonSchemaNode = {
+  type: 'object', properties: COMMAND_PROPERTIES, required: ['argv'], additionalProperties: false,
 };
 
 const INLINE_SPEC_PROPERTIES: Record<string, JsonSchemaNode> = {
@@ -326,19 +333,20 @@ const INLINE_SPEC_PROPERTIES: Record<string, JsonSchemaNode> = {
     type: 'string',
     description: 'Repository path; relative paths resolve from the session working directory.',
   },
-  baseRef: { type: 'string', description: 'Git ref or commit the run starts from.' },
+  baseRef: { type: 'string', description: 'Git ref or commit the run starts from (default HEAD).' },
   goal: { type: 'string', description: 'Goal statement shared with every worker.' },
   acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'Checkable requirements.' },
   workers: { type: 'integer', description: 'Initial worker count (minimum 2, default 2). Host validates against the current effective team limit; see status for its value and source.' },
   budgetMinutes: { type: 'integer', description: 'Optional explicit time limit in minutes. Omit or use 0 for no deadline; do not choose a limit unless the user asks.' },
-  allowDirtyBaseline: { type: 'boolean', description: 'Allow an uncommitted source worktree.' },
+  allowDirtyBaseline: { type: 'boolean', description: 'Allow an uncommitted source worktree (default false).' },
   verification: {
     type: 'object',
-    description: 'Setup and test commands; `test` must be non-empty.',
+    description: 'Setup (optional, default []) and test commands; `test` must be non-empty.',
     properties: {
-      setup: { type: 'array', items: { type: 'object', properties: COMMAND_PROPERTIES, additionalProperties: false } },
-      test: { type: 'array', items: { type: 'object', properties: COMMAND_PROPERTIES, additionalProperties: false } },
+      setup: { type: 'array', items: COMMAND_SCHEMA },
+      test: { type: 'array', items: COMMAND_SCHEMA },
     },
+    required: ['test'],
     additionalProperties: false,
   },
 };
@@ -367,6 +375,7 @@ const MANAGE_PROPERTIES: Record<string, JsonSchemaNode> = {
     description:
       'Inline run spec (same fields as a spec file). `repository` resolves from the session working directory.',
     properties: INLINE_SPEC_PROPERTIES,
+    required: ['repository', 'goal', 'acceptanceCriteria', 'verification'],
     additionalProperties: false,
   },
   details: { type: 'boolean', description: 'For status: include bounded cursor and attempt details.' },

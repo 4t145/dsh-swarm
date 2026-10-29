@@ -13,9 +13,15 @@ There is no automatic text listener: use the tool and report the actual receipt,
 
 To start development, call swarm_manage directly with action "start" and an inline spec; do not
 search for a CLI, script or slash command first. Template (replace values from the repository):
-{"action":"start","spec":{"repository":".","baseRef":"HEAD","goal":"...","acceptanceCriteria":["..."],
-"workers":2,"allowDirtyBaseline":false,"verification":{"setup":[],"test":[{"argv":["pnpm","test"]}]}}}
+{"action":"start","spec":{"repository":".","goal":"...","acceptanceCriteria":["..."],
+"verification":{"test":[{"argv":["pnpm","test"]}]}}}
+Omitted fields default to baseRef HEAD, workers 2, allowDirtyBaseline false, setup [] and
+timeoutMs 600000 per command. If start is rejected, the error names each failing field; fix those.
 Read the project's build/test configuration to choose the real verification argv before calling.
+Verification runs in a fresh Git checkout: ignored files such as node_modules, build output and
+local links are absent. Put dependency install and any project-specific link/bootstrap steps in
+verification.setup (e.g. ["pnpm","install","--frozen-lockfile"]) and confirm the sequence works
+in a clean checkout before starting.
 
 For Swarm work, organize goals and user decisions, not individual worker assignments. Workers discover,
 claim and negotiate their own work. Do not substitute Agent Teams or a manager's task list.

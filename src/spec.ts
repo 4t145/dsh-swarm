@@ -16,12 +16,13 @@ import type { CommandSpec, RunSpec, VerificationConfig } from './types.ts';
 export const MIN_WORKERS = 2;
 
 /**
- * spec 文件结构。budgetMinutes 可省略（默认不限时）；其他顶层字段必填。未知字段拒绝；
- * `verification.setup` 可为空数组，`verification.test` 必须非空。
+ * spec 文件结构。必填：repository、goal、acceptanceCriteria、verification.test（非空）。
+ * 可省略：baseRef（HEAD）、workers（2）、budgetMinutes（0，不限时）、allowDirtyBaseline（false）、
+ * verification.setup（[]）、各命令 timeoutMs（600000）。未知字段拒绝。
  */
 export const runSpecSchema = z.strictObject({
   repository: z.string().trim().min(1, 'repository must be a non-empty path'),
-  baseRef: z.string().trim().min(1, 'baseRef must be a non-empty ref or commit'),
+  baseRef: z.string().trim().min(1, 'baseRef must be a non-empty ref or commit').default('HEAD'),
   goal: z.string().trim().min(1, 'goal must be a non-empty description'),
   acceptanceCriteria: z
     .array(z.string().trim().min(1, 'acceptance criterion must be non-empty'))
@@ -29,9 +30,10 @@ export const runSpecSchema = z.strictObject({
   workers: z
     .number()
     .int()
-    .min(MIN_WORKERS, `workers must be at least ${MIN_WORKERS}`),
+    .min(MIN_WORKERS, `workers must be at least ${MIN_WORKERS}`)
+    .default(MIN_WORKERS),
   budgetMinutes: z.number().int().nonnegative('budgetMinutes must be non-negative').default(0),
-  allowDirtyBaseline: z.boolean(),
+  allowDirtyBaseline: z.boolean().default(false),
   verification: verificationConfigSchema,
 });
 
@@ -54,9 +56,10 @@ export function parseRunSpec(input: unknown, specPath: string): RunSpec {
   const baseDir = path.dirname(specPath);
   const result = runSpecSchema.safeParse(input);
   if (!result.success) {
-    throw new SwarmError('SWARM_INVALID_SPEC', 'run spec failed validation', {
-      details: zodIssuesToDetails(result.error),
-    });
+    const details = zodIssuesToDetails(result.error);
+    // The Host may render only the message, so the field diagnostics go in it too.
+    const summary = details.issues.map((issue) => `${issue.path || '(root)'}: ${issue.message}`).join('; ');
+    throw new SwarmError('SWARM_INVALID_SPEC', `run spec failed validation: ${summary}`, { details });
   }
 
   const spec = result.data;

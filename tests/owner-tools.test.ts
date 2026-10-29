@@ -278,6 +278,17 @@ describe('parseManageInput', () => {
     expect(() => parseManageInput({ action: 'status', ownerSessionId: 'forged' })).toThrow();
     expect(() => parseManageInput({})).toThrow();
   });
+
+  it('accepts a minimal inline spec and names failing fields in the message', () => {
+    const parsed = parseManageInput({
+      action: 'start',
+      spec: { repository: '.', goal: 'g', acceptanceCriteria: ['c'], verification: { test: [{ argv: ['pnpm', 'test'] }] } },
+    });
+    expect(parsed.spec?.verification.test[0]?.timeoutMs).toBe(600_000);
+    expect(parsed.spec?.workers).toBe(2);
+    expect(() => parseManageInput({ action: 'start', spec: { repository: '.', goal: 'g', acceptanceCriteria: ['c'] } }))
+      .toThrowError(/spec\.verification: /);
+  });
 });
 
 describe('registerOwnerTools', () => {

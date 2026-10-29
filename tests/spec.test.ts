@@ -152,24 +152,31 @@ describe('parseRunSpec 正常解析', () => {
 /* --------------------------- 必填与未知字段 --------------------------- */
 
 describe('parseRunSpec 必填字段', () => {
-  const requiredKeys = [
-    'repository',
-    'baseRef',
-    'goal',
-    'acceptanceCriteria',
-    'workers',
-    'allowDirtyBaseline',
-    'verification',
-  ] as const;
+  const requiredKeys = ['repository', 'goal', 'acceptanceCriteria', 'verification'] as const;
 
-  it('缺少任一顶层字段都拒绝并指明字段路径', () => {
+  it('缺少任一必填顶层字段都拒绝，并在 message 中指明字段路径', () => {
     for (const key of requiredKeys) {
       const spec = validSpec();
       delete spec[key];
       const error = captureError(() => parseRunSpec(spec, SPEC_PATH));
       expect(error.code).toBe('SWARM_INVALID_SPEC');
       expect(issuePaths(error)).toContain(key);
+      // Hosts that render only the message still show which field failed.
+      expect(error.message).toContain(`${key}:`);
     }
+  });
+
+  it('最小 spec 使用文档化的默认值', () => {
+    const spec = parseRunSpec(
+      { repository: '.', goal: 'g', acceptanceCriteria: ['c'], verification: { test: [{ argv: ['pnpm', 'test'] }] } },
+      SPEC_PATH,
+    );
+    expect(spec.baseRef).toBe('HEAD');
+    expect(spec.workers).toBe(2);
+    expect(spec.allowDirtyBaseline).toBe(false);
+    expect(spec.budgetMinutes).toBe(0);
+    expect(spec.verification.setup).toEqual([]);
+    expect(spec.verification.test).toEqual([{ argv: ['pnpm', 'test'], timeoutMs: 600_000 }]);
   });
 
   it('拒绝未知顶层字段，提示笔误而不是静默忽略', () => {
@@ -241,7 +248,7 @@ describe('parseRunSpec 字段约束', () => {
     expect(issuePaths(error)).toContain('allowDirtyBaseline');
   });
 
-  it('verification.test 不能为空；setup 必须是数组', () => {
+  it('verification.test 不能为空；显式 setup 必须是数组', () => {
     const emptyTest = captureError(() =>
       parseRunSpec(
         specWith({ verification: { setup: [], test: [] } }),
@@ -250,10 +257,10 @@ describe('parseRunSpec 字段约束', () => {
     );
     expect(issuePaths(emptyTest)).toContain('verification.test');
 
-    const missingSetup = captureError(() =>
-      parseRunSpec(specWith({ verification: { test: [{ argv: ['npm', 'test'], timeoutMs: 1000 }] } }), SPEC_PATH),
+    const badSetup = captureError(() =>
+      parseRunSpec(specWith({ verification: { setup: 'pnpm i', test: [{ argv: ['npm', 'test'], timeoutMs: 1000 }] } }), SPEC_PATH),
     );
-    expect(issuePaths(missingSetup)).toContain('verification.setup');
+    expect(issuePaths(badSetup)).toContain('verification.setup');
   });
 
   it('命令需要非空 argv 与正整数 timeoutMs，并给出精确路径', () => {
