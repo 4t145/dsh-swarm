@@ -158,12 +158,29 @@ window.__ModuleLoader__.load({
 			"wt.title": "Git worktrees", "wt.loading": "Reading worktrees…", "wt.error": "Failed to read worktrees: {message}", "wt.unavailable": "Could not connect to worktrees: {message}", "wt.repo": "Repository: {name}", "wt.directory": "Session directory: {directory}", "wt.notRepo": "The session directory is not a Git repository", "wt.notRepoBody": "This view reads the repository containing {directory}; initialize Git, then refresh.", "wt.unborn": "The repository has no commits yet", "wt.unbornBody": "There are no worktree commit records to show yet; create the first commit, then refresh.", "wt.empty": "No registered worktrees", "wt.emptyBody": "git worktree list returned no worktrees.", "wt.main": "main worktree", "wt.detached": "detached HEAD @ {sha}", "wt.head": "HEAD {sha}", "wt.noHead": "no commits yet", "wt.locked": "locked: {reason}", "wt.prunable": "prunable: {reason}", "wt.commits": "Recent commits", "wt.noCommits": "No extra commits", "wt.limit": "Showing the latest {count}", "wt.refresh": "Refresh", "wt.create.title": "New worktree", "wt.create.hint": "Creates a branch and checkout under the session repository's .agents/worktrees/; it never changes this session's working directory or the current checkout.", "wt.create.name": "Name (optional)", "wt.create.namePlaceholder": "Generated, e.g. worktree-20260101-120000", "wt.create.base": "Base ref (optional)", "wt.create.basePlaceholder": "HEAD", "wt.create.submit": "Create worktree", "wt.create.pending": "Creating…", "wt.create.success": "Created worktree {name}", "wt.create.error": "Create failed: {message}"
 		};
 
+		Object.assign(zh, {
+			"tabs.public": "公共讨论", "public.title": "公共频道与线程", "public.note": "同一运行的所有成员均可阅读；订阅只影响通知。此只读视图不发布 owner 新需求，也不替成员确认已读、回应或同意。",
+			"public.channels": "频道", "public.threads": "线程", "public.messages": "消息", "public.requests": "回应请求", "public.agreements": "当前约定", "public.attention": "待关注", "public.activity": "线程动态", "public.message_revisions": "消息修订", "public.agreement_versions": "约定版本",
+			"public.allChannels": "全部频道", "public.allWorkers": "所有成员", "public.search": "搜索正文或标题", "public.taskFilter": "关联任务 ID（可选）", "public.workerFilter": "请求对象 / 通知接收者", "public.apply": "搜索", "public.clear": "清除筛选", "public.back": "返回线程", "public.openThread": "查看线程", "public.locate": "定位消息", "public.previous": "上一页", "public.next": "下一页", "public.page": "第 {page} 页 · 共 {total} 条", "public.truncated": "当前仅显示有界分页；继续翻页查看其余记录。", "public.empty": "此范围没有记录", "public.loading": "正在读取公共历史…", "public.failed": "读取失败", "public.invalid": "Host 返回了无效的公共记录", "public.unavailable": "当前 Host 不提供公共频道协议，请更新 Host 后重连。",
+			"public.status.active": "可讨论", "public.status.archived": "已归档 · 历史可查", "public.status.open": "未解决", "public.status.resolved": "已解决", "public.status.pending": "待回应", "public.status.responded": "已回应", "public.status.withdrawn": "已撤回", "public.reply": "回复来源", "public.mentions": "提及", "public.author": "发起者", "public.participants": "参与者", "public.tasks": "任务", "public.findings": "发现", "public.proposals": "成果提案", "public.conclusion": "结论", "public.revision": "修订 {version}", "public.history": "查看修订历史", "public.version": "版本 {version}", "public.stakeholders": "相关方", "public.confirmed": "已明确确认此版本", "public.unconfirmed": "尚未确认此版本", "public.source": "来源讨论", "public.requestedBy": "请求者", "public.requestedFrom": "待回应对象", "public.response": "回应消息", "public.delivered": "通知已送达", "public.notDelivered": "通知未送达", "public.acknowledged": "通知已确认（不代表回应）", "public.notAcknowledged": "通知未确认", "public.announcement": "全局公告", "public.refresh": "刷新当前范围",
+			"public.reason.mention": "提及", "public.reason.response_request": "明确回应请求", "public.reason.reply": "收到回复", "public.reason.task_owner": "负责任务", "public.reason.participant": "参与线程", "public.reason.subscription": "订阅更新", "public.reason.announcement": "全局公告", "public.reason.agreement_confirmation": "约定需确认"
+		});
+		Object.assign(en, {
+			"tabs.public": "Public discussion", "public.title": "Public channels & threads", "public.note": "All run members can read this history; subscriptions only affect notifications. This read-only view does not add owner requirements, acknowledge worker reads, respond or consent for anyone.",
+			"public.channels": "Channels", "public.threads": "Threads", "public.messages": "Messages", "public.requests": "Response requests", "public.agreements": "Current agreements", "public.attention": "Attention", "public.activity": "Thread activity", "public.message_revisions": "Message revisions", "public.agreement_versions": "Agreement versions",
+			"public.allChannels": "All channels", "public.allWorkers": "All members", "public.search": "Search text or title", "public.taskFilter": "Linked task ID (optional)", "public.workerFilter": "Request target / notification recipient", "public.apply": "Search", "public.clear": "Clear filters", "public.back": "Back to thread", "public.openThread": "Open thread", "public.locate": "Locate message", "public.previous": "Previous page", "public.next": "Next page", "public.page": "Page {page} · {total} records", "public.truncated": "This is a bounded page; continue paging to read remaining records.", "public.empty": "No records in this scope", "public.loading": "Reading public history…", "public.failed": "Read failed", "public.invalid": "Host returned invalid public records", "public.unavailable": "This Host does not provide the public channel protocol. Update the Host and reconnect.",
+			"public.status.active": "Active", "public.status.archived": "Archived · history retained", "public.status.open": "Open", "public.status.resolved": "Resolved", "public.status.pending": "Awaiting response", "public.status.responded": "Responded", "public.status.withdrawn": "Withdrawn", "public.reply": "Reply source", "public.mentions": "Mentions", "public.author": "Creator", "public.participants": "Participants", "public.tasks": "Tasks", "public.findings": "Findings", "public.proposals": "Proposals", "public.conclusion": "Conclusion", "public.revision": "Revision {version}", "public.history": "Revision history", "public.version": "Version {version}", "public.stakeholders": "Stakeholders", "public.confirmed": "Explicitly confirmed this version", "public.unconfirmed": "Not confirmed for this version", "public.source": "Source discussion", "public.requestedBy": "Requested by", "public.requestedFrom": "Response requested from", "public.response": "Response message", "public.delivered": "Notification delivered", "public.notDelivered": "Notification not delivered", "public.acknowledged": "Notification acknowledged (not a response)", "public.notAcknowledged": "Notification not acknowledged", "public.announcement": "Global announcement", "public.refresh": "Refresh this scope",
+			"public.reason.mention": "Mention", "public.reason.response_request": "Explicit response request", "public.reason.reply": "Reply received", "public.reason.task_owner": "Task ownership", "public.reason.participant": "Thread participant", "public.reason.subscription": "Subscription", "public.reason.announcement": "Global announcement", "public.reason.agreement_confirmation": "Agreement confirmation requested"
+		});
+		const publicCss = `.dshSwarm_publicLayout{display:grid;grid-template-columns:minmax(160px,220px) minmax(0,1fr);gap:16px;margin-top:16px}.dshSwarm_publicChannels{border-inline-end:1px solid var(--dsw-alias-border-l1);padding-inline-end:14px}.dshSwarm_publicChannels button{width:100%;text-align:start;margin:4px 0}.dshSwarm_publicChannels button[aria-pressed=true]{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}.dshSwarm_publicCard{padding:14px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;overflow-wrap:anywhere;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_publicCard h3{font-size:14px}.dshSwarm_publicBody{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px!important}.dshSwarm_publicCards{display:grid;gap:10px}.dshSwarm_publicFilters{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.dshSwarm_publicFilters label{display:grid;gap:4px;flex:1;min-width:140px;font-size:11px;color:var(--dsw-alias-label-secondary)}.dshSwarm_publicFilters input,.dshSwarm_publicFilters select{font:inherit;padding:7px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:5px;min-width:0}.dshSwarm_publicFilters :is(input,select):focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}.dshSwarm_publicRefs{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.dshSwarm_publicRefs button{max-width:100%;overflow-wrap:anywhere;font-size:10px}.dshSwarm_publicStatus{margin-top:8px!important;color:var(--dsw-alias-label-secondary);font-size:11px}@container(max-width:620px){.dshSwarm_publicLayout{grid-template-columns:1fr}.dshSwarm_publicChannels{border-inline-end:0;border-bottom:1px solid var(--dsw-alias-border-l1);padding-bottom:12px}}`;
+
 		const stringCodec = Object.freeze({ mode: "strict", typeSymbol: "string", create: () => ({ parse(value) { if (typeof value !== "string") throw new TypeError("Session id must be a string"); return value; } }), jsonSchema: { type: "string" } });
 		const unknownCodec = Object.freeze({ mode: "strict", typeSymbol: "unknown", create: () => ({ parse: (value) => value }), jsonSchema: {} });
 		const SESSION_PARAMETER = Object.freeze({ name: "sessionId", wire: "sessionId", source: "json", codec: stringCodec });
 		const cursorCodec = Object.freeze({ mode: "strict", typeSymbol: "string | null", create: () => ({ parse(value) { if (value !== null && typeof value !== "string") throw new TypeError("History cursor must be a string or null"); return value; } }), jsonSchema: { anyOf: [{ type: "string" }, { type: "null" }] } });
 		const worktreeRequestCodec = Object.freeze({ mode: "strict", typeSymbol: "WorktreeCreateRequest", create: () => ({ parse(value) { if (value === null || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Worktree request must be an object"); const request = {}; if (value.name !== undefined) { if (typeof value.name !== "string") throw new TypeError("Worktree name must be a string"); request.name = value.name; } if (value.base !== undefined) { if (typeof value.base !== "string") throw new TypeError("Worktree base must be a string"); request.base = value.base; } return request; } }), jsonSchema: { type: "object" } });
 		const seqCodec = Object.freeze({ mode: "strict", typeSymbol: "number | null", create: () => ({ parse(value) { if (value !== null && !(Number.isSafeInteger(value) && value > 0)) throw new TypeError("beforeSeq must be a positive integer or null"); return value; } }), jsonSchema: { anyOf: [{ type: "integer", minimum: 1 }, { type: "null" }] } });
+		const publicQueryCodec = Object.freeze({ mode: "strict", typeSymbol: "PublicQuery", create: () => ({ parse: publicQueryInput }), jsonSchema: { type: "object" } });
 		const WORKTREE_REQUEST_PARAMETER = Object.freeze({ name: "request", wire: "request", source: "json", codec: worktreeRequestCodec });
 		const REMOTE_CONTRIBUTION = Object.freeze({
 			package: "@local/dsh-swarm",
@@ -179,6 +196,11 @@ window.__ModuleLoader__.load({
 				id: "@local/dsh-swarm#swarmProgress/conversation", service: "swarmProgress", namespace: "swarmProgress", method: "conversation",
 				invocation: Object.freeze({ kind: "direct" }), parameters: Object.freeze([SESSION_PARAMETER, Object.freeze({ name: "beforeSeq", wire: "beforeSeq", source: "json", codec: seqCodec })]),
 				result: unknownCodec
+			}), Object.freeze({
+				id: "@local/dsh-swarm#swarmProgress/publicDiscussion", service: "swarmProgress", namespace: "swarmProgress", method: "publicDiscussion",
+				invocation: Object.freeze({ kind: "direct" }), parameters: Object.freeze([SESSION_PARAMETER,
+					Object.freeze({ name: "runId", wire: "runId", source: "json", codec: stringCodec }),
+					Object.freeze({ name: "query", wire: "query", source: "json", codec: publicQueryCodec })]), result: unknownCodec, cancellation: Object.freeze({ parameter: "signal" })
 			}), Object.freeze({
 				id: "@local/dsh-swarm#swarmWorktrees/list", service: "swarmWorktrees", namespace: "swarmWorktrees", method: "list",
 				invocation: Object.freeze({ kind: "direct" }), parameters: Object.freeze([SESSION_PARAMETER]), result: unknownCodec
@@ -229,9 +251,10 @@ window.__ModuleLoader__.load({
 			if (p.protocolVersion >= 2 && ((p.workerControls != null && (!object(p.workerControls) || typeof p.workerControls.canAdd !== "boolean" || !count(p.workerControls.maxWorkers)))
 				|| p.workers.some((worker) => worker.displayName !== undefined && typeof worker.displayName !== "string"))) throw new TypeError("Invalid Swarm worker controls");
 			if (p.protocolVersion >= 2 && p.interactions !== undefined && (!Array.isArray(p.interactions) || !p.interactions.every(interactionValid))) throw new TypeError("Invalid Swarm interactions");
+			if (p.protocolVersion >= 2 && p.publicActivity != null && (!object(p.publicActivity) || p.publicActivity.protocolVersion !== 1 || !countsValid(p.publicActivity, ["latestSeq", "channels", "threads", "pendingRequests", "agreements"]))) throw new TypeError("Invalid Swarm public activity");
 			if (!(p.protocolVersion >= 2)) {
 				// A v1 Host has no contract for v2 additions; do not render unchecked extras.
-				return { ...p, goal: null, goalBoard: null, acceptanceCriteria: undefined, originalGoalTruncated: false, createdAt: null, taskBoard: undefined, recentEvents: undefined, interactions: undefined, workerControls: undefined, workers: p.workers.map((w) => ({ ...w, displayName: undefined, activity: undefined, wait: null, currentProposal: null })) };
+				return { ...p, publicActivity: null, goal: null, goalBoard: null, acceptanceCriteria: undefined, originalGoalTruncated: false, createdAt: null, taskBoard: undefined, recentEvents: undefined, interactions: undefined, workerControls: undefined, workers: p.workers.map((w) => ({ ...w, displayName: undefined, activity: undefined, wait: null, currentProposal: null })) };
 			}
 			return p;
 		}
@@ -1359,12 +1382,186 @@ window.__ModuleLoader__.load({
 						state.started && state.next === null && state.items.length ? h("span", { className: "dshSwarm_subtle" }, t("conv.end", { count: state.items.length })) : null)));
 		}
 
-		const viewTabs = ["dashboard", "members", "flow", "goals", "worktrees"];
+		const publicViews = ["channels", "threads", "messages", "requests", "agreements", "attention", "activity", "message_revisions", "agreement_versions"];
+		function publicQueryInput(value) {
+			if (!object(value) || !publicViews.includes(value.view)) throw new TypeError("Invalid public query view");
+			const keys = ["view", "channelId", "threadId", "taskId", "messageId", "agreementId", "findingId", "workerId", "query", "status", "cursor", "limit", "includeAcknowledged"];
+			if (Object.keys(value).some((key) => !keys.includes(key))) throw new TypeError("Unknown public query field");
+			for (const key of ["channelId", "threadId", "taskId", "messageId", "agreementId", "findingId", "workerId"]) if (value[key] !== undefined && !(typeof value[key] === "string" && value[key].trim() && value[key].length <= 240)) throw new TypeError("Invalid public query ID");
+			if (value.query !== undefined && !(typeof value.query === "string" && value.query.length <= 200)) throw new TypeError("Invalid public search");
+			if (value.cursor !== undefined && !(typeof value.cursor === "string" && value.cursor.length <= 2000)) throw new TypeError("Invalid public cursor");
+			if (value.limit !== undefined && !(count(value.limit) && value.limit >= 1 && value.limit <= 20)) throw new TypeError("Invalid public page limit");
+			if (value.status !== undefined && !["active", "archived", "open", "resolved", "pending", "responded", "withdrawn"].includes(value.status)) throw new TypeError("Invalid public status");
+			if (value.includeAcknowledged !== undefined && typeof value.includeAcknowledged !== "boolean") throw new TypeError("Invalid acknowledgement filter");
+			return { ...value };
+		}
+		/** Strict render boundary for public records. No trusted HTML or private-message fallback. */
+		function readPublicPage(page, runId) {
+			const bad = () => { throw Object.assign(new Error("Invalid public history page"), { code: "public/invalid" }); };
+			if (!object(page) || page.runId !== runId) throw Object.assign(new Error("Run changed or is unavailable"), { code: "history/run-changed" });
+			const txt = (value, max = 240) => typeof value === "string" && value.length <= max;
+			const id = (value) => txt(value) && value.length > 0;
+			const nullable = (value) => value === null || id(value);
+			const ids = (value) => Array.isArray(value) && value.length <= 100 && value.every(id);
+			const positive = (value) => count(value) && value > 0;
+			const confirmations = (value) => Array.isArray(value) && value.length <= 100 && value.every((entry) => object(entry) && id(entry.workerId) && positive(entry.version) && validTime(entry.confirmedAt));
+			const revision = (value) => object(value) && positive(value.revision) && txt(value.body, 12000) && ids(value.mentions) && ids(value.taskIds) && ids(value.findingIds) && ids(value.proposalIds) && validTime(value.editedAt);
+			const version = (value) => object(value) && positive(value.version) && txt(value.content, 12000) && ids(value.sourceMessageIds) && ids(value.taskIds) && ids(value.stakeholderWorkerIds) && validTime(value.createdAt);
+			const valid = (item) => {
+				if (!object(item)) return false;
+				const v = item[item.kind];
+				switch (item.kind) {
+					case "channel": return object(v) && id(v.id) && txt(v.name, 64) && txt(v.purpose, 1000) && nullable(v.createdByWorkerId) && ["active", "archived"].includes(v.status) && positive(v.revision);
+					case "thread": return object(v) && id(v.id) && id(v.channelId) && txt(v.title) && id(v.createdByWorkerId) && ids(v.participantWorkerIds) && ids(v.taskIds) && ids(v.findingIds) && ["open", "resolved"].includes(v.status) && nullable(v.conclusionMessageId) && positive(v.revision);
+					case "message": return revision(v) && v.kind === "public" && id(v.id) && id(v.channelId) && id(v.threadId) && id(v.authorWorkerId) && nullable(v.replyToMessageId) && typeof v.announcement === "boolean" && validTime(v.createdAt) && count(v.seq) && positive(v.revisionCount);
+					case "request": return object(v) && id(v.id) && id(v.channelId) && id(v.threadId) && id(v.messageId) && id(v.requestedByWorkerId) && id(v.targetWorkerId) && nullable(v.responseMessageId) && ids(v.taskIds) && ["pending", "responded", "withdrawn"].includes(v.status) && positive(v.revision);
+					case "agreement": return version(v) && id(v.id) && id(v.channelId) && id(v.threadId) && txt(v.title) && id(v.createdByWorkerId) && positive(v.versionCount) && confirmations(v.confirmations);
+					case "notification": return object(v) && id(v.id) && id(v.workerId) && id(v.channelId) && nullable(v.threadId) && nullable(v.messageId) && nullable(v.requestId) && nullable(v.agreementId) && ids(v.reasons) && ["immediate", "digest"].includes(v.priority) && timeOrNull(v.deliveredAt) && timeOrNull(v.acknowledgedAt) && count(v.seq);
+					case "activity": return id(item.threadId) && id(item.channelId) && txt(item.title) && ["open", "resolved"].includes(item.status) && count(item.updatedSeq) && count(item.messageCount) && count(item.pendingRequestCount) && ids(item.agreementIds) && ids(item.taskIds) && (item.agreementCount === undefined || count(item.agreementCount)) && (item.agreementsTruncated === undefined || typeof item.agreementsTruncated === "boolean");
+					case "message_revision": return id(item.messageId) && revision(item.value);
+					case "agreement_version": return id(item.agreementId) && version(item.value) && confirmations(item.confirmations);
+					default: return false;
+				}
+			};
+			if (!Array.isArray(page.items) || page.items.length > 20 || !page.items.every(valid) || !count(page.total) || page.total < page.items.length || !count(page.snapshotSeq) || typeof page.hasMore !== "boolean" || typeof page.truncated !== "boolean" || !(page.nextCursor === null || (txt(page.nextCursor, 2000) && page.nextCursor.length > 0)) || page.hasMore !== (page.nextCursor !== null)) bad();
+			return page;
+		}
+		const initialPublic = (sessionId, runId, queryKey = "") => ({ sessionId, runId, queryKey, page: null, cursor: null, history: [], loading: false, error: null });
+		/** Own one bounded page and request; changing scope or disposing rejects late async results. */
+		function createPublicPager({ sessionId, runId, loadPublic, onChange }) {
+			let state = initialPublic(sessionId, runId), request = null, disposed = false, query = { view: "channels" };
+			const publish = (patch) => { if (!disposed) { state = { ...state, ...patch }; onChange(state); } };
+			const load = async (cursor, history) => {
+				if (disposed || request) return;
+				const controller = new AbortController(); request = controller;
+				publish({ loading: true, error: null });
+				try {
+					const raw = await loadPublic(sessionId, runId, { ...query, ...(cursor === null ? {} : { cursor }) }, controller.signal);
+					if (disposed || controller.signal.aborted || request !== controller) return;
+					const page = readPublicPage(raw, runId);
+					if (page.nextCursor !== null && (page.nextCursor === cursor || history.includes(page.nextCursor))) throw Object.assign(new Error("Public cursor did not advance"), { code: "public/invalid" });
+					publish({ page, cursor, history });
+				} catch (error) { if (!disposed && !controller.signal.aborted && request === controller) publish({ error: { code: error?.code ?? null, message: error instanceof Error ? error.message : String(error) } }); }
+				finally { if (request === controller) { request = null; publish({ loading: false }); } }
+			};
+			return {
+				reset(next) { if (disposed) return; query = publicQueryInput(next); delete query.cursor; request?.abort(); request = null; state = initialPublic(sessionId, runId, JSON.stringify(query)); return load(null, []); },
+				next() { if (state.page?.nextCursor) return load(state.page.nextCursor, [...state.history, state.cursor]); },
+				previous() { if (state.history.length) return load(state.history.at(-1), state.history.slice(0, -1)); },
+				refresh() { this.reset(query); },
+				dispose() { disposed = true; request?.abort(); request = null; }
+			};
+		}
+		function usePublicPage(sessionId, runId, loadPublic, available, query, latest) {
+			const key = JSON.stringify(query);
+			const [state, setState] = React.useState(() => initialPublic(sessionId, runId, key));
+			const pager = React.useRef(null);
+			React.useEffect(() => {
+				if (!available) return undefined;
+				const owned = createPublicPager({ sessionId, runId, loadPublic, onChange: setState }); pager.current = owned; owned.reset(query);
+				return () => { owned.dispose(); if (pager.current === owned) pager.current = null; };
+			}, [sessionId, runId, loadPublic, available, key, latest]);
+			return { state: state.sessionId === sessionId && state.runId === runId && state.queryKey === key ? state : initialPublic(sessionId, runId, key), pager };
+		}
+		function PublicPagination({ t, reader }) {
+			const { state, pager } = reader;
+			return h("div", { className: "dshSwarm_gitFooter" },
+				state.loading ? h("span", { role: "status" }, t("public.loading", {})) : null,
+				state.page ? h("span", { className: "dshSwarm_subtle" }, t("public.page", { page: state.history.length + 1, total: state.page.total })) : null,
+				h("button", { type: "button", className: "dshSwarm_button", disabled: state.loading || !state.history.length, onClick: () => pager.current?.previous() }, t("public.previous", {})),
+				h("button", { type: "button", className: "dshSwarm_button", disabled: state.loading || !state.page?.hasMore, onClick: () => pager.current?.next() }, t("public.next", {})));
+		}
+		/** Render exact discussion records; buttons navigate IDs rather than guessing chat links. */
+		function PublicRecord({ t, item, progress, navigate, contextMessages = [] }) {
+			const names = new Map(progress.workers.map((worker, index) => [worker.id, workerName(t, worker, index + 1)]));
+			const name = (id) => names.get(id) ?? id;
+			const action = (text, query, key) => h("button", { key, type: "button", className: "dshSwarm_button", onClick: () => navigate(query) }, text);
+			const locate = (id, label) => id ? action((label ?? t("public.locate", {})) + " · " + id, { view: "messages", messageId: id }, id) : null;
+			const refs = (record) => h("div", { className: "dshSwarm_publicRefs" },
+				(record.taskIds ?? []).map((id) => action(t("public.tasks", {}) + " · " + id, { view: "threads", taskId: id }, "t" + id)),
+				(record.findingIds ?? []).map((id) => action(t("public.findings", {}) + " · " + id, { view: "threads", findingId: id }, "f" + id)),
+				(record.proposalIds ?? []).map((id) => h("span", { key: id, className: "dshSwarm_badge" }, t("public.proposals", {}), " · ", h("code", {}, id))));
+			const body = (value) => h("p", { className: "dshSwarm_publicBody" }, value);
+			const replyContext = (value) => {
+				const parent = contextMessages.find((message) => message.id === value.replyToMessageId);
+				return parent ? h("blockquote", { className: "dshSwarm_notice" }, h("strong", {}, t("public.reply", {}), " · ", name(parent.authorWorkerId)), parent.body.slice(0, 300), parent.body.length > 300 ? "…" : "") : null;
+			};
+			const people = (label, ids) => ids.length ? h("p", { className: "dshSwarm_publicStatus" }, label, ": ", ids.map(name).join(" · ")) : null;
+			const status = (value) => badge(t("public.status." + value, {}), value === "pending" || value === "open" ? "dshSwarm_warn" : "");
+			const agreementBody = (value, confirmations) => h(React.Fragment, {}, body(value.content),
+				people(t("public.stakeholders", {}), value.stakeholderWorkerIds),
+				people(t("public.confirmed", {}), confirmations.filter((entry) => entry.version === value.version).map((entry) => entry.workerId)),
+				people(t("public.unconfirmed", {}), value.stakeholderWorkerIds.filter((id) => !confirmations.some((entry) => entry.workerId === id && entry.version === value.version))),
+				h("div", { className: "dshSwarm_publicRefs" }, confirmations.filter((entry) => entry.version === value.version).map((entry) => h("span", { key: entry.workerId, className: "dshSwarm_badge" }, name(entry.workerId), " · ", timeElement(entry.confirmedAt)))),
+				h("div", { className: "dshSwarm_publicRefs" }, value.sourceMessageIds.map((id) => locate(id, t("public.source", {})))), refs(value));
+			let content;
+			switch (item.kind) {
+				case "thread": { const v = item.thread; content = h(React.Fragment, {}, h("div", { className: "dshSwarm_row" }, h("h3", {}, v.title), status(v.status)),
+					people(t("public.author", {}), [v.createdByWorkerId]), people(t("public.participants", {}), v.participantWorkerIds), refs(v),
+					h("div", { className: "dshSwarm_publicRefs" }, action(t("public.openThread", {}), { view: "messages", channelId: v.channelId, threadId: v.id }), locate(v.conclusionMessageId, t("public.conclusion", {})))); break; }
+				case "message": { const v = item.message; content = h(React.Fragment, {}, h("div", { className: "dshSwarm_row" }, h("strong", {}, name(v.authorWorkerId)), badge(t("public.revision", { version: v.revision })), v.announcement ? badge(t("public.announcement", {}), "dshSwarm_warn") : null, timeElement(v.createdAt)),
+					replyContext(v), body(v.body), people(t("public.mentions", {}), v.mentions.map((id) => "@" + name(id))), refs(v), h("div", { className: "dshSwarm_publicRefs" },
+						locate(v.replyToMessageId, t("public.reply", {})), action(t("public.openThread", {}), { view: "messages", threadId: v.threadId, channelId: v.channelId }),
+						action(t("public.requests", {}), { view: "requests", threadId: v.threadId }), action(t("public.agreements", {}), { view: "agreements", threadId: v.threadId }),
+						v.revisionCount > 1 ? action(t("public.history", {}), { view: "message_revisions", messageId: v.id }) : null)); break; }
+				case "request": { const v = item.request; content = h(React.Fragment, {}, status(v.status), people(t("public.requestedBy", {}), [v.requestedByWorkerId]), people(t("public.requestedFrom", {}), [v.targetWorkerId]), refs(v),
+					h("div", { className: "dshSwarm_publicRefs" }, locate(v.messageId, t("public.source", {})), locate(v.responseMessageId, t("public.response", {})))); break; }
+				case "agreement": { const v = item.agreement; content = h(React.Fragment, {}, h("h3", {}, v.title), badge(t("public.version", { version: v.version })), agreementBody(v, v.confirmations),
+					h("div", { className: "dshSwarm_publicRefs" }, action(t("public.history", {}), { view: "agreement_versions", agreementId: v.id }), action(t("public.openThread", {}), { view: "messages", threadId: v.threadId }))); break; }
+				case "notification": { const v = item.notification; content = h(React.Fragment, {}, people(t("public.workerFilter", {}), [v.workerId]), body(v.reasons.map((reason) => t("public.reason." + reason, {})).join(" · ")),
+					h("p", { className: "dshSwarm_publicStatus" }, t(v.deliveredAt === null ? "public.notDelivered" : "public.delivered", {}), " · ", t(v.acknowledgedAt === null ? "public.notAcknowledged" : "public.acknowledged", {})),
+					h("div", { className: "dshSwarm_publicRefs" }, locate(v.messageId), v.threadId ? action(t("public.openThread", {}), { view: "messages", threadId: v.threadId }) : null,
+						v.agreementId ? action(t("public.agreements", {}), { view: "agreements", agreementId: v.agreementId }) : null)); break; }
+				case "activity": content = h(React.Fragment, {}, h("h3", {}, item.title), status(item.status), body(t("public.messages", {}) + ": " + item.messageCount + " · " + t("public.requests", {}) + ": " + item.pendingRequestCount + " · " + t("public.agreements", {}) + ": " + (item.agreementCount ?? item.agreementIds.length)), refs(item), h("div", { className: "dshSwarm_publicRefs" }, action(t("public.openThread", {}), { view: "messages", threadId: item.threadId }), action(t("public.agreements", {}), { view: "agreements", threadId: item.threadId })), item.agreementsTruncated ? h("p", { className: "dshSwarm_subtle" }, t("public.truncated", {})) : null); break;
+				case "message_revision": content = h(React.Fragment, {}, badge(t("public.revision", { version: item.value.revision })), timeElement(item.value.editedAt), body(item.value.body), people(t("public.mentions", {}), item.value.mentions), refs(item.value), locate(item.messageId)); break;
+				case "agreement_version": content = h(React.Fragment, {}, badge(t("public.version", { version: item.value.version })), timeElement(item.value.createdAt), agreementBody(item.value, item.confirmations)); break;
+				default: return null;
+			}
+			return h("li", { className: "dshSwarm_publicCard", "data-public-kind": item.kind }, h("code", { className: "dshSwarm_subtle" }, item[item.kind]?.id ?? item.messageId ?? item.agreementId ?? item.threadId), content);
+		}
+		function PublicSection({ t, progress, sessionId, loadPublic }) {
+			const available = progress.publicActivity?.protocolVersion === 1 && typeof loadPublic === "function";
+			const [selection, setSelection] = React.useState({ view: "threads" });
+			const [search, setSearch] = React.useState(""); const [task, setTask] = React.useState(""); const [member, setMember] = React.useState("");
+			const latest = progress.publicActivity?.latestSeq ?? 0;
+			const channels = usePublicPage(sessionId, progress.runId, loadPublic, available, { view: "channels" }, latest);
+			const reader = usePublicPage(sessionId, progress.runId, loadPublic, available, selection, latest);
+			const contextThread = selection.threadId ?? (selection.messageId ? reader.state.page?.items.find((item) => item.kind === "message")?.message.threadId : undefined);
+			const context = usePublicPage(sessionId, progress.runId, loadPublic, available && Boolean(contextThread) && selection.view !== "threads", { view: "threads", ...(contextThread ? { threadId: contextThread } : {}) }, latest);
+			const navigate = (query) => { setSearch(""); setTask(query.taskId ?? ""); setMember(query.workerId ?? ""); setSelection(query); };
+			const error = (state) => state.error ? h("p", { className: "dshSwarm_notice", role: "alert" }, t("public.failed", {}), ": ", state.error.code === "public/invalid" ? t("public.invalid", {}) : state.error.message) : null;
+			const states = selection.view === "requests" ? ["pending", "responded", "withdrawn"] : ["threads", "activity"].includes(selection.view) ? ["open", "resolved"] : [];
+			return h("section", { className: "dshSwarm_section", "aria-label": t("public.title", {}) },
+				h("h2", { className: "dshSwarm_sectionTitle" }, t("public.title", {})), h("p", { className: "dshSwarm_subtle" }, t("public.note", {})),
+				!available ? h("p", { className: "dshSwarm_notice", role: "status" }, t("public.unavailable", {})) : h("div", { className: "dshSwarm_publicLayout" },
+					h("nav", { className: "dshSwarm_publicChannels", "aria-label": t("public.channels", {}) }, h("h3", { className: "dshSwarm_sectionTitle" }, t("public.channels", {})),
+						h("button", { type: "button", className: "dshSwarm_button", "aria-pressed": !selection.channelId, onClick: () => navigate({ view: "threads" }) }, t("public.allChannels", {})),
+						(channels.state.page?.items ?? []).filter((item) => item.kind === "channel").map(({ channel }) => h("div", { key: channel.id },
+							h("button", { type: "button", className: "dshSwarm_button", "aria-pressed": selection.channelId === channel.id, onClick: () => navigate({ view: "threads", channelId: channel.id }) }, "# " + channel.name),
+							h("p", { className: "dshSwarm_subtle" }, channel.purpose), h("p", { className: "dshSwarm_publicStatus" }, t("public.status." + channel.status, {})))), error(channels.state), h(PublicPagination, { t, reader: channels })),
+					h("div", {}, h("div", { className: "dshSwarm_filters", role: "group", "aria-label": t("public.title", {}) }, ["threads", "messages", "requests", "agreements", "attention", "activity"].map((view) => h("button", { key: view, type: "button", className: "dshSwarm_filter", "aria-pressed": selection.view === view, onClick: () => navigate({ view, ...(selection.channelId ? { channelId: selection.channelId } : {}), ...(selection.threadId ? { threadId: selection.threadId } : {}) }) }, t("public." + view, {})))),
+						h("h3", { className: "dshSwarm_sectionTitle" }, t("public." + selection.view, {})),
+						selection.threadId ? h("p", { className: "dshSwarm_subtle" }, h("code", {}, selection.threadId)) : null,
+						contextThread && selection.view !== "threads" ? h("ol", { className: "dshSwarm_publicCards" }, (context.state.page?.items ?? []).map((item) => h(PublicRecord, { key: item.thread?.id, t, item, progress, navigate }))) : null,
+						contextThread ? error(context.state) : null,
+						h("form", { className: "dshSwarm_publicFilters", onSubmit: (event) => { event.preventDefault(); const query = { ...selection }; delete query.query; delete query.taskId; delete query.workerId; if (search.trim()) query.query = search.trim(); if (task.trim()) query.taskId = task.trim(); if (member) query.workerId = member; setSelection(query); } },
+							h("label", {}, t("public.search", {}), h("input", { type: "search", maxLength: 200, value: search, onChange: (event) => setSearch(event.target.value) })),
+							h("label", {}, t("public.taskFilter", {}), h("input", { maxLength: 240, value: task, onChange: (event) => setTask(event.target.value) })),
+							["requests", "attention"].includes(selection.view) ? h("label", {}, t("public.workerFilter", {}), h("select", { value: member, onChange: (event) => setMember(event.target.value) }, h("option", { value: "" }, t("public.allWorkers", {})), progress.workers.map((worker, index) => h("option", { key: worker.id, value: worker.id }, workerName(t, worker, index + 1))))) : null,
+							h("button", { type: "submit", className: "dshSwarm_button" }, t("public.apply", {})), h("button", { type: "button", className: "dshSwarm_button", onClick: () => navigate({ view: "threads" }) }, t("public.clear", {}))),
+						states.length ? h("div", { className: "dshSwarm_filters" }, ["", ...states].map((status) => h("button", { key: status, type: "button", className: "dshSwarm_filter", "aria-pressed": (selection.status ?? "") === status, onClick: () => { const query = { ...selection }; delete query.status; if (status) query.status = status; setSelection(query); } }, status ? t("public.status." + status, {}) : t("filter.all", {})))) : null,
+						h("button", { type: "button", className: "dshSwarm_button", disabled: reader.state.loading, onClick: () => reader.pager.current?.refresh() }, t("public.refresh", {})), error(reader.state),
+						reader.state.page && !reader.state.page.items.length ? h("p", { className: "dshSwarm_empty" }, t("public.empty", {})) : null,
+						h("ol", { className: "dshSwarm_publicCards", "aria-busy": reader.state.loading, "aria-live": "polite" }, (reader.state.page?.items ?? []).map((item, index) => h(PublicRecord, { key: item.kind + ":" + (item[item.kind]?.id ?? item.messageId ?? item.agreementId ?? item.threadId ?? index) + ":" + (item.value?.version ?? item.value?.revision ?? ""), t, item, progress, navigate, contextMessages: (reader.state.page?.items ?? []).filter((entry) => entry.kind === "message").map((entry) => entry.message) }))),
+						reader.state.page?.truncated ? h("p", { className: "dshSwarm_subtle" }, t("public.truncated", {})) : null, h(PublicPagination, { t, reader }))));
+		}
+
+		const viewTabs = ["dashboard", "members", "flow", "public", "goals", "worktrees"];
 		function nextTab(current, key) {
 			const index = Math.max(0, viewTabs.indexOf(current));
 			return key === "Home" ? viewTabs[0] : key === "End" ? viewTabs.at(-1) : key === "ArrowRight" ? viewTabs[(index + 1) % viewTabs.length] : key === "ArrowLeft" ? viewTabs[(index + viewTabs.length - 1) % viewTabs.length] : null;
 		}
-		function RunBody({ t, state, now, sessionId, executeCommand, loadHistory, loadConversation, createWorktree }) {
+		function RunBody({ t, state, now, sessionId, executeCommand, loadHistory, loadConversation, loadPublic, createWorktree }) {
 			const p = state.progress;
 			const [tab, setTab] = React.useState("dashboard");
 			const prefix = "swarm-" + encodeURIComponent(sessionId + ":" + p.runId);
@@ -1377,6 +1574,7 @@ window.__ModuleLoader__.load({
 				panel("dashboard", h(DashboardPanel, { t, state, now })),
 				panel("members", h(WorkersSection, { t, progress: p, stale: state.status !== "live", sessionId, executeCommand })),
 				panel("flow", h(FlowPanel, { t, progress: p, sessionId, loadConversation })),
+				panel("public", tab === "public" ? h(PublicSection, { t, progress: p, sessionId, loadPublic }) : null),
 				// Keep drafts and in-flight owner commands mounted when switching tabs.
 				panel("goals", h(GoalSection, { t, progress: p, sessionId, executeCommand, connected: state.status === "live" })),
 				panel("worktrees", tab === "worktrees" ? h("div", {},
@@ -1399,14 +1597,14 @@ window.__ModuleLoader__.load({
 				return () => subscription.dispose();
 			}, [available, sessionId, props.watchSessionProgress, props.watchProgress, attempt]);
 			React.useEffect(() => startClock(current, setNow), [sessionId, current.status, current.progress?.runId, current.progress?.phase]);
-			return h("section", { className: "dshSwarm_root", "aria-label": t("title", {}) }, h("style", {}, css + worktreeCss),
+			return h("section", { className: "dshSwarm_root", "aria-label": t("title", {}) }, h("style", {}, css + worktreeCss + publicCss),
 				h("header", { className: "dshSwarm_header" }, h("div", { className: "dshSwarm_row" }, h(SwarmMark), h("h2", { className: "dshSwarm_title" }, t("title", {})), current.progress ? badge(label(t, "phase", current.progress.phase), tone(current.progress.phase)) : null),
 					h("div", { className: "dshSwarm_connection " + (current.status === "live" ? "dshSwarm_live" : "") }, h("span", { role: "status", "aria-live": "polite" }, h("span", { className: "dshSwarm_dot", "aria-hidden": true }), " ", t("connection." + current.status, {})), h("button", { type: "button", className: "dshSwarm_button", disabled: !available || current.status === "loading", onClick: () => setAttempt((value) => value + 1) }, t("refresh", {})))),
 				current.progress ? h("p", { className: "dshSwarm_subtle", style: { marginTop: 6 } }, timeElement(current.progress.updatedAt, t("updated", { time: timeLabel(current.progress.updatedAt) }))) : null,
 				current.status !== "live" && current.hasSnapshot ? notice(t("stale.title", {}), t(current.status === "ended" ? "ended.body" : "stale.body", {})) : null,
 				current.message || (!available && props.progressError) ? h("p", { role: "alert", className: "dshSwarm_notice" }, current.message || props.progressError) : null,
 				current.legacy ? notice(t("legacy.title", {}), t("legacy.body", {})) : null,
-				current.progress ? h(RunBody, { key: sessionId + ":" + current.progress.runId, t, state: current, now, sessionId, executeCommand: props.executeCommand, loadHistory: props.loadHistory, loadConversation: props.loadConversation, createWorktree: props.createWorktree }) : current.hasSnapshot ? h(React.Fragment, {},
+				current.progress ? h(RunBody, { key: sessionId + ":" + current.progress.runId, t, state: current, now, sessionId, executeCommand: props.executeCommand, loadHistory: props.loadHistory, loadConversation: props.loadConversation, loadPublic: props.loadPublic, createWorktree: props.createWorktree }) : current.hasSnapshot ? h(React.Fragment, {},
 					h("div", { role: "tablist", className: "dshSwarm_tabs", "aria-label": t("tabs.label", {}) },
 						h("button", { type: "button", role: "tab", className: "dshSwarm_tab", "data-swarm-tab": "worktrees", "aria-selected": true }, t("tabs.worktrees", {}))),
 					h("div", { role: "tabpanel", className: "dshSwarm_tabpanel" },
@@ -1453,6 +1651,11 @@ window.__ModuleLoader__.load({
 						if (typeof remote?.conversation !== "function") throw Object.assign(new Error(t("conv.unavailable", {})), { code: "gateway/method-unavailable" });
 						return remote.conversation(id, cursor);
 					}, sessionId, beforeSeq, signal);
+					const loadPublic = (sessionId, runId, query, signal) => executeHistoryRead((id, request, requestSignal) => {
+						const remote = progressRemote();
+						if (typeof remote?.publicDiscussion !== "function") throw Object.assign(new Error(t("public.unavailable", {})), { code: "gateway/method-unavailable" });
+						return remote.publicDiscussion(id, request.runId, publicQueryInput(request.query), requestSignal);
+					}, sessionId, { runId, query }, signal);
 					const watchProgress = (sessionId, signal) => progressRemote().watch(sessionId, signal);
 					const watchSessionProgress = (sessionId, signal) => progressRemote().watchSession(sessionId, signal);
 					const worktreesRemote = () => ctx.get("remote.swarmWorktrees");
@@ -1466,12 +1669,12 @@ window.__ModuleLoader__.load({
 						if (typeof remote?.create !== "function") throw Object.assign(new Error(t("wt.unavailable", { message: "remote method unavailable" })), { code: "gateway/method-unavailable" });
 						return readRemoteValue(() => remote.create(sessionId, request));
 					};
-					removeSlot = ctx.slots.inject("conversation.view", () => ctx.slots.register({ name: "conversation.view", id: "swarm-progress", order: 5, locale: NS, label: () => t("view.label", {}), inject: () => ({ progressAvailable: available, progressError, watchProgress, watchSessionProgress, executeCommand, loadHistory, loadConversation, listWorktrees, createWorktree }) }, SwarmProgressView));
+					removeSlot = ctx.slots.inject("conversation.view", () => ctx.slots.register({ name: "conversation.view", id: "swarm-progress", order: 5, locale: NS, label: () => t("view.label", {}), inject: () => ({ progressAvailable: available, progressError, watchProgress, watchSessionProgress, executeCommand, loadHistory, loadConversation, loadPublic, listWorktrees, createWorktree }) }, SwarmProgressView));
 				}
 				return async () => { cleanup(); await unmount?.(); };
 			}, "dsh-swarm: progress panel");
 		}
 		// Pure derivations and the stream owner are also exercised without emulating a browser.
-		return { apply, inject: ["slots", "locale", "remote"], progressClient: { readConversationPage, mergeConversation, ConversationSection, FlowPanel, flowHoverPosition, computeGraph, trackLanes, trackLayout, WorkersSection, FlowSection, flowLayout, messagePairs, readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, goalLane, goalColumns, workerName, addWorkerState, workerReceipt, nextTab, viewTabs, RunBody, GoalSection, AddWorkerControl, dictionaries: { zh, en } } };
+		return { apply, inject: ["slots", "locale", "remote"], progressClient: { publicQueryInput, readPublicPage, createPublicPager, PublicSection, PublicRecord, PublicPagination, readConversationPage, mergeConversation, ConversationSection, FlowPanel, flowHoverPosition, computeGraph, trackLanes, trackLayout, WorkersSection, FlowSection, flowLayout, messagePairs, readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, goalLane, goalColumns, workerName, addWorkerState, workerReceipt, nextTab, viewTabs, RunBody, GoalSection, AddWorkerControl, dictionaries: { zh, en } } };
 	}
 });

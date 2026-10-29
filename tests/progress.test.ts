@@ -509,6 +509,7 @@ describe('Remote markers', () => {
     expect(progressRemoteMethods()).toEqual([
       { method: 'worktreeHistory' },
       { method: 'conversation' },
+      { method: 'publicDiscussion' },
       { method: 'snapshot' },
       { method: 'watch', mode: 'stream' },
       { method: 'watchSession', mode: 'stream' },
