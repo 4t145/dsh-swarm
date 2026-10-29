@@ -162,8 +162,9 @@ export function buildPublicPage(run: Run, input: ParsedPublicQuery, workerId: st
       }
       break;
   }
-  rows.sort((left, right) => left.key.localeCompare(right.key));
-  const remaining = rows.filter((row) => row.key > lastKey);
+  const descending = input.order === 'desc';
+  rows.sort((left, right) => descending ? right.key.localeCompare(left.key) : left.key.localeCompare(right.key));
+  const remaining = rows.filter((row) => !lastKey || (descending ? row.key < lastKey : row.key > lastKey));
   // Bound payload as well as row count. Records themselves have validated 12k text limits.
   const selected: Row[] = [];
   let bytes = 0;

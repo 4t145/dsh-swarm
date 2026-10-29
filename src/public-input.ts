@@ -41,6 +41,8 @@ export const publicQuerySchema = z.strictObject({
   query: z.string().trim().max(200).optional(), status: z.enum(['active', 'archived', 'open', 'resolved', 'pending', 'responded', 'withdrawn']).optional(),
   cursor: z.string().max(2000).optional(), limit: z.number().int().min(1).max(20).default(20),
   includeAcknowledged: z.boolean().default(false),
+  /** `desc` pages newest first, for chat-style "load older" readers. */
+  order: z.enum(['asc', 'desc']).default('asc'),
 });
 export type PublicQuery = z.input<typeof publicQuerySchema>;
 export type ParsedPublicQuery = z.output<typeof publicQuerySchema>;
