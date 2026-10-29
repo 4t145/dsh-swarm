@@ -14,7 +14,7 @@ export type PublicItem =
   | { kind: 'request'; request: ResponseRequestRecord }
   | { kind: 'agreement'; agreement: AgreementView }
   | { kind: 'notification'; notification: NotificationRecord }
-  | { kind: 'activity'; threadId: string; channelId: string; title: string; status: ThreadRecord['status']; updatedSeq: number; messageCount: number; pendingRequestCount: number; agreementIds: string[]; taskIds: string[] }
+  | { kind: 'activity'; threadId: string; channelId: string; title: string; status: ThreadRecord['status']; updatedSeq: number; messageCount: number; pendingRequestCount: number; agreementIds: string[]; agreementCount: number; agreementsTruncated: boolean; taskIds: string[] }
   | { kind: 'message_revision'; messageId: string; value: PublicMessageRevision }
   | { kind: 'agreement_version'; agreementId: string; value: AgreementVersion; confirmations: AgreementRecord['confirmations'] };
 export interface PublicPage {
@@ -96,18 +96,24 @@ export function buildPublicPage(run: Run, input: ParsedPublicQuery, workerId: st
         if (!matches({ ...entry, threadId: entry.id, taskIds }, entry.title) || (input.status && entry.status !== input.status)) continue;
         if (input.findingId && !entry.findingIds.includes(input.findingId) && !Object.values(run.publicMessages).some((msg) => msg.threadId === entry.id && msg.findingIds.includes(input.findingId!))) continue;
         if (input.view === 'threads') add(entry.seq, entry.id, { kind: 'thread', thread: entry });
-        else add(entry.seq, entry.id, { kind: 'activity', threadId: entry.id, channelId: entry.channelId, title: entry.title,
-          status: entry.status, updatedSeq: entry.updatedSeq,
-          messageCount: Object.values(run.publicMessages).filter((msg) => msg.threadId === entry.id).length,
-          pendingRequestCount: Object.values(run.responseRequests).filter((request) => request.threadId === entry.id && request.status === 'pending').length,
-          agreementIds: Object.values(run.agreements).filter((record) => record.threadId === entry.id).slice(0, 20).map((record) => record.id), taskIds: entry.taskIds });
+        else {
+          const agreements = Object.values(run.agreements).filter((record) => record.threadId === entry.id);
+          add(entry.seq, entry.id, { kind: 'activity', threadId: entry.id, channelId: entry.channelId, title: entry.title,
+            status: entry.status, updatedSeq: entry.updatedSeq,
+            messageCount: Object.values(run.publicMessages).filter((msg) => msg.threadId === entry.id).length,
+            pendingRequestCount: Object.values(run.responseRequests).filter((request) => request.threadId === entry.id && request.status === 'pending').length,
+            agreementIds: agreements.slice(0, 20).map((record) => record.id), agreementCount: agreements.length,
+            agreementsTruncated: agreements.length > 20, taskIds: entry.taskIds });
+        }
       }
       break;
     case 'messages':
       for (const entry of Object.values(run.publicMessages)) {
         if (input.messageId && entry.id !== input.messageId) continue;
         const taskIds = [...entry.taskIds, ...(run.threads[entry.threadId]?.taskIds ?? [])];
-        if (!matches({ ...entry, taskIds }, entry.body) || (input.findingId && !entry.findingIds.includes(input.findingId))) continue;
+        const linkedFinding = input.findingId && (entry.findingIds.includes(input.findingId) || run.events.some((event) =>
+          event.kind === 'public' && event.action === 'finding_linked' && event.findingId === input.findingId && event.messageId === entry.id));
+        if (!matches({ ...entry, taskIds }, entry.body) || (input.findingId && !linkedFinding)) continue;
         add(entry.seq, entry.id, { kind: 'message', message: currentMessage(entry) });
       }
       break;

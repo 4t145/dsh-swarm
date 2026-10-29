@@ -59,7 +59,7 @@ export const publicEventSchema = z.strictObject({
     'message_posted', 'message_revised', 'request_created', 'request_responded', 'request_withdrawn',
     'agreement_created', 'agreement_revised', 'agreement_confirmed', 'finding_linked']),
   channelId: id, threadId: id.nullable(), messageId: id.nullable(), requestId: id.nullable(),
-  agreementId: id.nullable(), notificationIds: ids,
+  agreementId: id.nullable(), notificationIds: ids, findingId: id.optional(),
 });
 
 /** Validate same-aggregate graph edges at the persistence boundary, including legacy/private separation. */
@@ -146,6 +146,7 @@ export function publicReferenceIssues(run: Run): { path: string[]; message: stri
     if (event.threadId) { threadRef(event.channelId, event.threadId, path); messageRef(event.messageId, event.threadId, path); }
     ref(run.responseRequests, event.requestId, path); ref(run.agreements, event.agreementId, path);
     for (const id of event.notificationIds) ref(run.notifications, id, path);
+    ref(run.findings, event.findingId ?? null, path);
   }
   return issues;
 }
