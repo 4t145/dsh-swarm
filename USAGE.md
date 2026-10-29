@@ -2,6 +2,8 @@
 
 单机、对等 worker、独立 worktree、验证后集成到一个结果分支。架构见 [ARCHITECTURE.md](<ARCHITECTURE.md>)，开发规则见 [AGENTS.md](<AGENTS.md>)。
 
+> **R6 公共频道是本次结果分支的代码功能，不代表当前 GUI 已部署。** 本轮未安装插件、重启 Host 或启动替代服务器；由 owner 将结果应用到实际插件 checkout 后，按管理器要求加载新版。历史安装和模型验收不能当作这次公共协议的真实运行验收。
+
 ## 环境与当前安装
 
 - 目标：DSH **0.2.1-rc.4**、Node **24.9+**、Linux、较新的 Git（建议 **2.46+**）。其他 DSH 版本或操作系统未验证。
@@ -28,7 +30,7 @@ owner Agent 的系统提示和 `swarm_manage` 工具描述都直接写明：启�
 
 高级/备用入口是 `/swarm start --spec <路径>` 与 `/swarm status|append|continue|pause|resume|stop`；用户可以不用它们。
 
-- Web 对话页的“协作群”标签位于“对话”和“轨迹”之间，内部有五个独立页签：**Dashboard、成员列表、协作流、目标看板、Git 工作树**。Dashboard 依次展示本轮目标、四阶段步进条、任务/验证/预算三张指标卡（任务卡带按状态分段的组成条）、当前交付与“团队现状”卡、任务板和最近公开活动；成员在所有页签中使用同一种有彩色的身份色，黑/白/灰只用于 Host 与已接受结果；成员的当前任务与工具活动在成员列表。页签支持方向键及 Home/End。切换或关闭视图不停止 run。
+- Web 对话页的“协作群”标签位于“对话”和“轨迹”之间，新版内部有六个独立页签：**Dashboard、成员列表、协作流、公共讨论、目标看板、Git 工作树**（旧 Host 保留旧视图并显示公共能力提示）。Dashboard 依次展示本轮目标、四阶段步进条、任务/验证/预算三张指标卡（任务卡带按状态分段的组成条）、当前交付与“团队现状”卡、任务板和最近公开活动；成员在所有页签中使用同一种有彩色的身份色，黑/白/灰只用于 Host 与已接受结果；成员的当前任务与工具活动在成员列表。页签支持方向键及 Home/End。切换或关闭视图不停止 run。
 - “协作流”页签按泳道展示成员之间的行为：最上方是 Host/已接受结果，下面每名成员一条泳道，事件按发生顺序从左到右。私信画成从发送者弯到接收者的弧线，发现是菱形（失败报告为红色），任务是方块，提案是三角（被拒绝为红叉），结果推进是主线上的圆环，并用虚线连回作者。上方统计私信、发现、提交和结果推进次数，可按类型筛选；下方是“谁在和谁沟通”的定向私信排行和最近动态。鼠标移到泳道上的任意节点（或用 Tab 聚焦）会弹出卡片：私信显示发送者→接收者和正文，发现显示类型、正文、范围和证据，任务和提案显示任务标题与状态，结果推进显示完整 SHA。点击或回车固定卡片，Esc 或 × 关闭，滚动时卡片收起。
 - “协作流”下方的“成员对话与发现”显示具体内容：私信正文（谁发给谁），以及事实、观察、失败报告、改动摘要的正文、关联任务、范围和证据。只有启动该 run 的 owner 会话能读；最新在前，每页 40 条，可加载更早内容，有新消息时自动刷新；可按类型和成员筛选。单条正文超过 8000 字符时截断并标明。最多展示最近 80 条事件。
 - “Git 工作树”页签是一张**地铁式轨道图**：最上方黑/白色主线是已接受结果，下面每个 worker 一条彩色轨道，左侧固定的轨道名牌显示 worker 名、分支和当前 HEAD。提交是轨道上的站点（最新在左，更早向右）；worker 分出时曲线从主线弯下，集成时曲线汇入主线上的“换乘站”（合并提交）；带光晕的站点是该工作树当前 HEAD，最右端方块是 run 基线。画布随提交数向右延展，滚动到右端自动加载更早的提交。没有提交时显示空态；没有 run 时页签仍可用，并提供可折叠的“新建工作树”表单。
@@ -145,11 +147,11 @@ overlay 禁用 `headless-startup`/`headless-runner`、挂载 Agent preset regist
 
 ## 工作与交付
 
-worker 自主创建/认领任务、交换短发现和定向消息。知识条目为 `observed`、`fact`、`fail`、`patch_summary`；更正追加而不改历史。模型看到的工具结果与输入由原生 Session 日志记录。
+worker 自主创建/认领任务，默认在公共频道线程里协商，并通过结构化 @/回应请求明确谁需要行动；只有有限可见性确有必要时才用原私信。知识条目为 `observed`、`fact`、`fail`、`patch_summary`；重要已确认结论带证据发布 Finding，再链接来源讨论。模型看到的工具结果与输入由原生 Session 日志记录。
 
-自主协作原型不需要另开模式：仍用 `swarm_manage start` 提供共同目标，不预先给每个 worker 指派分工。worker 会自己观察缺口、认领、协商、提交，再寻找下一项工作。普通工具成功返回时，插件向该 worker 附上有界的同伴新发现/工作声明/相关消息，不必等它主动查询才看到。默认每次最多 6 条、每个正文片段 400 字符；可通过 worker 插件 Config 的 `peerNoticeItems` / `peerNoticeChars` 调整。提示不会自动确认游标，正式同步仍由 swarm_sync 完成。
+无需另开模式：仍用 `swarm_manage start` 提供共同目标，不预先给每个 worker 指派分工。worker 自己观察缺口、认领、公开协商、提交，再寻找下一项工作。普通工具成功返回时附上有界同伴摘要，公共活动按线程合并为标题与数量，**不把全部公共正文灌给每个人**。默认最多 6 条、标题/旧事件片段 400 字符，由 worker Config 的 `peerNoticeItems` / `peerNoticeChars` 调整。明确待关注通知另按优先级展示引用。摘要不自动确认任何游标，正式事件同步仍由 swarm_sync 完成。
 
-若 worker 只是普通结束了一个 activation，却没有明确 wait 或 finish，Host 会通过已有原生消息通道提醒它自主继续；不会指定它做哪个任务。显式等待、暂停、终态不会被这个提醒唤醒，连续无进展仍暂停，预算边界保持不变。此原型本轮只构建，尚未跑新增行为的模型验收。
+若 worker 只是普通结束了一个 activation，却没有明确 wait 或 finish，Host 会通过已有原生消息通道提醒它自主继续；不会指定它做哪个任务。显式等待、暂停、终态不会被这个提醒唤醒，连续无进展仍暂停，预算边界保持不变。本轮公共协议有确定性投递回归，但尚未进行新版真实模型验收。
 
 代码先进入 worker 私有提交，再在专用集成工作区串行合并并执行 setup/test。只有通过验证的组合提交才推进 result 分支。局部检查通过不代表集成通过；失败候选会交回作者修复。用户原工作区的 tracked 文件、index、当前分支与 cwd 不被插件切换。
 
@@ -161,6 +163,67 @@ git show <acceptedHead>
 ```
 
 结果分支形如 `swarm-<run-id>-result`。由用户决定是否合入自己的分支；插件不自动更新主分支。只有 `completed` 表示整体收尾成功，`stopped` 仅表示停止并保留当前已接受结果。没有人提出 finish 时，Host 不从“大家都空闲”推断成功。
+
+## 公共频道与线程协作
+
+新版“协作群 → **公共讨论 / Public discussion**”提供频道列表、线程/回复上下文、关联任务/Finding/提案、@对象、待回应对象、当前约定与确认/修订历史；可搜索、切换频道/线程/任务过滤、按来源 ID 跳转及翻页。保留原协作流、成员、目标和 Git 视图。公共面板是 **owner 授权只读观察**，不会替 worker 回应、确认、标已读，也不会将讨论转成正式新需求。旧 Host 没有接口时显示能力提示；请勿把网络/权限错误当作没有历史。
+
+- 每个 run 自动带 `general`。所有成员和后来加入者都能读取公共历史，不需要先订阅；订阅只决定普通更新通知。成员可创建主题频道；仅创建者能按 revision 归档，general 永久保留。归档后不能新增/修订讨论，历史和搜索仍可读。
+- 公共正文只存一份，通知带原因和引用。`mentions:[workerId]`、明确回应请求、对本人消息的回复、约定需要确认与显式全局公告优先通知。仅在正文写 `@名字` 不会触发通知。关联任务当前负责人、参与者和订阅者接收合并更新；无关普通讨论不逐条唤醒全员。
+- 私信工具 `swarm_message` 及旧历史不变；不自动公开旧私信，也不允许把私信 ID 当公共回复/来源。owner 看见消息不等于它成为需求；新需求仍须经过原 `swarm_manage append` / 目标看板授权入口。
+
+### Worker 工具
+
+原 9 个工具不变；新增两项实际工具仅给 worker preset，不给普通 owner 冒充成员。公共协议的新字段采用 **camelCase**（旧工具字段保持原 snake_case）：
+
+| 工具 | 参数与效果 |
+|---|---|
+| `swarm_public_read` | `view` 必填：channels、threads、messages、requests、agreements、attention、activity、message_revisions、agreement_versions。可选 channelId/threadId/taskId/findingId/messageId/agreementId/query/status/cursor/limit；每页最多20条，返回截断和 nextCursor。 |
+| `swarm_discuss` | `command:{action,...}`，按下表创建/修改公共对象；身份取真实 Agent。需要 revision/version 的动作必须提供最近读取的值，冲突应重读而非强行覆盖。 |
+
+`swarm_discuss` 的 command：
+
+| action | 主要字段 |
+|---|---|
+| create_channel / archive_channel | name、purpose / channelId、expectedRevision |
+| create_thread / update_thread | channelId、title、taskIds? / threadId、expectedRevision、可选 title/taskIds/status/conclusionMessageId |
+| post | threadId、body；可选 replyToMessageId、mentions、responseRequestedFrom、taskIds/findingIds/proposalIds、announcement |
+| revise_message | messageId、expectedRevision、body、mentions/taskIds/findingIds/proposalIds（省略数组即清空当前关联，旧版保留） |
+| subscribe | channelId、threadId?、mode=following 或 muted；只设置自己，不改变公共可见性 |
+| request_response | messageId、targetWorkerId、taskIds?；或直接 post 的 responseRequestedFrom 一次为多人建立请求 |
+| respond / withdraw_request | requestId、expectedRevision；respond 另需自己的本线程 responseMessageId |
+| create_agreement | threadId、title、content、sourceMessageIds、stakeholderWorkerIds、taskIds? |
+| revise_agreement / confirm_agreement | agreementId、expectedVersion、完整新版 content/sourceMessageIds/stakeholderWorkerIds/taskIds / agreementId、version |
+| link_finding | threadId、findingId、expectedRevision、messageId?；先用 swarm_publish 发布有证据的 Finding |
+| ack_notifications | notifications:[{id,seq}]；仅确认自己的精确通知版本，合并后旧 seq 会拒绝 |
+| mark_read | channelId、messages:[{messageId,revision}]；只能确认实际提供的当前全文版本 |
+
+例如，先 `swarm_public_read {"view":"channels"}` 获得频道 ID，再创建线程和提问（下面 ID 为工具实际返回值的占位）：
+
+```json
+{"command":{"action":"create_thread","channelId":"<channel-id>","title":"API response contract","taskIds":["<task-id>"]}}
+```
+
+```json
+{"command":{"action":"post","threadId":"<thread-id>","body":"请确认分页响应字段。","mentions":["<worker-B-id>"],"responseRequestedFrom":["<worker-B-id>"]}}
+```
+
+B 用 `swarm_public_read {"view":"attention"}` 先看待回应，再用 messages/threadId 展开全文、发一条带 replyToMessageId 的公开回复，最后显式回应请求：
+
+```json
+{"command":{"action":"respond","requestId":"<request-id>","expectedRevision":1,"responseMessageId":"<B-reply-id>"}}
+```
+
+重要接口约定用 create_agreement 列明来源、任务、相关方；每位相关方执行 confirm_agreement 的**精确当前 version**。修订后旧确认只留历史，不算同意新版。不从沉默、读过或普通回复推断同意。
+
+### 阅读不等于确认或回应
+
+- `swarm_sync` 的 offeredSeq/observedSeq 是原全局事件扫描/ACK，保持有界分页规则；只有 sync/wait 返回的合法 cursor 可用于原 ACK。
+- public activity、通知、GUI 和历史版本摘要都不是 worker 的全文阅读。只有 messages 返回的当前全文版本成为可 mark_read 的 offered 版本；旧版已读不会自动覆盖新版。
+- 通知 deliveredAt 仅证明 inbox 收到，acknowledgedAt 需显式 id+seq 确认。通知 ACK 后回应请求仍可能 pending，attention 仍将其放在普通更新前。
+- `snapshotSeq`/`nextCursor` 只用于公共查询分页，不可拿去推进全局 ACK。cursor 绑定 run/筛选，新增消息不会挤掉已打开分页；要看到新内容应刷新首屏。
+- 新成员可依次读 channels、activity/threads、agreements 和 requests(status=pending)，然后按来源消息展开；不需要重放所有聊天到上下文。
+- 普通未关闭线程、未答问题不自动阻塞 finish。真正阻塞交付要建立 Task/带修复任务的 fail Finding；讨论不能替代 Task CAS、Git 提案/验证或 owner 需求。
 
 ## 暂停、恢复与停止
 
@@ -183,16 +246,18 @@ git show <acceptedHead>
 ## 开发与重新安装
 
 ```sh
-pnpm install --ignore-scripts
-pnpm link:harness -- <当前 @deepseek-ai/dsh 的安装目录>
+pnpm install --frozen-lockfile
+pnpm run link:harness -- <当前 @deepseek-ai/dsh 的安装目录>
 pnpm typecheck
-pnpm test
 pnpm build
+pnpm test
 # 原生 CLI 回归：隔离 DSH_HOME，使用阻塞测试 adapter，不调用付费模型 API
 pnpm test:native-headless
 ```
 
 链接脚本只对齐本地开发的宿主声明和 Cordis 实例，不把机器路径写入源码。Zod 固定为 4.4.3，与目标 DSH storageDomain 的类型兼容。
+
+pnpm 11 的[项目配置](<pnpm-workspace.yaml>)仅允许 esbuild 的必要平台二进制安装脚本；没有批准所有依赖脚本。`verifyDepsBeforeRun:false` 防止每次脚本前自动重装覆盖已链接的 Harness/Cordis，因此须按上面的顺序先显式 frozen-lockfile install、再 link、再检查。无需设置临时 `pnpm_config_verify_deps_before_run` 或改用户全局配置；typecheck/build/test 没有被跳过。
 
 构建后，通过当前 DSH 的 `plugin_manager install_bundle` 安装项目绝对目录。已经安装时不要反复执行 install；根据管理器提示先移除/重新安装，或重启 DSH 载入更新后的 JavaScript。仅修改源码而没有构建不会更新运行代码。
 

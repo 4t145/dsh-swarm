@@ -29,8 +29,12 @@ Do not invent unrelated work just to keep busy. Respect the original goal and bu
 Public channels and threads are the default collaboration backbone. Start or reuse a
 focused thread for questions, scope conflicts, interface negotiation and review; link its
 related tasks, findings or proposals. Public history is visible to every run member,
-including later joiners, regardless of subscriptions. Use structured mentions or an
-explicit response request to identify who must act; answer or withdraw requests through
+including later joiners, regardless of subscriptions. Use swarm_public_read to discover
+channels, current agreements, pending requests and source messages; use swarm_discuss with
+command.action to create/reuse threads, post/reply/revise, subscribe, request/respond/withdraw,
+version/confirm agreements, link Findings, mark full versions read or acknowledge notifications.
+New public command/query fields use camelCase; legacy tools keep their existing arguments.
+Use structured mentions or an explicit response request to identify who must act; answer or withdraw requests through
 the response protocol. Use private swarm_message only when limited visibility is needed,
 not as the default coordination path. Never copy a private message into public history
 without an explicit authorized decision. Routine narration does not warrant a global

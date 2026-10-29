@@ -1,5 +1,7 @@
 # 实现记录
 
+> 当前公共频道协议见文末“R6 公共协作体系”与 [架构 §14](<ARCHITECTURE.md>)。此前各版本的安装、原型、测试数量和局限为历史记录，不代表本次结果分支已部署；旧 pnpm 临时环境开关方式已由本轮项目配置替代。
+
 ## 基线
 
 - 业务规格：[ARCHITECTURE.md](<ARCHITECTURE.md>) R4。
@@ -256,3 +258,65 @@ git diff --check
 
 - 全量 **39 文件 / 502 项通过**。原生 headless 的内部 build 也通过；隔离 fixture `/tmp/dsh-swarm-native-headless.rBQH5K` 验证缺失路由在 worker 启动前失败、两原生 worker stream 后真实 SIGINT、一个 persisted stopped final/aborted=true/error=null、退出130、原始临时 checkout 不变。模型为明确 blocking fake adapter，没有调用付费模型。
 - 真实 Git 组合/Remote registry/ProjectionRegistry 回归不等于真实模型自主编码或浏览器目视验收；本轮没有部署当前 GUI，也没有安装、重启或替代服务。测试的有效分支与未覆盖高风险均按上节报告。
+
+## R6 公共协作体系（2026-10-29）
+
+### 交付与协议边界
+
+本轮两名同权 worker 自主协商领域/投递/工具/GUI 范围，复用既有 domain、事件、串行队列、admission、Task CAS 与 Git 验证。不是扩展私信 `target=all`，不从沉默推断共识，也不以“原型”删减请求或版本确认。只交付 Swarm 结果分支；未合并用户主分支、未安装插件/修改 profile/DSH、未重启 Host、未启动替代服务器。
+
+- [公共类型](<src/public-types.ts>) 和 [schema](<src/public-schema.ts>) 在原 Run 增加八个 map：channels、threads、publicMessages、subscriptions、notifications、channelReads、responseRequests、agreements。新建 run 带 general；旧记录仅增加空公共容器和确定性 general，不复制私信、不追加伪历史。持久化边界检查 map key 与实体 id、公共引用/作者/相关方同 run，以及全文 offered/read 与确认版本一致性。
+- [PublicCollaboration](<src/public-collaboration.ts>) 是同步 reducer 的业务入口；身份来自真实 Session 映射，回执 `(sessionId,callId)` 在同一次 update 保存。频道归档仅创建者、线程元数据仅创建者、消息修订仅作者、请求响应仅目标、撤回仅提出者、约定修订仅创建者、确认仅该版本列名相关方。并发操作用 revision/version CAS；不同动作复用 callId 拒绝，重放已完成操作不重复事件，即使 run 已暂停。
+- [输入 schema](<src/public-input.ts>) 的 16 种动作、9 种查询视图是完整工具契约。`swarm_discuss({command:{action,...}})` 与 `swarm_public_read({...})` 使用 camelCase 公共字段，保留原 9 工具的 snake_case 与私信语义。[Runtime](<src/runtime.ts>) 提供同 store 的 publicCollaboration，[工具](<src/tools.ts>) 真实接线到 worker preset 而非 owner。通过真实 DSH ToolRuntime/Context 的注册、执行、鉴权与卸载测试。
+- 实测 Zod 4 `toJSONSchema` 结果附有不可枚举 `~standard` 函数，DSH 的 lossless JSON schema gate 会拒绝；工具层仅投影可枚举 JSON schema 数据，保持实际参数校验，不绕过 Host gate。该故障由真实 registry 测试发现并修复。
+- [查询投影](<src/public-query.ts>) 分离当前全文与历史版本，最多20条/页与约24K字符目标（单条完整记录受字段固定上限约束）；返回显式 total/hasMore/truncated/cursor。cursor 绑定 run/viewer/filter，稳定 keyset 排序并固定新增事件上界。可按任务/线程/频道/消息/Finding 查源，当前约定和 pending 请求供后来成员加入时读取；不承诺查询期间可变状态的历史快照隔离。
+- 原私信仍只给作者/目标 worker，owner 的旧对话查看仍受旧授权；公共查询从不读取 legacy messages map。引用私信、其他 run 或不存在对象报错。Finding 不可变；讨论链接与 findingId 反查保留来源，不把讨论意见自动发布为 fact。
+
+### 通知、阅读、回应与同意
+
+完整矩阵见 [架构 §14](<ARCHITECTURE.md>)；实现位于 [events](<src/events.ts>)、[Delivery](<src/delivery.ts>) 和 [worker context](<src/worker-context.ts>)。
+
+- mentions / response_request / reply / announcement / agreement_confirmation 为 immediate。任务当前负责人/参与者/following 是 digest，未确认同线程通知合并，刷新 seq 并清 deliveredAt；显式请求独立保存且排序优先，不被普通消息降级。本人不收到自己的普通通知；无关讨论只进按线程分组的有界标题/活动数量摘要，不全员正文广播。
+- 通知先随业务持久化，再走每 worker 原串行 queue/admission。活跃者只处理 immediate；普通 digest 到 idle/settled。登记 wait 后不打断正在收尾的 activation。暂停不唤醒，恢复重投未确认，终态不启动；通知 id+seq 与本次实际送出的版本相符才记录 deliveredAt。
+- 全局 offered/observed、频道当前全文版本 offered/read、通知 delivered/acknowledged、请求 pending/responded/withdrawn、约定逐版本 confirmations 是五组独立状态。`ack_notifications` 要求 `notifications:[{id,seq}]`，陈旧 ACK 不能吞并发合并；`mark_read` 只接受实际提供的精确消息版本。GUI owner 阅读不推进 worker 全文 offers。
+- 即使通知已 ACK，attention 仍把本人待回应请求放在普通更新前。普通发帖、全文已读、通知确认不会完成请求；只允许请求目标引用自己的同线程公开消息显式 respond。约定新版保留旧确认作为历史，但当前投影不把旧确认算成新版同意。
+- 公开线程、未答请求本身不进入 finishGaps。真正阻塞的工作仍用 Task/fail Finding，完整 owner 需求、goalRevision、Proposal、验证凭据、acceptedHead 与 pause/stop 逻辑不被聊天替代。
+
+### GUI/Remote 接口约定
+
+本轮在[正式面板](<client.js>)扩展“公共讨论 / Public discussion”，不是独立 HTML 或替代服务器。沿用 `swarmProgress` 的 owner 会话订阅与按需 Remote：`publicDiscussion(sessionId:string, runId:string, query:PublicQuery):Promise<PublicPage>`。每次读取校验真实 owner/current run，再调用 publicCollaboration.queryForOwner；无 worker/owner 阅读状态 mutation。常规流新增的 `publicActivity` 只含 protocolVersion/latestSeq 和频道/线程/待请求/约定计数，不带公共正文或私人数据。
+
+公共 pane 仅在选中时挂载；分页器持有 AbortController 与 session/run/query 身份，切换、卸载与旧请求返回都不能污染新页面。频道列表、线程/消息/请求/约定/attention/activity、修订历史和来源跳转有界分页，保留中英文、主题 token、原生按钮与键盘操作；旧 Host 缺端点明确说明。GUI 候选由另一 worker 独立验证/集成，其最终测试证据应与下方业务测试计数分开报告。
+
+### pnpm 11 固定 setup 可复现性
+
+Owner 在本轮追加的必要修复已落入[项目 workspace 配置](<pnpm-workspace.yaml>)，不是未记录的 worker shell 开关：
+
+```yaml
+verifyDepsBeforeRun: false
+allowBuilds:
+  esbuild: true
+```
+
+仅允许 esbuild 的平台二进制安装脚本（本项目构建工具）；没有允许所有依赖脚本。`verifyDepsBeforeRun:false` 防止 pnpm 11 在每个脚本前自动 install 覆盖精确 Harness/Cordis 链接；它**不取消**显式 frozen-lockfile 安装、类型检查、构建或测试。未改用户全局 pnpm/DSH 配置、依赖版本或 lockfile。
+
+实际命令（安装目录由当前环境提供，不写进项目清单）：
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run link:harness -- <当前 @deepseek-ai/dsh 安装目录>
+pnpm typecheck
+pnpm build
+pnpm test
+```
+
+本轮第一次 pnpm 安装曾以 ERR_PNPM_IGNORED_BUILDS 退出1，并产生不可用 workspace 占位；该失败没有被记为成功。以上项目策略集成后，同一组**无临时环境开关**的固定 argv 成功。Harness link 仅在显式 install 后执行一次，后续三项验证不再重新安装或替换 Cordis。Host 对组合候选再次执行固定 setup/test 后才接受提交。
+
+### 已执行的业务/投递/工具验收
+
+- 领域/投递候选 `355e48d088643b23a3fdcc9f03f894b50e97a1f0` 被 Host 接受为 `b8a7f10e124b2e8954a52bb68f7a0d42f54c3777`。
+- 活工具候选 `7737a5caee68264cd53acc31005676e287468c36` 被 Host 接受为 `f1f7c4ccf9d45b773df2d1cbe4a42f87de7eb3d7`。本 worker 实际执行上述 install/link/typecheck/build/test 全部退出0；日志任务 `bash-fd1791d09b7f488a`，**41 测试文件 / 530 项通过**。后续 GUI 合并与最终组合结果另行更新，不能把该数量当作尚未运行代码的证明。
+- [17 项公共业务测试](<tests/public-collaboration.test.ts>)：旧 run/私信隔离、A问B而C可读参与、频道/归档/作者权限、跨线程/跨 run/私信/原型键引用拒绝、请求授权/CAS、约定版本确认、任务负责人转移/动态成员、并发发帖/快照分页/搜索、重复 mutation、摘要/全文/通知/请求分离、陈旧通知 ACK、持久引用损坏拒绝。
+- [8 项公共投递测试](<tests/public-delivery.test.ts>)：真实 Store/Collaboration/Delivery 配合 fake effect ports 和 Promise 屏障，覆盖等待登记前后、收尾、暂停/停止、冷恢复独立 ACK、投递中合并版本回执、普通噪声/优先级及上下文不泄露正文。保留原[投递](<tests/delivery.test.ts>)、[事件](<tests/events.test.ts>)与[运行时](<tests/runtime.test.ts>)回归断言。
+- [工具测试](<tests/tools.test.ts>) 实测 11 工具精确注册/卸载、真实 Agent 身份、完整问答/约定调用、错误输入、以及普通未关闭线程/待回应请求不阻塞正常 finish；fixture 使用显式时钟，不 sleep 碰时序。原 Git/e2e/目标/GUI/Remote 回归仍全量运行。
+- 这些是源码、构建、真实 ToolRuntime/临时 Git 与受控 effect port 的自动化证据，**不是**当前宿主已加载新代码、真实模型已使用公共协议、浏览器已完成视觉/交互验收。本轮未部署、未安装、未重启、未启动替代 Web 服务；旧章节的真实模型/GUI检查是历史版本证据，不可挪用于 R6。

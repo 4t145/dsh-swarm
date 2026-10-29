@@ -1,8 +1,8 @@
 # DSH Swarm v0.1：单机对等 Agent 协作插件实施方案
 
-文档修订：R5 · 2026-10-28（追加式 owner 目标）
+文档修订：R6 · 2026-10-29（完整公共频道协作协议）
 
-状态：待实现的架构规格，不是已实现功能说明。
+状态：实现协议与历史设计依据。§1–13 保留初版生命周期/Git/私信设计及 R5 owner 追加目标；其中“首版/拟实现”等为历史时态。公共频道、线程、通知、请求与约定以 **§14** 为当前规范，不能用旧“Finding + 私信”替代公共讨论。实际执行的检查与部署边界见 [实现记录](<IMPLEMENTATION.md>)。
 
 读者：没有参与前期讨论、需要理解并实现这个插件的开发者或 AI。
 
@@ -92,7 +92,7 @@ worktree 不是安全沙箱。worker 仍遵守 DSH 的权限与工具策略。�
 | 多个持久 worker | DSH 原生子会话 |
 | 私有 checkout + Git 平台 | 本地 worktree + result 分支 |
 | Issues / 工作声明 | 插件 Task 数据 |
-| 公共频道 / 私信 | Finding + 插件 Message 数据 |
+| 公共频道 / 私信 | 独立 Channel/Thread/PublicMessage 与 Notification；旧 Message 保持私信语义（§14） |
 | 共享 context board | 追加式 Finding + 增量读取 / 搜索 |
 | 每个 worker 的事件 router | Host 内的 Delivery 模块 |
 | PR 整合 | 本地 Proposal + 串行集成队列 |
@@ -668,3 +668,67 @@ M1/M2 是里程碑，不代表插件已经满足最终交付。至少 M1–M3 �
 - [DeLM 产品插件：产品化协作与交付参考](https://github.com/Decentralized-LM/delm-agent-plugin/blob/main/docs/architecture.md)
 
 最后一句：**这是“多个 worker 自主工作，普通程序保证协作与交付边界”的插件，不是“一个经理模型让几个子模型分别回答，然后拼接答案”。**
+
+## 14. R6 公共频道协作协议
+
+本节是已确认完整协议，不是给私信增加 `target=all`，也不是省略功能的原型。公共讨论是协作主干，定向通知回答“谁需要行动”，私信仅用于有限可见性的例外。所有数据仍在同一个 run 聚合，使用原 StateStore 同步 reducer、持久后发布、worker 串行 Delivery/admission；不引入经理模型、数据库、聊天服务或模型循环。
+
+### 14.1 实体与所有权
+
+完整定义在 [公共类型](<src/public-types.ts>)，结构/同 run 引用校验在 [公共 schema](<src/public-schema.ts>)，入口在 [公共业务](<src/public-collaboration.ts>)。
+
+| 持久 map | 主要字段与规则 |
+|---|---|
+| `channels` | 稳定 id、name、purpose、createdByWorkerId、status、revision、时间。每个 run 默认 `${runId}:general`，system 创建者为 null；general 不可归档。成员可创建主题频道，name 是 1–64 位小写字母/数字/下划线/连字符，轮内唯一（含已归档）。只有频道创建者以 revision CAS 归档。 |
+| `threads` | channelId、title、创建者/参与者、taskIds、open/resolved、conclusionMessageId、findingIds、revision、seq/updatedSeq。创建者可 CAS 改标题/任务/状态/结论；发帖自动加入参与者并更新活动位置，不改变元数据 CAS revision。结论必须是本线程公共消息。 |
+| `publicMessages` | kind=public，channelId/threadId/replyToMessageId，真实作者、body、结构化 mentions、taskIds/findingIds/proposalIds、announcement、revision、seq/updatedSeq、历史 revisions。只存一份业务消息；通知仅引用它。只有作者可 CAS 修订；旧正文和关联保留。 |
+| `subscriptions` | 本人对 channel/thread 的 following/muted；线程设置优先于频道。订阅不是 ACL，mute 不屏蔽明确 @、请求、回复、全局公告或任务责任通知。 |
+| `notifications` | workerId、seq、频道/线程/消息/请求/约定引用、reasons、immediate/digest、deliveredAt、acknowledgedAt。未确认 digest 按 worker+thread 合并；新来源刷新 seq/引用、清 deliveredAt。明确请求与普通更新不合并。 |
+| `channelReads` | workerId/channelId、offeredMessageRevisions、readMessageRevisions。记录实际提供全文的消息版本，不是事件扫描前缀。确认精确的最近提供版本；修订后的新版本不会因读过旧版本而已读。 |
+| `responseRequests` | 请求者、单个目标、关联公共消息/线程/任务、pending/responded/withdrawn、responseMessageId、revision、时间。发帖可为多个对象各建一条请求；仅目标可用自己的本线程消息回应，仅请求者可撤回；状态变化 CAS。 |
+| `agreements` | 标题/创建者、当前 version/content、来源消息、受影响任务、stakeholderWorkerIds、旧 versions、逐版本 confirmations。创建者修订、列名相关方确认精确当前版本。旧确认保留历史但不计入新版；创建者也不自动同意。 |
+
+所有业务 mutation 身份来自实际 `exec.agent.id` 的成员映射，输入不接受 author 身份。重复 `(sessionId, toolCallId)` 先检查身份和方法，再返回已保存回执；不同动作不能复用同一调用 ID。新业务写要求 running 且未过显式 deadline；暂停/收尾/终态不发起新讨论。历史读取、全文阅读标记与通知确认不唤醒模型，不产生 public 事件。归档频道不再接受讨论变更，历史、引用、搜索保留。
+
+旧 `messages`、`kind=message` 与 `swarm_message` 完全保留原有作者/目标可见性；不会迁入公共消息，也不伪造旧公共事件。旧 run 缺字段时初始化空公共 maps 与确定性 general 基础设施，下次正常持久更新保存它。所有成员（含后来加入者）均能读该 run 的公共历史；跨 run、不存在、私信作为公共回复/来源引用均拒绝。Finding 不改写：线程 findingIds、消息 findingIds 和 finding_linked 事件支持双向定位，`swarm_public_read` 可按 findingId 查源讨论；确定结论须仍用 `swarm_publish` 附证据，聊天本身不是事实。
+
+### 14.2 通知与唤醒矩阵
+
+[事件相关性](<src/events.ts>)、[Delivery](<src/delivery.ts>) 与[工具边界摘要](<src/worker-context.ts>)共同使用持久通知，不把“全员可见”当作“全员唤醒”。
+
+| 来源 | 对象及优先级 | 实际动作 |
+|---|---|---|
+| 结构化 mentions、明确 response request | 指定对象，immediate；请求排在最前 | 活跃 worker 可 steer；已登记 wait 的 activation 等真实 settled 后再发。正文里的普通 `@名字` 不解析为通知。 |
+| 对自己消息的 reply / 对自己请求的明确 respond | 原作者/请求者，immediate | 通知引用回复消息；普通发帖不自动把请求标为 responded。 |
+| `announcement=true` | 除发送者外所有当前成员，immediate | 显式全局公告；不是把私信复制 N 份。 |
+| 约定创建/修订 | 除发送者外列名相关方，immediate | 请求核对当前版本；投递/读取不增加 confirmations。 |
+| 关联任务当前负责人、线程参与者、following 订阅者 | 相关对象，digest | 按 worker+thread 合并，闲置/settled 边界通知；负责人在每次变更时查实时 Task owner，新成员可主动订阅。 |
+| 无关普通公共活动 | 无定向通知 | 在工具边界按线程提供标题/活动数量等有界摘要；不逐条唤醒所有人、不附全文。 |
+| 本人的普通事件、read/ACK/订阅 bookkeeping | 无新广播 | 不自激；不因确认事件再广播确认。 |
+
+业务事件与通知在同一聚合更新中持久化之后，Delivery 才发原生控制输入。`deliveredAt` 只表示 inbox 已接受，且仅在送出通知的 id+seq 仍匹配时保存；并发合并不能让旧发送回执盖住新消息。每 activation 内去重，冷恢复/下一 activation 允许未确认通知重投，但不重复业务 mutation。暂停保留 pending、不唤醒；恢复重新检查；停止后 admission 拒绝新模型启动。仍复用原等待登记前后、收尾、容量与无进展保护，不新增轮询/timer/进程。
+
+### 14.3 五组不互相代替的状态
+
+1. **全局 Event seq / offeredSeq / observedSeq**：保留 §7 连续扫描与 ACK 约束。public 事件只提供有界引用元数据，不携带正文。没有提供的既有可见事件不能被跳过确认。
+2. **频道全文阅读**：只有 `swarm_public_read view=messages` 返回的当前全文版本才成为 offered；摘要、历史版本页、owner GUI 读取都不会替 worker 提供/确认全文。`mark_read` 确认所读消息版本，不能确认未提供的新修订。
+3. **个人通知 delivered/acknowledged**：`ack_notifications` 必须传 `[{id,seq}]`，防止陈旧 ACK 吞掉刚合并的新更新。全局 sync ACK 和全文已读均不自动确认通知。
+4. **回应状态**：通知确认后请求仍可为 pending；attention 优先显示本人 pending 请求，不能被普通消息淹没。
+5. **约定版本确认**：仅 `confirm_agreement(version)` 增加该版本的本人确认。不从阅读、回应、ACK、沉默或旧版本确认推断一致。
+
+sync/wait 返回有界 priority attention 元数据；未确认通知不能仅因全局 cursor 前进而消失。公开讨论、未回答请求和普通未关闭线程本身**不阻塞 finish**。真实阻塞问题必须建 Task 或带 blockingRepairTaskId 的 fail Finding，进入原完成检查。聊天不能修改 owner goal/goalRevision、Task CAS、Proposal/Verification 或 acceptedHead；owner 新要求仍仅由原授权追加入口保存。
+
+### 14.4 实际工具与有界查询
+
+原 9 个 worker 工具保持兼容，另增两个真实注册工具，均只在 worker preset：
+
+- `swarm_discuss({command:{action,...}})`：action 为 create_channel/archive_channel、create_thread/update_thread、post/revise_message、subscribe、request_response/respond/withdraw_request、create_agreement/revise_agreement/confirm_agreement、link_finding、ack_notifications、mark_read。新增协议字段使用 camelCase；各 action 的必填字段、长度和 CAS 由[统一输入 schema](<src/public-input.ts>)定义，DSH 模型 schema 与业务入口共用。
+- `swarm_public_read({view,...})`：view 为 channels/threads/messages/requests/agreements/attention/activity/message_revisions/agreement_versions；可按 channelId/threadId/taskId/findingId、messageId/ agreementId、query/status 过滤。worker 的 workerId 只能是自己，owner 只读接口可选公共通知接收者。
+
+查询每页最多 20 条，另按序列化内容约 24K 字符分页（首条允许完整返回，单字段/引用列表有固定上限）；全文与版本历史分开翻页，返回 total/hasMore/truncated/nextCursor/snapshotSeq。cursor 绑定 run、viewer 和 filter，稳定 keyset 截止首个事件快照，后追加消息不挤走前页；可变正文/状态是读取时当前事实，不宣称数据库式历史快照。snapshotSeq 是快照说明，**不是** sync 的 ACK cursor。新成员用 channels → activity/threads → agreements、requests(status=pending) 获取当前约定、未解决问题与历史来源。
+
+### 14.5 正式 GUI 与验收边界
+
+现有 [Client 插件](<client.js>) 扩展“公共讨论 / Public discussion”频道/线程视图，保持 Dashboard/成员/协作流/目标/Git 视图。正文只经 `swarmProgress/publicDiscussion(sessionId, runId, query)` 按需接口进入面板；每次检查 owner 和当前 run，然后调用 `PublicCollaboration.queryForOwner`。持续 progress 流仅带 `publicActivity {protocolVersion:1, latestSeq, channels, threads, pendingRequests, agreements}` 有界元数据，不带正文。面板只读公共讨论，不替 worker 阅读确认，不使用户自动成为讨论参与者，也不把“看到了公共消息”当作新的正式需求。中英文、主题 token、原生键盘控件、分页/搜索/版本展开，以及会话/run 切换、卸载后的订阅清理和旧请求隔离属于验收范围。旧 Host 缺能力应明确提示而保留旧视图；权限/网络错误不能吞成空成功。
+
+验收分层：持久业务/ToolRuntime/Remote/组件/临时 Git 的确定性测试，完整 `pnpm typecheck`、`pnpm build`、`pnpm test`，与真实 Host 载入、真实模型、真实浏览器目视分别报告。pnpm 11 项目策略在 [workspace 配置](<pnpm-workspace.yaml>)：仅允许 esbuild 生命周期脚本，禁用脚本前自动重新安装以保护精确 Harness/Cordis 开发链接；固定 setup 使用 frozen lockfile 后运行 link:harness，不依赖 worker 临时环境开关。本轮只交付结果分支，不安装/重启宿主、不改 DSH/用户配置、不启动替代服务器，也不自动合并用户当前分支。
