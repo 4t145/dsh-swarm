@@ -14,6 +14,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { Collaboration } from './collaboration.ts';
+import { PublicCollaboration } from './public-collaboration.ts';
 import { Delivery } from './delivery.ts';
 import { SwarmError, isSwarmError, normalizeError } from './errors.ts';
 import { appendEvent, type EventInput } from './events.ts';
@@ -259,6 +260,8 @@ export class SwarmRuntime {
 
   /** 协作业务规则入口；worker 工具与命令层共用同一个实例。 */
   readonly collaboration: Collaboration;
+  /** Public discussion shares the exact same durable aggregate and lifecycle phase gate. */
+  readonly publicCollaboration: PublicCollaboration;
 
   private readonly delivery: Delivery;
   private readonly integration: IntegrationQueue;
@@ -291,6 +294,7 @@ export class SwarmRuntime {
       id: this.makeId,
       eventPageSize: this.eventPageSize,
     });
+    this.publicCollaboration = new PublicCollaboration(store, { now: () => this.clock.now(), id: this.makeId });
     this.delivery = new Delivery(store, host, {
       admitWorkerOperation: (runId, workerId, kind) => this.admitWorkerOperation(runId, workerId, kind),
       onError: (runId, error) => {

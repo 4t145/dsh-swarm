@@ -15,6 +15,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm';
 import type { JsonSchemaNode, ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import type { StoredArtifacts } from './artifacts.ts';
 import { SwarmError } from './errors.ts';
+import { publicCommandSchema, publicQuerySchema } from './public-input.ts';
 import type { SwarmRuntime } from './runtime.ts';
 import type { JsonValue } from './types.ts';
 
@@ -43,7 +44,9 @@ interface CallerIdentity {
 interface WorkerToolSpec<S extends z.ZodType> {
   readonly name: string;
   readonly description: string;
-  readonly properties: Record<string, JsonSchemaNode>;
+  readonly properties?: Record<string, JsonSchemaNode>;
+  /** Generated JSON Schema for structured public protocol discriminated unions. */
+  readonly parameters?: Record<string, unknown>;
   readonly required?: readonly string[];
   readonly input: S;
   readonly run: (
@@ -101,11 +104,20 @@ function parameterSchema(
   return Object.fromEntries(Object.entries(node));
 }
 
+/** Zod attaches non-enumerable ~standard functions; project only JSON schema data for DSH's lossless schema gate. */
+function generatedParameters(schema: z.ZodType): Record<string, JsonValue> {
+  const value = toJsonValue(z.toJSONSchema(schema, { io: 'input' }));
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new SwarmError('SWARM_INTERNAL', 'Generated tool parameters must be an object');
+  }
+  return value;
+}
+
 function defineWorkerTool<S extends z.ZodType>(spec: WorkerToolSpec<S>): ToolDefinition {
   return {
     name: spec.name,
     description: spec.description,
-    parameters: parameterSchema(spec.properties, spec.required),
+    parameters: spec.parameters ?? parameterSchema(spec.properties ?? {}, spec.required),
     output: {
       schema: OUTPUT_SCHEMA,
       render: (_args, value): ContentBlock[] => [{ type: 'text', text: JSON.stringify(value) }],
@@ -222,8 +234,30 @@ export function registerWorkerTools(
   artifacts: StoredArtifacts,
 ): () => void {
   const collaboration = runtime.collaboration;
+  const discussInput = z.strictObject({ command: publicCommandSchema });
 
   const specs: ToolDefinition[] = [
+    defineWorkerTool({
+      name: 'swarm_discuss',
+      description: 'Manage public collaboration in this run. command.action creates/archives channels, creates/updates threads, '
+        + 'posts/replies/revises messages, subscribes, requests/responds/withdraws responses, creates/revises/confirms versioned '
+        + 'agreements, links Findings, acknowledges notifications or marks full message versions read. '
+        + 'Use public threads by default. Structured mentions and responseRequestedFrom use worker IDs; @text alone does not notify. '
+        + 'Revision/version checks are mandatory where specified. Reading or ACK is never a response/agreement; public chat never changes owner requirements or Task CAS.',
+      parameters: generatedParameters(discussInput),
+      input: discussInput,
+      run: (input, exec, caller) => runtime.publicCollaboration.execute(caller.sessionId, input.command, exec.callId),
+    }),
+    defineWorkerTool({
+      name: 'swarm_public_read',
+      description: 'Discover public channels, threads, full messages, response requests, current agreements, personal priority attention, '
+        + 'thread activity, message revisions or agreement versions. Filter/search by channel/thread/task/Finding; use messageId to locate a message. '
+        + 'Returns bounded pages and nextCursor. All members including later arrivals can read public history regardless of subscription. '
+        + 'Only full current messages offer versions for mark_read; summaries and snapshotSeq are not global ACK cursors. Pending responses stay above ordinary chatter.',
+      parameters: generatedParameters(publicQuerySchema),
+      input: publicQuerySchema,
+      run: (input, _exec, caller) => runtime.publicCollaboration.query(caller.sessionId, input),
+    }),
     defineWorkerTool({
       name: 'swarm_sync',
       description:
