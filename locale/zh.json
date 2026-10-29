@@ -1,6 +1,7 @@
 {
   "schema": {
-    "workerCountMax": "可选 Swarm 团队人数上限（正整数）；不设置时继承运行中的 DSH subagents.maxActiveSubagents。不会预留或绕过原生并发容量。"
+    "workerCountMax": "可选 Swarm 团队人数上限（正整数）；不设置时继承运行中的 DSH subagents.maxActiveSubagents。不会预留或绕过原生并发容量。",
+    "claimTtlMs": "claim 认领声明在实时视图与推送通知中保留的时长（毫秒，1 分钟–7 天，默认 1 小时）。过期后仍保留在历史与搜索中；claim 只是公告，不是锁。"
   },
   "meta": {
     "title": "Swarm · 协作群",
