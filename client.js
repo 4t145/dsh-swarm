@@ -57,12 +57,7 @@ window.__ModuleLoader__.load({
 .dshSwarm_goalBody{padding:0 12px 12px}.dshSwarm_goalBody .dshSwarm_goalFull{margin-top:0!important;font-size:13px;font-weight:600}.dshSwarm_goalBody .dshSwarm_taskMeta{margin-top:10px}
 .dshSwarm_lane .dshSwarm_composer{padding:12px;border-style:dashed;border-radius:8px}.dshSwarm_lane .dshSwarm_composer .dshSwarm_input{background:var(--dsw-alias-bg-layer-1);min-height:64px}.dshSwarm_laneEmpty{margin-top:10px!important;padding:18px 10px;text-align:center;border:1px dashed var(--dsw-alias-border-l1);border-radius:8px}
 .dshSwarm_flowStats{display:flex;gap:8px;flex-wrap:wrap}.dshSwarm_flowStat{display:grid;min-width:76px;padding:8px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_flowStat strong{font-size:18px;line-height:1.2;font-variant-numeric:tabular-nums}.dshSwarm_flowStat span{font-size:11px;color:var(--dsw-alias-label-secondary)}
-.dshSwarm_flowScroll{max-height:none}.dshSwarm_flowScroll .dshSwarm_laneHeads{width:150px}.dshSwarm_flowTick{font-size:10px;fill:var(--dsw-alias-label-secondary)}.dshSwarm_flowMark{cursor:default}.dshSwarm_flowMark:hover{filter:brightness(1.15)}
-.dshSwarm_flowKey{display:inline-block;width:10px;height:10px;border:2px solid var(--dsw-alias-label-secondary);border-radius:50%}.dshSwarm_flowKey[data-k=message]{width:16px;height:4px;border:0;border-radius:2px;background:var(--dsw-alias-label-secondary)}.dshSwarm_flowKey[data-k=finding]{width:9px;height:9px;border-radius:1.5px;transform:rotate(45deg)}.dshSwarm_flowKey[data-k=task]{border-radius:3px}.dshSwarm_flowKey[data-k=proposal]{width:0;height:0;border:0;border-inline:6px solid transparent;border-bottom:10px solid var(--dsw-alias-label-secondary);border-radius:0}.dshSwarm_flowKey[data-k=head]{border-width:3px}
-.dshSwarm_flowBottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:14px;margin-top:14px}@container(max-width:760px){.dshSwarm_flowBottom{grid-template-columns:1fr}}
-.dshSwarm_flowPanel{padding:14px;border-radius:12px;background:var(--dsw-alias-bg-layer-2);min-width:0}.dshSwarm_flowPanelTitle{font-size:12px;font-weight:650;margin-bottom:10px!important}
-.dshSwarm_pairs{display:grid;gap:9px}.dshSwarm_pair{display:grid;grid-template-columns:minmax(0,1fr) 72px auto;align-items:center;gap:10px;font-size:12px}.dshSwarm_pairNames{display:flex;align-items:center;gap:5px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dshSwarm_pairNames i{flex:none;width:8px;height:8px;border-radius:50%}.dshSwarm_pairArrow{color:var(--dsw-alias-label-secondary)}.dshSwarm_pairBar{height:6px;border-radius:999px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}.dshSwarm_pairBar span{display:block;height:100%;border-radius:999px}.dshSwarm_pairCount{font-variant-numeric:tabular-nums;font-size:11px;color:var(--dsw-alias-label-secondary)}
-.dshSwarm_flowFeed{display:grid;gap:2px}.dshSwarm_flowItem{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;padding:5px 6px;border-radius:6px;font-size:12px}.dshSwarm_flowItem:hover{background:var(--dsw-alias-bg-layer-1)}.dshSwarm_flowItem>i{width:8px;height:8px;border-radius:50%}.dshSwarm_flowItem[data-kind=finding]>i{border-radius:1.5px;transform:rotate(45deg)}.dshSwarm_flowItem[data-kind=task]>i{border-radius:2px}.dshSwarm_flowText{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dshSwarm_flowItem time{font-size:10px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.dshSwarm_flowScroll{max-height:none}.dshSwarm_flowTick{font-size:10px;fill:var(--dsw-alias-label-secondary)}.dshSwarm_flowMark{cursor:default}.dshSwarm_flowMark:hover{filter:brightness(1.15)}
 /* Dashboard redesign. */
 .dshSwarm_goalBox{position:relative;margin-top:16px;padding:18px 20px 18px 24px;border:0;border-radius:14px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}.dshSwarm_goalBox:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--dsw-alias-state-business-primary)}.dshSwarm_goalBox summary{font-size:11px;letter-spacing:.04em}.dshSwarm_goalBox .dshSwarm_goalPreview{font-size:16px}
 .dshSwarm_workflow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-top:22px!important;border:0;border-radius:0;overflow:visible}
@@ -73,34 +68,37 @@ window.__ModuleLoader__.load({
 .dshSwarm_kpiBar{display:flex;gap:2px;height:6px;border-radius:999px;overflow:hidden;background:var(--dsw-alias-bg-layer-2)}.dshSwarm_kpiBar span{min-width:4px}.dshSwarm_kpiLegend{display:flex;flex-wrap:wrap;gap:3px 10px;font-size:10px;font-weight:400;letter-spacing:0;color:var(--dsw-alias-label-secondary)}.dshSwarm_kpiLegend i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-inline-end:4px}
 .dshSwarm_root [data-seg=done]{background:var(--dsw-alias-state-success-primary)}.dshSwarm_root [data-seg=proposed]{background:color-mix(in srgb, var(--dsw-alias-state-business-primary) 55%, var(--dsw-alias-bg-layer-1))}.dshSwarm_root [data-seg=claimed]{background:var(--dsw-alias-state-business-primary)}.dshSwarm_root [data-seg=open]{background:var(--dsw-alias-border-l2)}.dshSwarm_root [data-seg=blocked]{background:var(--dsw-alias-state-warn-primary)}.dshSwarm_root [data-seg=cancelled]{background:var(--dsw-alias-label-secondary);opacity:.5}
 .dshSwarm_kpiFlag{justify-self:start;padding:1px 7px;border-radius:5px;font-size:10px;font-weight:600;letter-spacing:0;color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-bg-layer-2)}
-.dshSwarm_dashGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:12px;margin:12px 0 0}.dshSwarm_dashGrid .dshSwarm_delivery{margin:0;padding:16px 18px;border-radius:12px}.dshSwarm_dashGrid .dshSwarm_deliveryRevision>code{font-size:20px}
-.dshSwarm_teamCard{min-width:0;padding:16px 18px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_teamCard .dshSwarm_deliveryTop{justify-content:space-between}.dshSwarm_teamList{display:grid;gap:2px}.dshSwarm_teamRow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:6px;border-radius:8px}.dshSwarm_teamRow:hover{background:var(--dsw-alias-bg-layer-2)}
-.dshSwarm_avatarSmall{width:28px;height:28px;border-radius:8px;font-size:10px}.dshSwarm_teamName{display:grid;min-width:0;line-height:1.35}.dshSwarm_teamName strong{font-size:12px;font-weight:650}.dshSwarm_teamTask{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dshSwarm_teamTask[data-empty=true]{color:var(--dsw-alias-label-secondary)}
 .dshSwarm_collaboration{gap:12px;margin-top:12px}.dshSwarm_collaboration>.dshSwarm_section{margin-top:0;padding:16px 18px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}
-.dshSwarm_timeline{border-inline-start:2px solid var(--dsw-alias-border-l1)}.dshSwarm_event:before{display:none}.dshSwarm_eventDot{position:absolute;inset-inline-start:-20px;top:6px;width:8px;height:8px;border-radius:50%;box-shadow:0 0 0 3px var(--dsw-alias-bg-layer-1)}.dshSwarm_event[data-kind=run] .dshSwarm_eventDot{border-radius:2px}.dshSwarm_event[data-kind=proposal] .dshSwarm_eventDot{border-radius:2px;transform:rotate(45deg)}
-@container(max-width:760px){.dshSwarm_dashGrid,.dshSwarm_kpis{grid-template-columns:1fr}.dshSwarm_collaboration{gap:12px}}@container(max-width:620px){.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:18px}.dshSwarm_step:nth-child(2):after{display:none}}
-.dshSwarm_conv{margin-top:28px}.dshSwarm_convDivider{width:1px;align-self:stretch;margin:2px 4px;background:var(--dsw-alias-border-l1)}
-.dshSwarm_convList{display:grid;gap:10px}.dshSwarm_convItem{padding:12px 14px;border:1px solid var(--dsw-alias-border-l1);border-inline-start:3px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}
-.dshSwarm_convItem[data-kind=finding]{background:var(--dsw-alias-bg-layer-2)}.dshSwarm_convItem[data-finding=fail]{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent)}
-.dshSwarm_convHead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px}.dshSwarm_convWho{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;font-size:12px;font-weight:600}.dshSwarm_convPerson{display:inline-flex;align-items:center;gap:5px}.dshSwarm_convPerson i{width:7px;height:7px;border-radius:50%}
+.dshSwarm_avatarSmall{width:28px;height:28px;border-radius:8px;font-size:10px}
+.dshSwarm_dashDelivery{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 0;font-size:12px}
+@container(max-width:760px){.dshSwarm_kpis{grid-template-columns:1fr}.dshSwarm_collaboration{gap:12px}}@container(max-width:620px){.dshSwarm_workflow{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:18px}.dshSwarm_step:nth-child(2):after{display:none}}
 .dshSwarm_convTag{padding:1px 7px;border-radius:5px;font-size:10px;font-weight:650;color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-bg-layer-1)}.dshSwarm_convTag[data-finding=fact]{color:var(--dsw-alias-state-success-primary)}.dshSwarm_convTag[data-finding=fail]{color:var(--dsw-alias-state-error-primary)}.dshSwarm_convTag[data-finding=patch_summary]{color:var(--dsw-alias-state-warn-primary)}
 .dshSwarm_convMeta{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}.dshSwarm_convMeta code{font-size:10px}
-.dshSwarm_convBody{margin:9px 0 0 38px!important;font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.dshSwarm_convItem>.dshSwarm_subtle{margin-inline-start:38px!important}
 .dshSwarm_convRefs{display:flex;flex-wrap:wrap;gap:5px;margin:9px 0 0 38px}.dshSwarm_convRef{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:2px 7px;border-radius:5px;font-size:10px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);overflow-wrap:anywhere}.dshSwarm_convRef code{font-size:10px;color:var(--dsw-alias-label-primary)}
 .dshSwarm_flowStage{position:relative}.dshSwarm_flowHit{fill:transparent;pointer-events:all}.dshSwarm_flowMark{cursor:pointer;outline:none}.dshSwarm_flowMark:focus-visible .dshSwarm_flowHit,.dshSwarm_flowMark[data-active=true] .dshSwarm_flowHit{fill:var(--dsw-alias-bg-layer-2);stroke:var(--dsw-alias-state-business-primary);stroke-width:1.5}
 .dshSwarm_hoverCard{position:absolute;z-index:5;display:grid;gap:8px;max-height:min(420px,70vh);overflow:auto;padding:12px 14px;border:1px solid var(--dsw-alias-border-l1);border-top:3px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);box-shadow:0 12px 32px -12px color-mix(in srgb, var(--dsw-alias-label-primary) 35%, transparent);pointer-events:none;transform:translateY(-14px)}
 .dshSwarm_hoverCard[data-above=true]{transform:translateY(calc(-100% + 14px))}.dshSwarm_hoverCard[data-pinned=true]{pointer-events:auto}
 .dshSwarm_hoverHead{display:flex;align-items:center;gap:8px}.dshSwarm_hoverHead .dshSwarm_convTag{background:var(--dsw-alias-bg-layer-2)}.dshSwarm_hoverHead .dshSwarm_convMeta{margin-inline-start:auto}.dshSwarm_hoverClose{font:inherit;font-size:15px;line-height:1;padding:0 4px;border:0;border-radius:4px;background:none;color:var(--dsw-alias-label-secondary);cursor:pointer}.dshSwarm_hoverClose:hover{background:var(--dsw-alias-bg-layer-2)}
 .dshSwarm_hoverTitle{font-size:12px;font-weight:650}.dshSwarm_hoverBody{margin:0!important;font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.dshSwarm_hoverRefs{margin:0}.dshSwarm_hoverHint{font-size:10px;color:var(--dsw-alias-label-secondary)}
+/* Public channel and DM matrix as IM views. */
+.dshSwarm_chat,.dshSwarm_dm{margin-top:28px}.dshSwarm_presence{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0!important;padding:0;list-style:none}.dshSwarm_presenceItem{display:flex;align-items:center;gap:7px;padding:5px 10px 5px 5px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;font-size:12px}.dshSwarm_presenceItem .dshSwarm_avatar{width:24px;height:24px;border-radius:50%;font-size:9px}.dshSwarm_presenceItem .dshSwarm_workPill{margin-inline-start:2px}
+.dshSwarm_chatLog{max-height:62vh;overflow:auto;overscroll-behavior:contain;margin-top:12px;padding:14px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-2)}.dshSwarm_chatLog:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.dshSwarm_chatList{display:grid;gap:12px;margin:0!important;padding:0!important;list-style:none}.dshSwarm_chatRow{display:flex;align-items:flex-start;gap:9px;max-width:100%}.dshSwarm_chatRow[data-side=right]{flex-direction:row-reverse}.dshSwarm_chatRow .dshSwarm_avatar{flex:none;width:32px;height:32px;border-radius:50%;font-size:10px}
+.dshSwarm_chatBubble{min-width:0;max-width:min(560px,78%);display:grid;gap:4px}.dshSwarm_chatRow[data-side=right] .dshSwarm_chatBubble{justify-items:end}.dshSwarm_chatMeta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:10px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}.dshSwarm_chatRow[data-side=right] .dshSwarm_chatMeta{flex-direction:row-reverse}.dshSwarm_chatName{font-size:11px;font-weight:650;color:var(--dsw-alias-label-primary)}
+.dshSwarm_chatText,.dshSwarm_chatBody{margin:0!important;padding:8px 12px;border-radius:4px 12px 12px 12px;background:var(--dsw-alias-bg-layer-1);font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}.dshSwarm_chatBody{margin-top:2px!important}.dshSwarm_chatRow[data-side=right] .dshSwarm_chatText,.dshSwarm_chatRow[data-side=right] .dshSwarm_chatBody{border-radius:12px 4px 12px 12px;background:color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, var(--dsw-alias-bg-layer-1))}
+.dshSwarm_dmLayout{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:16px;align-items:start;margin-top:12px}@container(max-width:760px){.dshSwarm_dmLayout{grid-template-columns:1fr}}.dshSwarm_dmScroll{overflow:auto;max-width:100%}
+.dshSwarm_dmTable{border-collapse:separate;border-spacing:4px;font-size:11px}.dshSwarm_dmTable caption{text-align:start;padding-bottom:4px}.dshSwarm_dmTable th{font-weight:600;text-align:start;white-space:nowrap;color:var(--dsw-alias-label-secondary)}.dshSwarm_dmHead{display:inline-flex;align-items:center;gap:5px;max-width:120px;overflow:hidden;text-overflow:ellipsis}.dshSwarm_dmHead i{flex:none;width:8px;height:8px;border-radius:50%}
+.dshSwarm_dmCell{font:inherit;min-width:44px;height:34px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;font-weight:650;cursor:pointer}.dshSwarm_dmCell[data-count="0"]{color:var(--dsw-alias-label-secondary);font-weight:400}.dshSwarm_dmCell:disabled{cursor:default;opacity:.45}.dshSwarm_dmCell[aria-pressed=true]{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}.dshSwarm_dmCell:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.dshSwarm_dmThread{min-width:0;padding:12px 14px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-2);max-height:62vh;overflow:auto}.dshSwarm_dmThreadHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.dshSwarm_dmThreadHead .dshSwarm_button{margin-inline-start:auto}.dshSwarm_dmHint{align-self:center}
 @media(prefers-reduced-motion:reduce){.dshSwarm_root *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 `;
 		const worktreeCss = `.dshSwarm_wtHead{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:10px}.dshSwarm_wtTitle{font-size:14px;line-height:20px;font-weight:600}.dshSwarm_wtRepo{color:var(--dsw-alias-label-secondary);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}.dshSwarm_wtList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}.dshSwarm_wtItem{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:10px 12px}.dshSwarm_wtTop{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}.dshSwarm_wtPath{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;font-weight:600;overflow-wrap:anywhere}.dshSwarm_wtBadge{border-radius:6px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);padding:1px 6px;font-size:11px}.dshSwarm_wtBranch{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}.dshSwarm_wtMeta{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--dsw-alias-label-secondary);font-size:11px;margin-top:4px}.dshSwarm_wtSubject{overflow-wrap:anywhere;margin-top:4px}.dshSwarm_wtCommits{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}.dshSwarm_wtCommit{display:flex;gap:8px;font-size:11px;min-width:0}.dshSwarm_wtSha{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dsw-alias-label-secondary);flex:none}.dshSwarm_wtNote{border:1px dashed var(--dsw-alias-border-l2);border-radius:8px;padding:10px 12px;margin-bottom:10px;color:var(--dsw-alias-label-secondary)}.dshSwarm_form{border-top:1px solid var(--dsw-alias-border-l1);margin-top:14px;padding-top:10px;display:flex;flex-direction:column;gap:8px}.dshSwarm_formRow{display:flex;flex-wrap:wrap;gap:10px}.dshSwarm_field{display:flex;flex-direction:column;gap:3px;flex:1;min-width:160px}.dshSwarm_label{font-size:11px;color:var(--dsw-alias-label-secondary)}.dshSwarm_input{box-sizing:border-box;width:100%;padding:5px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}.dshSwarm_success{color:var(--dsw-alias-state-success-primary);overflow-wrap:anywhere}`;
 		const zh = {
 			"view.label": "◈ 协作群", "title": "Swarm 协作群",
-			"tabs.flow": "协作流", "flow.title": "成员之间在做什么", "flow.note": "每条泳道是一名成员，最上方是 Host 与已接受结果；事件按发生顺序从左到右。鼠标移到任意节点上即可看到发生了什么，私信和发现会显示正文；点击可固定卡片。", "flow.host": "Host · 结果", "flow.hostNote": "集成与验收", "flow.filter": "按事件类型筛选", "flow.chart": "成员协作时间线", "flow.axis": "← 更早 · 最新 →", "flow.empty": "还没有成员之间的协作事件", "flow.unavailable": "当前 Host 未提供协作事件；重启 DSH 后可用", "flow.kind.all": "全部", "flow.kind.message": "私信", "flow.kind.finding": "发现", "flow.kind.task": "任务", "flow.kind.proposal": "提交与集成", "flow.legend.head": "结果推进", "flow.stat.message": "条私信", "flow.stat.finding": "条发现", "flow.stat.proposal": "次提交", "flow.stat.head": "次结果推进", "flow.pairs": "谁在和谁沟通", "flow.noPairs": "还没有成员互发私信", "flow.to": "发给", "flow.feed": "最近动态", "flow.say.message": "{actor} 给 {peer} 发了私信", "flow.say.finding": "{actor} 发布了{kind}", "flow.say.task": "{peer} 的任务「{task}」→ {status}", "flow.say.proposal": "{actor} 的提案（{task}）→ {status}", "flow.say.head": "{peer} 的结果已合入 {id}", "flow.say.headHost": "结果推进到 {id}", "flow.finding.observed": "观察", "flow.finding.fact": "事实", "flow.finding.fail": "失败报告", "flow.finding.patch_summary": "改动摘要", "dash.team": "团队现状", "dash.teamNote": "{busy} 执行中 · {waiting} 等待", "dash.noWorkers": "还没有成员", "conv.title": "成员对话与发现", "conv.note": "仅 run owner 可读：成员之间私信的正文，以及发布的事实、观察、失败报告和改动摘要（含范围与证据）。最新在前，有新消息时自动刷新。", "conv.refresh": "刷新", "conv.filter": "按类型和成员筛选", "conv.kind.all": "全部", "conv.kind.message": "私信", "conv.kind.finding": "发现", "conv.empty": "还没有私信或发现", "conv.noMatch": "已加载内容中没有匹配项", "conv.loading": "正在读取…", "conv.more": "加载更早的内容", "conv.end": "已加载全部 {count} 条", "conv.failed": "读取失败", "conv.invalid": "Host 返回了无法识别的对话数据", "conv.unavailable": "当前 Host 不提供对话读取；重启 DSH 后可用", "conv.truncated": "正文过长，已截断显示", "conv.task": "任务", "conv.scope": "范围", "conv.evidence": "证据", "conv.supersedes": "取代", "hover.pin": "点击固定卡片 · Esc 关闭", "hover.close": "关闭", "hover.noBody": "当前 Host 不提供正文；重启 DSH 后可在这里看到内容", "hover.failed": "正文读取失败，见下方“成员对话与发现”", "tabs.label": "协作视图", "tabs.dashboard": "Dashboard", "tabs.members": "成员列表", "tabs.goals": "目标看板", "tabs.worktrees": "Git 工作树",
+			"tabs.flow": "协作流", "flow.title": "成员之间在做什么", "flow.note": "每条泳道是一名成员，最上方是 Host 与已接受结果；事件按发生顺序从左到右。鼠标移到任意节点上即可看到发生了什么，私信和发现会显示正文；点击可固定卡片。", "flow.host": "Host · 结果", "flow.hostNote": "集成与验收", "flow.filter": "按事件类型筛选", "flow.chart": "成员协作时间线", "flow.axis": "← 更早 · 最新 →", "flow.empty": "还没有成员之间的协作事件", "flow.unavailable": "当前 Host 未提供协作事件；重启 DSH 后可用", "flow.kind.all": "全部", "flow.kind.message": "私信", "flow.kind.finding": "发现", "flow.kind.task": "任务", "flow.kind.proposal": "提交与集成", "flow.legend.head": "结果推进", "flow.stat.message": "条私信", "flow.stat.finding": "条发现", "flow.stat.proposal": "次提交", "flow.stat.head": "次结果推进", "flow.say.message": "{actor} 给 {peer} 发了私信", "flow.say.finding": "{actor} 发布了{kind}", "flow.say.task": "{peer} 的任务「{task}」→ {status}", "flow.say.proposal": "{actor} 的提案（{task}）→ {status}", "flow.say.head": "{peer} 的结果已合入 {id}", "flow.say.headHost": "结果推进到 {id}", "flow.finding.observed": "观察", "flow.finding.fact": "事实", "flow.finding.fail": "失败报告", "flow.finding.patch_summary": "改动摘要", "conv.loading": "正在读取…", "conv.more": "加载更早的内容", "conv.failed": "读取失败", "conv.invalid": "Host 返回了无法识别的对话数据", "conv.unavailable": "当前 Host 不提供对话读取；重启 DSH 后可用", "conv.truncated": "正文过长，已截断显示", "conv.scope": "范围", "conv.evidence": "证据", "hover.pin": "点击固定卡片 · Esc 关闭", "hover.close": "关闭", "hover.noBody": "当前 Host 不提供正文；重启 DSH 后可在这里看到内容", "hover.failed": "正文读取失败，请稍后重试", "tabs.label": "协作视图", "tabs.dashboard": "Dashboard", "tabs.members": "成员列表", "tabs.goals": "目标看板", "tabs.worktrees": "Git 工作树",
 			"goals.todo": "代办", "goals.doing": "办理中", "goals.done": "办结", "goals.wish": "添加新的愿望", "goals.laneEmpty": "此池暂无目标", "goals.flowNote": "愿望提交后自动加入本轮办理；暂停时保留目标，收尾后存入代办等待下一轮。办结仅代表 Host 已完成验收。",
 			"workers.add": "添加成员", "workers.adding": "正在添加…", "workers.addUnavailable": "成员上限不可用；请查看 Host 诊断", "workers.addLimit": "已达到 {count} 名成员上限", "workers.addPhase": "仅协作中或暂停时可添加成员", "workers.addPaused": "新成员将在恢复后启动", "workers.added.started": "已添加 {name}", "workers.added.paused": "已添加 {name} · 恢复后启动", "workers.addFailed": "添加结果未确认，请检查成员列表后重试", "workers.addReceipt": "成员回执不完整，请检查列表后再重试。", "workers.addReady": "为新成员创建独立工作树与随机可读名字", "workers.capacity": "团队规模", "workers.limitHost": "继承宿主上限", "workers.limitOverride": "显式覆盖上限", "workers.limitUnknown": "上限来源不可用", "workers.limitNotCapacity": "团队配置上限不是宿主实时剩余槽位；原生容量与权限仍由 Host 验证。", "workers.summary": "{total} 名成员 · {busy} 名执行中 · {waiting} 名等待协作或集成", "goals.criteriaCount": "{count} 条验收", "goals.doneCount": "个目标已办结",
-			"git.title": "Git 工作树", "git.note": "各成员工作树与已接受结果的合并历史流 · 同一提交只显示一次。来源分支表示可达关系，不代表作者。", "git.refresh": "更新历史", "git.loading": "正在读取 Git 历史…", "git.more": "加载更早提交", "git.end": "已到达历史起点", "git.empty": "当前没有可显示的提交。", "git.unavailable": "当前 Host 不支持工作树历史，请更新 Host 后重连。", "git.failed": "Git 历史读取失败", "git.retry": "重试", "git.loaded": "已显示 {count} 个提交", "git.worktrees": "工作树与版本快照", "git.result": "已接受结果", "git.source": "来源分支", "git.merge": "合并提交", "git.parents": "父提交", "git.commit": "完整提交 SHA", "git.details": "提交详情", "git.snapshot": "分页固定于首次读取的版本；更新历史可查看最新提交。", "git.missingRun": "运行已变化或不可用，请重新连接。", "git.invalid": "Host 返回了无效的 Git 历史。", "git.worktreeMissing": "工作树尚未准备完成", "git.base": "Run 基线", "git.legendCommit": "提交", "git.legendMerge": "合并（换乘站）", "git.legendHead": "工作树当前 HEAD", "git.axis": "← 最新 · 更早 →",
+			"git.title": "Git 工作树", "git.note": "各成员工作树与已接受结果的合并历史流 · 同一提交只显示一次。来源分支表示可达关系，不代表作者。", "git.refresh": "更新历史", "git.loading": "正在读取 Git 历史…", "git.more": "加载更早提交", "git.end": "已到达历史起点", "git.empty": "当前没有可显示的提交。", "git.unavailable": "当前 Host 不支持工作树历史，请更新 Host 后重连。", "git.failed": "Git 历史读取失败", "git.retry": "重试", "git.loaded": "已显示 {count} 个提交", "git.worktrees": "工作树与版本快照", "git.result": "已接受结果", "git.source": "来源分支", "git.merge": "合并提交", "git.parents": "父提交", "git.commit": "完整提交 SHA", "git.details": "提交详情", "git.snapshot": "分页固定于首次读取的版本；更新历史可查看最新提交。", "git.missingRun": "运行已变化或不可用，请重新连接。", "git.invalid": "Host 返回了无效的 Git 历史。", "git.worktreeMissing": "工作树尚未准备完成", "git.base": "Run 基线", "git.legendCommit": "提交", "git.legendMerge": "合并提交", "git.legendHead": "工作树当前 HEAD", "git.axis": "← 更早 · 最新 →",
 			"goals.title": "目标", "goals.add": "追加目标", "goals.placeholder": "接下来还需要做什么？", "goals.criteria": "验收条件（可选，每行一项）", "goals.publish": "发布目标", "goals.publishing": "正在提交…", "goals.scope": "当前会话 · 当前仓库", "goals.original": "初始目标", "goal.active": "本轮待完成", "goal.deferred": "待下一轮", "goal.completed": "已处理", "goal.continued": "已转下一轮", "goals.paused": "追加后仍保持暂停", "goals.deferred": "本轮已收尾，追加将保存到下一轮", "goals.resume": "恢复本轮", "goals.continue": "开始下一轮", "goals.criteriaTitle": "验收条件", "goals.more": "显示 {shown}/{total} 项；其余记录已保存，暂不在面板展示", "goals.clipped": "此处内容已截断；完整内容保存在运行记录中", "goals.publishFirst": "先发布或清空草稿", "goals.unavailable": "当前 Host 不支持追加目标，请更新 Host 后重连。", "goals.sent.executing": "已发布 · 已加入本轮工作", "goals.sent.paused": "已保存 · 恢复后处理", "goals.sent.deferred": "已保存 · 等待下一轮", "goals.sent.continue": "下一轮已启动", "goals.sent.resume": "本轮已恢复", "goals.unknownReceipt": "回执不完整，请检查目标列表后再决定是否重试。", "goals.commandUnavailable": "命令服务不可用", "goals.pending": "{count} 项待下一轮", "goals.failed": "提交失败，草稿已保留", "goals.uncertain": "未确认提交结果；请检查目标列表后再重试。", "goals.nextRun": "下一轮运行", "goals.commit": "完成版本", "loading": "正在连接进度流…", "refresh": "更新连接", "unknown": "未知", "unavailable": "不可用",
 			"connection.live": "实时连接", "connection.loading": "连接中", "connection.ended": "订阅已结束", "connection.error": "连接中断", "connection.unavailable": "服务不可用",
 			"updated": "快照更新于 {time}", "stale.title": "非实时 · 最后已知快照", "stale.body": "连接中断后保留已知状态，工作可能仍在继续。请更新连接。", "ended.body": "当前订阅已结束。请手动更新以查看此会话的新运行。",
@@ -118,20 +116,19 @@ window.__ModuleLoader__.load({
 			"worker.details": "工具记录与等待详情", "worker.id": "成员 ID", "worker.initialization": "初始化", "worker.turnStep": "Turn {turn} · Step {step}", "worker.wait": "等待条件", "wait.any": "任意匹配的协作更新", "wait.selected": "指定任务 / 提案更新", "wait.after": "已读至事件 {seq}", "worker.proposal": "当前提案", "tools.recent": "最近工具（非执行中）", "tool.executing": "调用中", "tool.completed": "已返回", "tool.failed": "失败", "tool.interrupted": "已中断",
 			"init.pending": "待准备", "init.initializing": "准备中", "init.ready": "就绪", "init.failed": "失败", "task.open": "待认领", "task.claimed": "已认领", "task.proposed": "待集成", "task.done": "已完成", "task.blocked": "阻塞", "task.cancelled": "已取消",
 			"tasks.title": "任务板", "tasks.empty": "尚未创建任务。", "tasks.missing": "当前 Host 未提供任务板。", "tasks.more": "显示 {shown}/{total} 项（优先展示活跃任务）", "tasks.unowned": "未分配", "tasks.details": "更多任务（{count}）",
-			"events.title": "公开活动", "events.note": "仅任务、提案、结果与运行状态；不含私信或推理", "events.empty": "暂无公开状态变更。", "events.missing": "当前 Host 未提供公开活动。", "events.more": "更早活动（{count}）", "event.task": "任务", "event.proposal": "提案", "event.head": "结果版本", "event.run": "运行", "event.updated": "已更新", "proposal.queued": "排队中", "proposal.integrating": "集成中", "proposal.accepted": "已接受", "proposal.rejected": "已拒绝",
-			"result.title": "结果与运行细节", "result.ref": "结果分支", "result.head": "已接受 SHA", "result.base": "基线 SHA", "result.run": "运行 ID", "result.verification": "验证计数", "result.proposals": "提案计数", "result.finish": "交付验证请求", "result.noFinish": "尚未请求", "result.note": "已接受版本不等于整个目标已验收；仅运行状态为“已完成”时表示交付完成。", "reason": "当前原因：{reason}", "detail.error": "部分详情不可用：{message}",
+			"event.task": "任务", "event.proposal": "提案", "event.head": "结果版本", "event.run": "运行", "event.updated": "已更新", "proposal.queued": "排队中", "proposal.integrating": "集成中", "proposal.accepted": "已接受", "proposal.rejected": "已拒绝",
+			"result.note": "已接受版本不等于整个目标已验收；仅运行状态为“已完成”时表示交付完成。", "reason": "当前原因：{reason}", "detail.error": "部分详情不可用：{message}",
 			"overview.goal": "本轮目标 · 展开全文", "overview.goalMissing": "Host 未提供目标", "filter.all": "全部", "tasks.flow": "任务认领与推进", "tasks.noMatch": "本快照中没有此状态的任务。", "task.revision": "修订", "task.owner": "当前成员", "task.identity": "任务 ID", "task.proposal": "关联提案", "tasks.snapshot": "Host 仅提供 {shown}/{total} 项；筛选限于当前快照。",
-			"events.recent": "最近公开活动", "events.scope": "最近 {count} 条", "events.noMatch": "最近活动中没有此类记录。", "events.source": "活动范围", "events.sourceNote": "仅 Host 提供的最近公开状态变更，不含完整历史、私信或推理。", "events.revision": "结果",
-			"delivery.title": "当前交付", "delivery.baseline": "仍为基线", "delivery.integrated": "已集成 · 待整体验收", "delivery.verifying": "整体验证中", "delivery.closing": "交付收尾中", "delivery.completed": "交付完成", "delivery.stopped": "运行已停止", "delivery.failed": "运行失败", "delivery.accepted": "已集成 {count} 个提案", "delivery.pending": "待集成 {count}", "delivery.checks": "验证通过 {count}", "delivery.errors": "验证失败 {failed} · 中断 {interrupted}", "delivery.details": "版本与验证详情",
-			"verification.summary": "排队 {queued} · 执行 {running} · 通过 {passed} · 失败 {failed} · 中断 {interrupted}", "proposal.summary": "排队 {queued} · 集成 {integrating} · 接受 {accepted} · 拒绝 {rejected}",
+			"delivery.title": "当前交付", "result.run": "运行 ID", "delivery.baseline": "仍为基线", "delivery.integrated": "已集成 · 待整体验收", "delivery.verifying": "整体验证中", "delivery.closing": "交付收尾中", "delivery.completed": "交付完成", "delivery.stopped": "运行已停止", "delivery.failed": "运行失败", "delivery.errors": "验证失败 {failed} · 中断 {interrupted}", 
+			
 			"wt.title": "Git 工作树", "wt.loading": "正在读取工作树…", "wt.error": "读取工作树失败：{message}", "wt.unavailable": "工作树连接失败：{message}", "wt.repo": "仓库：{name}", "wt.directory": "会话目录：{directory}", "wt.notRepo": "当前会话目录不是 Git 仓库", "wt.notRepoBody": "读取 {directory} 所在的仓库；初始化 Git 仓库后刷新即可。", "wt.unborn": "仓库还没有提交", "wt.unbornBody": "还没有可显示的工作树提交记录；先创建第一个提交，再刷新。", "wt.empty": "没有已登记的工作树", "wt.emptyBody": "git worktree list 没有返回任何工作树。", "wt.main": "主工作树", "wt.detached": "分离 HEAD @ {sha}", "wt.head": "HEAD {sha}", "wt.noHead": "尚无提交", "wt.locked": "已锁定：{reason}", "wt.prunable": "已失效：{reason}", "wt.commits": "最近提交", "wt.noCommits": "没有额外提交", "wt.limit": "仅显示最近 {count} 条", "wt.refresh": "刷新", "wt.create.title": "新建工作树", "wt.create.hint": "在会话仓库的 .agents/worktrees/ 下创建独立分支和检出；不会切换当前会话的工作目录，也不会改动当前检出。", "wt.create.name": "名称（可选）", "wt.create.namePlaceholder": "自动生成，例如 worktree-20260101-120000", "wt.create.base": "基准 ref（可选）", "wt.create.basePlaceholder": "HEAD", "wt.create.submit": "创建工作树", "wt.create.pending": "正在创建…", "wt.create.success": "已创建工作树 {name}", "wt.create.error": "创建失败：{message}"
 		};
 		const en = {
 			"view.label": "◈ Swarm", "title": "Swarm",
-			"tabs.flow": "Collaboration flow", "flow.title": "What members are doing together", "flow.note": "Each swimlane is a member; the top lane is the Host and accepted result. Events run left to right in order. Hover any point to see what happened, including message and finding bodies; click to pin the card.", "flow.host": "Host · result", "flow.hostNote": "Integration and acceptance", "flow.filter": "Filter by event type", "flow.chart": "Member collaboration timeline", "flow.axis": "← Older · Newest →", "flow.empty": "No collaboration events between members yet", "flow.unavailable": "This Host does not provide collaboration events; restart DSH to enable it", "flow.kind.all": "All", "flow.kind.message": "Messages", "flow.kind.finding": "Findings", "flow.kind.task": "Tasks", "flow.kind.proposal": "Proposals & integration", "flow.legend.head": "Result advanced", "flow.stat.message": "messages", "flow.stat.finding": "findings", "flow.stat.proposal": "proposals", "flow.stat.head": "result advances", "flow.pairs": "Who talks to whom", "flow.noPairs": "No direct messages between members yet", "flow.to": "to", "flow.feed": "Latest activity", "flow.say.message": "{actor} messaged {peer}", "flow.say.finding": "{actor} posted a {kind}", "flow.say.task": "{peer}'s task “{task}” → {status}", "flow.say.proposal": "{actor}'s proposal ({task}) → {status}", "flow.say.head": "{peer}'s result merged at {id}", "flow.say.headHost": "Result advanced to {id}", "flow.finding.observed": "observation", "flow.finding.fact": "fact", "flow.finding.fail": "failure report", "flow.finding.patch_summary": "patch summary", "dash.team": "Team now", "dash.teamNote": "{busy} executing · {waiting} waiting", "dash.noWorkers": "No members yet", "conv.title": "Conversations and findings", "conv.note": "Run owner only: the bodies of members' direct messages and their published facts, observations, failure reports and patch summaries, with scope and evidence. Newest first; refreshes when new ones arrive.", "conv.refresh": "Refresh", "conv.filter": "Filter by type and member", "conv.kind.all": "All", "conv.kind.message": "Messages", "conv.kind.finding": "Findings", "conv.empty": "No messages or findings yet", "conv.noMatch": "Nothing loaded matches this filter", "conv.loading": "Loading…", "conv.more": "Load older", "conv.end": "All {count} loaded", "conv.failed": "Could not load", "conv.invalid": "The Host returned conversation data this panel cannot read", "conv.unavailable": "This Host cannot serve conversations; restart DSH to enable it", "conv.truncated": "Body is long and shown truncated", "conv.task": "Task", "conv.scope": "Scope", "conv.evidence": "Evidence", "conv.supersedes": "Supersedes", "hover.pin": "Click to pin · Esc to close", "hover.close": "Close", "hover.noBody": "This Host does not serve bodies; restart DSH to see the content here", "hover.failed": "Could not load the body; see “Conversations and findings” below", "tabs.label": "Collaboration views", "tabs.dashboard": "Dashboard", "tabs.members": "Members", "tabs.goals": "Goal board", "tabs.worktrees": "Git worktrees",
+			"tabs.flow": "Collaboration flow", "flow.title": "What members are doing together", "flow.note": "Each swimlane is a member; the top lane is the Host and accepted result. Events run left to right in order. Hover any point to see what happened, including message and finding bodies; click to pin the card.", "flow.host": "Host · result", "flow.hostNote": "Integration and acceptance", "flow.filter": "Filter by event type", "flow.chart": "Member collaboration timeline", "flow.axis": "← Older · Newer →", "flow.empty": "No collaboration events between members yet", "flow.unavailable": "This Host does not provide collaboration events; restart DSH to enable it", "flow.kind.all": "All", "flow.kind.message": "Messages", "flow.kind.finding": "Findings", "flow.kind.task": "Tasks", "flow.kind.proposal": "Proposals & integration", "flow.legend.head": "Result advanced", "flow.stat.message": "messages", "flow.stat.finding": "findings", "flow.stat.proposal": "proposals", "flow.stat.head": "result advances", "flow.say.message": "{actor} messaged {peer}", "flow.say.finding": "{actor} posted a {kind}", "flow.say.task": "{peer}'s task “{task}” → {status}", "flow.say.proposal": "{actor}'s proposal ({task}) → {status}", "flow.say.head": "{peer}'s result merged at {id}", "flow.say.headHost": "Result advanced to {id}", "flow.finding.observed": "observation", "flow.finding.fact": "fact", "flow.finding.fail": "failure report", "flow.finding.patch_summary": "patch summary", "conv.loading": "Loading…", "conv.more": "Load older", "conv.failed": "Could not load", "conv.invalid": "The Host returned conversation data this panel cannot read", "conv.unavailable": "This Host cannot serve conversations; restart DSH to enable it", "conv.truncated": "Body is long and shown truncated", "conv.scope": "Scope", "conv.evidence": "Evidence", "hover.pin": "Click to pin · Esc to close", "hover.close": "Close", "hover.noBody": "This Host does not serve bodies; restart DSH to see the content here", "hover.failed": "Could not load the body; try again later", "tabs.label": "Collaboration views", "tabs.dashboard": "Dashboard", "tabs.members": "Members", "tabs.goals": "Goal board", "tabs.worktrees": "Git worktrees",
 			"goals.todo": "To do", "goals.doing": "In progress", "goals.done": "Done", "goals.wish": "Add a wish", "goals.laneEmpty": "No goals in this pool", "goals.flowNote": "Submitted wishes join this round automatically. Paused goals stay in this round; closing runs save new wishes for the next round. Only Host-verified goals are done.",
 			"workers.add": "Add worker", "workers.adding": "Adding…", "workers.addUnavailable": "Worker limit unavailable; check Host diagnostics", "workers.addLimit": "Maximum of {count} workers reached", "workers.addPhase": "Workers can be added while running or paused", "workers.addPaused": "New workers start after resume", "workers.added.started": "Added {name}", "workers.added.paused": "Added {name} · Starts after resume", "workers.addFailed": "Addition not confirmed; check the member list before retrying", "workers.addReceipt": "Incomplete worker receipt. Check the list before retrying.", "workers.addReady": "Create a private worktree and a random readable name", "workers.capacity": "Team size", "workers.limitHost": "Inherited Host limit", "workers.limitOverride": "Explicit override", "workers.limitUnknown": "Limit source unavailable", "workers.limitNotCapacity": "The configured team limit is not native free capacity. Host still checks native capacity and permissions.", "workers.summary": "{total} members · {busy} executing · {waiting} waiting on collaboration or integration", "goals.criteriaCount": "{count} criteria", "goals.doneCount": "goals done",
-			"git.title": "Git worktrees", "git.note": "Merged history of worker worktrees and accepted results · Each commit appears once. Source branch means reachability, not authorship.", "git.refresh": "Refresh history", "git.loading": "Reading Git history…", "git.more": "Load earlier commits", "git.end": "Beginning of history reached", "git.empty": "No commits to display yet.", "git.unavailable": "This Host does not support worktree history. Update the Host and reconnect.", "git.failed": "Could not read Git history", "git.retry": "Retry", "git.loaded": "Showing {count} commits", "git.worktrees": "Worktrees & revision snapshot", "git.result": "Accepted result", "git.source": "Source branch", "git.merge": "Merge commit", "git.parents": "Parent commits", "git.commit": "Full commit SHA", "git.details": "Commit details", "git.snapshot": "Pages are pinned to the first read. Refresh history to see newer commits.", "git.missingRun": "The run changed or is unavailable. Reconnect to update.", "git.invalid": "Host returned invalid Git history.", "git.worktreeMissing": "Worktree is not ready yet", "git.base": "Run base", "git.legendCommit": "Commit", "git.legendMerge": "Merge (interchange)", "git.legendHead": "Worktree HEAD", "git.axis": "← Newest · Older →",
+			"git.title": "Git worktrees", "git.note": "Merged history of worker worktrees and accepted results · Each commit appears once. Source branch means reachability, not authorship.", "git.refresh": "Refresh history", "git.loading": "Reading Git history…", "git.more": "Load earlier commits", "git.end": "Beginning of history reached", "git.empty": "No commits to display yet.", "git.unavailable": "This Host does not support worktree history. Update the Host and reconnect.", "git.failed": "Could not read Git history", "git.retry": "Retry", "git.loaded": "Showing {count} commits", "git.worktrees": "Worktrees & revision snapshot", "git.result": "Accepted result", "git.source": "Source branch", "git.merge": "Merge commit", "git.parents": "Parent commits", "git.commit": "Full commit SHA", "git.details": "Commit details", "git.snapshot": "Pages are pinned to the first read. Refresh history to see newer commits.", "git.missingRun": "The run changed or is unavailable. Reconnect to update.", "git.invalid": "Host returned invalid Git history.", "git.worktreeMissing": "Worktree is not ready yet", "git.base": "Run base", "git.legendCommit": "Commit", "git.legendMerge": "Merge commit", "git.legendHead": "Worktree HEAD", "git.axis": "← Older · Newer →",
 			"goals.title": "Goals", "goals.add": "Add a goal", "goals.placeholder": "What else should we work on?", "goals.criteria": "Acceptance criteria (optional, one per line)", "goals.publish": "Publish goal", "goals.publishing": "Submitting…", "goals.scope": "This session · This repository", "goals.original": "Initial goal", "goal.active": "Open this round", "goal.deferred": "Next round", "goal.completed": "Handled", "goal.continued": "Moved to next round", "goals.paused": "Adding a goal will not resume this run", "goals.deferred": "This round is closing; new goals are saved for the next round", "goals.resume": "Resume this round", "goals.continue": "Start next round", "goals.criteriaTitle": "Acceptance criteria", "goals.more": "Showing {shown}/{total}; other records are saved but not shown in this panel", "goals.clipped": "Content clipped here; the complete content is saved in the run record", "goals.publishFirst": "Publish or clear the draft first", "goals.unavailable": "This Host cannot append goals. Update the Host and reconnect.", "goals.sent.executing": "Published · Added to this round", "goals.sent.paused": "Saved · Waiting for resume", "goals.sent.deferred": "Saved · Waiting for next round", "goals.sent.continue": "Next round started", "goals.sent.resume": "This round resumed", "goals.unknownReceipt": "Incomplete receipt. Check the goal list before retrying.", "goals.commandUnavailable": "Command service unavailable", "goals.pending": "{count} goals for next round", "goals.failed": "Submission failed; draft retained", "goals.uncertain": "Submission not confirmed; check the goal list before retrying.", "goals.nextRun": "Next run", "goals.commit": "Completed revision", "loading": "Connecting to progress…", "refresh": "Reconnect", "unknown": "Unknown", "unavailable": "Unavailable",
 			"connection.live": "Live", "connection.loading": "Connecting", "connection.ended": "Subscription ended", "connection.error": "Disconnected", "connection.unavailable": "Service unavailable",
 			"updated": "Snapshot updated {time}", "stale.title": "Not live · Last known snapshot", "stale.body": "The connection was lost; work may still be continuing. Reconnect to update this view.", "ended.body": "This subscription has ended. Reconnect manually to see a new run in this session.",
@@ -149,16 +146,16 @@ window.__ModuleLoader__.load({
 			"worker.details": "Tool history & wait details", "worker.id": "Worker ID", "worker.initialization": "Initialization", "worker.turnStep": "Turn {turn} · Step {step}", "worker.wait": "Waiting for", "wait.any": "Any matching collaboration update", "wait.selected": "Selected task / proposal updates", "wait.after": "Acknowledged through event {seq}", "worker.proposal": "Current proposal", "tools.recent": "Recent tools (not executing)", "tool.executing": "Call in progress", "tool.completed": "Returned", "tool.failed": "Failed", "tool.interrupted": "Interrupted",
 			"init.pending": "Pending", "init.initializing": "Initializing", "init.ready": "Ready", "init.failed": "Failed", "task.open": "Open", "task.claimed": "Claimed", "task.proposed": "Proposed", "task.done": "Done", "task.blocked": "Blocked", "task.cancelled": "Cancelled",
 			"tasks.title": "Task board", "tasks.empty": "No tasks created yet.", "tasks.missing": "Task board is unavailable from this Host.", "tasks.more": "Showing {shown}/{total} tasks (active first)", "tasks.unowned": "Unassigned", "tasks.details": "More tasks ({count})",
-			"events.title": "Public activity", "events.note": "Task, proposal, result and run states only; no private messages or reasoning", "events.empty": "No public state changes yet.", "events.missing": "Public activity is unavailable from this Host.", "events.more": "Earlier activity ({count})", "event.task": "Task", "event.proposal": "Proposal", "event.head": "Result revision", "event.run": "Run", "event.updated": "Updated", "proposal.queued": "Queued", "proposal.integrating": "Integrating", "proposal.accepted": "Accepted", "proposal.rejected": "Rejected",
-			"result.title": "Result & run details", "result.ref": "Result branch", "result.head": "Accepted SHA", "result.base": "Base SHA", "result.run": "Run ID", "result.verification": "Verification counts", "result.proposals": "Proposal counts", "result.finish": "Finish verification", "result.noFinish": "Not requested", "result.note": "An accepted revision is not acceptance of the whole goal. Delivery is complete only when the run is Completed.", "reason": "Current reason: {reason}", "detail.error": "Some details are unavailable: {message}",
+			"event.task": "Task", "event.proposal": "Proposal", "event.head": "Result revision", "event.run": "Run", "event.updated": "Updated", "proposal.queued": "Queued", "proposal.integrating": "Integrating", "proposal.accepted": "Accepted", "proposal.rejected": "Rejected",
+			"result.note": "An accepted revision is not acceptance of the whole goal. Delivery is complete only when the run is Completed.", "reason": "Current reason: {reason}", "detail.error": "Some details are unavailable: {message}",
 			"overview.goal": "Run goal · Expand", "overview.goalMissing": "Goal unavailable from Host", "filter.all": "All", "tasks.flow": "Task ownership & progress", "tasks.noMatch": "No tasks with this status in the snapshot.", "task.revision": "Revision", "task.owner": "Current worker", "task.identity": "Task ID", "task.proposal": "Linked proposal", "tasks.snapshot": "Host provides {shown}/{total} tasks; filters use this snapshot only.",
-			"events.recent": "Recent public activity", "events.scope": "Latest {count} events", "events.noMatch": "No matching events in recent activity.", "events.source": "Activity scope", "events.sourceNote": "Recent public state changes from Host only, not full history, private messages or reasoning.", "events.revision": "Results",
-			"delivery.title": "Current delivery", "delivery.baseline": "Baseline only", "delivery.integrated": "Integrated · Delivery pending", "delivery.verifying": "Verifying delivery", "delivery.closing": "Closing delivery resources", "delivery.completed": "Delivery complete", "delivery.stopped": "Run stopped", "delivery.failed": "Run failed", "delivery.accepted": "{count} proposals accepted", "delivery.pending": "{count} pending integration", "delivery.checks": "{count} verifications passed", "delivery.errors": "{failed} failed · {interrupted} interrupted", "delivery.details": "Revision & verification details",
-			"verification.summary": "Queued {queued} · running {running} · passed {passed} · failed {failed} · interrupted {interrupted}", "proposal.summary": "Queued {queued} · integrating {integrating} · accepted {accepted} · rejected {rejected}",
+			"delivery.title": "Current delivery", "result.run": "Run ID", "delivery.baseline": "Baseline only", "delivery.integrated": "Integrated · Delivery pending", "delivery.verifying": "Verifying delivery", "delivery.closing": "Closing delivery resources", "delivery.completed": "Delivery complete", "delivery.stopped": "Run stopped", "delivery.failed": "Run failed", "delivery.errors": "{failed} failed · {interrupted} interrupted", 
+			
 			"wt.title": "Git worktrees", "wt.loading": "Reading worktrees…", "wt.error": "Failed to read worktrees: {message}", "wt.unavailable": "Could not connect to worktrees: {message}", "wt.repo": "Repository: {name}", "wt.directory": "Session directory: {directory}", "wt.notRepo": "The session directory is not a Git repository", "wt.notRepoBody": "This view reads the repository containing {directory}; initialize Git, then refresh.", "wt.unborn": "The repository has no commits yet", "wt.unbornBody": "There are no worktree commit records to show yet; create the first commit, then refresh.", "wt.empty": "No registered worktrees", "wt.emptyBody": "git worktree list returned no worktrees.", "wt.main": "main worktree", "wt.detached": "detached HEAD @ {sha}", "wt.head": "HEAD {sha}", "wt.noHead": "no commits yet", "wt.locked": "locked: {reason}", "wt.prunable": "prunable: {reason}", "wt.commits": "Recent commits", "wt.noCommits": "No extra commits", "wt.limit": "Showing the latest {count}", "wt.refresh": "Refresh", "wt.create.title": "New worktree", "wt.create.hint": "Creates a branch and checkout under the session repository's .agents/worktrees/; it never changes this session's working directory or the current checkout.", "wt.create.name": "Name (optional)", "wt.create.namePlaceholder": "Generated, e.g. worktree-20260101-120000", "wt.create.base": "Base ref (optional)", "wt.create.basePlaceholder": "HEAD", "wt.create.submit": "Create worktree", "wt.create.pending": "Creating…", "wt.create.success": "Created worktree {name}", "wt.create.error": "Create failed: {message}"
 		};
 
 		Object.assign(zh, {
+			"chat.title": "公共频道", "chat.note": "成员的发现、任务、提交与集成，以及 Host 的集成结果和运行状态，按时间排成一个群聊。Host 发出的消息在右侧（你这一方），成员发出的在左侧。私信不在这里，见下方私信矩阵。", "chat.host": "Host", "chat.presence": "成员状态", "chat.label": "公共频道消息", "chat.empty": "频道里还没有动态", "chat.unavailable": "当前 Host 不提供协作事件；重启 DSH 后可用", "chat.run": "运行进入「{phase}」", "dm.title": "私信矩阵", "dm.note": "行是发送方、列是接收方，数字是私信条数。点选一个格子，以聊天形式查看这两名成员之间的私信。", "dm.axes": "发送 ↓ · 接收 →", "dm.caption": "成员之间的私信条数", "dm.cell": "{from} 发给 {to}：{count} 条", "dm.pair": "{a} 与 {b}", "dm.count": "共 {count} 条", "dm.pick": "选择一个格子查看这两名成员的私信", "dm.pairEmpty": "已加载的内容里没有这两名成员的私信", "dm.empty": "成员之间还没有私信",
 			"tabs.public": "公共讨论", "public.title": "公共频道与线程", "public.note": "同一运行的所有成员均可阅读；订阅只影响通知。此只读视图不发布 owner 新需求，也不替成员确认已读、回应或同意。",
 			"public.channels": "频道", "public.threads": "线程", "public.messages": "消息", "public.requests": "回应请求", "public.agreements": "当前约定", "public.attention": "待关注", "public.activity": "线程动态", "public.message_revisions": "消息修订", "public.agreement_versions": "约定版本",
 			"public.allChannels": "全部频道", "public.allWorkers": "所有成员", "public.search": "搜索正文或标题", "public.taskFilter": "关联任务 ID（可选）", "public.workerFilter": "请求对象 / 通知接收者", "public.apply": "搜索", "public.clear": "清除筛选", "public.back": "返回线程", "public.openThread": "查看线程", "public.locate": "定位消息", "public.previous": "上一页", "public.next": "下一页", "public.page": "第 {page} 页 · 共 {total} 条", "public.truncated": "当前仅显示有界分页；继续翻页查看其余记录。", "public.empty": "此范围没有记录", "public.loading": "正在读取公共历史…", "public.failed": "读取失败", "public.invalid": "Host 返回了无效的公共记录", "public.unavailable": "当前 Host 不提供公共频道协议，请更新 Host 后重连。",
@@ -166,6 +163,7 @@ window.__ModuleLoader__.load({
 			"public.reason.mention": "提及", "public.reason.response_request": "明确回应请求", "public.reason.reply": "收到回复", "public.reason.task_owner": "负责任务", "public.reason.participant": "参与线程", "public.reason.subscription": "订阅更新", "public.reason.announcement": "全局公告", "public.reason.agreement_confirmation": "约定需确认"
 		});
 		Object.assign(en, {
+			"chat.title": "Public channel", "chat.note": "Member findings, tasks, proposals and integration, plus Host results and run state, in one group chat ordered by time. Host messages sit on the right (your side), member messages on the left. Direct messages are not shown here; see the DM matrix below.", "chat.host": "Host", "chat.presence": "Member status", "chat.label": "Public channel messages", "chat.empty": "No activity in the channel yet", "chat.unavailable": "This Host does not provide collaboration events; restart DSH to enable it", "chat.run": "Run is now “{phase}”", "dm.title": "Direct message matrix", "dm.note": "Rows are senders, columns are recipients, numbers are message counts. Select a cell to read that pair’s direct messages as a chat.", "dm.axes": "From ↓ · To →", "dm.caption": "Direct messages between members", "dm.cell": "{from} to {to}: {count} messages", "dm.pair": "{a} and {b}", "dm.count": "{count} in total", "dm.pick": "Select a cell to read that pair’s direct messages", "dm.pairEmpty": "No messages between these two in the loaded history", "dm.empty": "No direct messages between members yet",
 			"tabs.public": "Public discussion", "public.title": "Public channels & threads", "public.note": "All run members can read this history; subscriptions only affect notifications. This read-only view does not add owner requirements, acknowledge worker reads, respond or consent for anyone.",
 			"public.channels": "Channels", "public.threads": "Threads", "public.messages": "Messages", "public.requests": "Response requests", "public.agreements": "Current agreements", "public.attention": "Attention", "public.activity": "Thread activity", "public.message_revisions": "Message revisions", "public.agreement_versions": "Agreement versions",
 			"public.allChannels": "All channels", "public.allWorkers": "All members", "public.search": "Search text or title", "public.taskFilter": "Linked task ID (optional)", "public.workerFilter": "Request target / notification recipient", "public.apply": "Search", "public.clear": "Clear filters", "public.back": "Back to thread", "public.openThread": "Open thread", "public.locate": "Locate message", "public.previous": "Previous page", "public.next": "Next page", "public.page": "Page {page} · {total} records", "public.truncated": "This is a bounded page; continue paging to read remaining records.", "public.empty": "No records in this scope", "public.loading": "Reading public history…", "public.failed": "Read failed", "public.invalid": "Host returned invalid public records", "public.unavailable": "This Host does not provide the public channel protocol. Update the Host and reconnect.",
@@ -331,6 +329,13 @@ window.__ModuleLoader__.load({
 			const ready = p.workers.filter((worker) => worker.initializationState === "ready").length;
 			const active = ["preparing", "running", "draining", "quiescing"].includes(p.phase);
 			const pending = p.proposals.queued + p.proposals.integrating;
+			// A completed run has passed every stage; never leave middle stages pending/dark.
+			if (p.phase === "completed") return [
+				{ id: "prepare", state: "complete", counts: { ready, total: p.workers.length } },
+				{ id: "collaborate", state: "complete", counts: p.tasks },
+				{ id: "integrate", state: "complete", counts: { accepted: p.proposals.accepted, pending } },
+				{ id: "deliver", state: "complete", counts: p.tasks }
+			];
 			return [
 				{ id: "prepare", state: ready === p.workers.length && ready > 0 ? "complete" : p.phase === "preparing" ? "active" : "pending", counts: { ready, total: p.workers.length } },
 				{ id: "collaborate", state: p.phase === "running" ? "active" : "pending", counts: p.tasks },
@@ -549,10 +554,13 @@ window.__ModuleLoader__.load({
 			};
 			return { loadMore, refresh() { if (disposed) return; request?.abort(); request = null; cursors.clear(); state = initialHistory(sessionId, runId); return loadMore(); }, dispose() { disposed = true; request?.abort(); request = null; } };
 		}
-		/** IntersectionObserver is only an enhancement; the load-more button always remains. */
+		/**
+		 * IntersectionObserver is only an enhancement; the load-more button always remains.
+		 * Older commits live at the left edge of the track, so the margin extends leftward.
+		 */
 		function observeHistoryEnd(root, target, loadMore) {
 			if (!target || typeof IntersectionObserver !== "function") return undefined;
-			const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadMore(); }, { root, rootMargin: "0px 0px 240px 0px" });
+			const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) loadMore(); }, { root, rootMargin: "0px 0px 0px 240px" });
 			observer.observe(target);
 			return () => observer.disconnect();
 		}
@@ -614,15 +622,15 @@ window.__ModuleLoader__.load({
 		}
 
 		/*
-		 * Metro-style worktree tracks. One horizontal track per worktree (accepted result
-		 * first as the trunk, then workers in roster order), newest on the left. A commit
+		 * Worktree tracks. One horizontal track per worktree (accepted result first as the
+		 * trunk, then workers in roster order); time flows left (oldest) to right (newest). A commit
 		 * sits on the first track whose first-parent chain claims it: the trunk from its HEAD,
 		 * then worker HEADs, then proposal tips (the commits each worker submitted). `--source`
 		 * only means reachability, so it is the last fallback. Cross-track curves
-		 * always bend in the label-free gutter beside a station:
-		 * - first parent on another track (branch-off): ride the child's track, bend just
-		 *   before the parent station;
-		 * - extra parents (merge): ride the parent's track, bend just after the merge station,
+		 * always bend in the label-free gutter beside a node:
+		 * - first parent on another track (branch-off): ride the child's track leftward, bend
+		 *   just right of the parent node;
+		 * - extra parents (merge): ride the parent's track, bend just left of the merge node,
 		 *   and the merge label flips away from the incoming curve.
 		 */
 		const TRACK = Object.freeze({ column: 196, lane: 84, pad: 22, label: 150, bend: 40, tail: 56 });
@@ -662,8 +670,9 @@ window.__ModuleLoader__.load({
 		 * @param items commits in Git date order (children before parents).
 		 * @param worktrees lane snapshot from the history page.
 		 * @param tips proposal source commits with their author worker, newest first.
-		 * @param more whether older pages exist; missing parents then fade out to the right,
-		 *   otherwise they meet the run base terminus.
+		 * @param more whether older pages exist; missing parents then fade out to the left,
+		 *   otherwise they meet the run base terminus at the far left. Columns count from the
+		 *   oldest loaded commit, so an older page only prepends columns on the left.
 		 */
 		function trackLayout(items, worktrees, tips, more) {
 			const lanes = trackLanes(worktrees, items);
@@ -673,15 +682,18 @@ window.__ModuleLoader__.load({
 			const claim = (lane, start) => { for (let sha = start; lane && sha && itemOf.has(sha) && !claimed.has(sha); sha = itemOf.get(sha).parents[0]) claimed.set(sha, lane); };
 			for (const lane of lanes) claim(lane, lane.head);
 			for (const tip of tips) claim(laneOf.get("worker:" + tip.workerId), tip.sha);
-			const x = (column) => TRACK.pad + 8 + column * TRACK.column;
+			const missing = items.some((item) => item.parents.some((parent) => !itemOf.has(parent)));
+			const hasBase = !more && missing;
+			const x = (column) => TRACK.pad + 8 + (more ? TRACK.tail : 0) + column * TRACK.column;
 			const y = (lane) => TRACK.pad + lane * TRACK.lane + TRACK.lane / 2;
-			const nodes = items.map((item, column) => {
+			// Items arrive newest first; the oldest loaded commit takes the leftmost column.
+			const nodes = items.map((item, index) => {
 				const lane = claimed.get(item.sha) ?? laneOf.get(laneKey(item));
+				const column = (hasBase ? 1 : 0) + items.length - 1 - index;
 				return { column, item, lane, x: x(column), y: y(lane.index), merge: item.parents.length > 1, head: lane.head === item.sha, labelAbove: false };
 			});
 			const bySha = new Map(nodes.map((node) => [node.item.sha, node]));
-			const missing = nodes.some((node) => node.item.parents.some((parent) => !bySha.has(parent)));
-			const base = !more && missing ? { x: x(items.length), y: y(0), lane: lanes[0] } : null;
+			const base = hasBase ? { x: x(0), y: y(0), lane: lanes[0] } : null;
 			const width = TRACK.pad * 2 + (items.length + (base ? 1 : 0)) * TRACK.column + (more ? TRACK.tail : 0);
 			const height = TRACK.pad * 2 + Math.max(1, lanes.length) * TRACK.lane;
 			const edges = [];
@@ -689,29 +701,29 @@ window.__ModuleLoader__.load({
 				node.item.parents.forEach((parent, order) => {
 					const target = bySha.get(parent) ?? base;
 					if (target === null) {
-						if (order === 0) edges.push({ key: node.item.id + ":open", kind: "open", color: node.lane.color, path: `M ${node.x} ${node.y} H ${width - TRACK.pad / 2}` });
+						if (order === 0) edges.push({ key: node.item.id + ":open", kind: "open", color: node.lane.color, path: `M ${node.x} ${node.y} H ${TRACK.pad / 2}` });
 						return;
 					}
 					const key = node.item.id + ":" + parent;
 					if (target.y === node.y) { edges.push({ key, kind: "track", color: node.lane.color, path: `M ${node.x} ${node.y} H ${target.x}` }); return; }
 					const half = TRACK.bend / 2;
 					if (order === 0) {
-						const start = Math.max(node.x, target.x - TRACK.bend);
-						edges.push({ key, kind: "branch", color: node.lane.color, path: `M ${node.x} ${node.y} H ${start} C ${start + half} ${node.y}, ${target.x - half} ${target.y}, ${target.x} ${target.y}` });
+						const start = Math.min(node.x, target.x + TRACK.bend);
+						edges.push({ key, kind: "branch", color: node.lane.color, path: `M ${node.x} ${node.y} H ${start} C ${start - half} ${node.y}, ${target.x + half} ${target.y}, ${target.x} ${target.y}` });
 					} else {
-						const end = Math.min(target.x, node.x + TRACK.bend);
-						edges.push({ key, kind: "merge", color: target.lane.color, path: `M ${node.x} ${node.y} C ${node.x + half} ${node.y}, ${end - half} ${target.y}, ${end} ${target.y} H ${target.x}` });
+						const end = Math.max(target.x, node.x - TRACK.bend);
+						edges.push({ key, kind: "merge", color: target.lane.color, path: `M ${node.x} ${node.y} C ${node.x - half} ${node.y}, ${end + half} ${target.y}, ${end} ${target.y} H ${target.x}` });
 						if (target.y > node.y) node.labelAbove = true;
 					}
 				});
 			}
-			// Cross-track curves under same-track rails so stations read as joined to their own line.
+			// Cross-track curves under same-track rails so nodes read as joined to their own line.
 			const rank = { open: 0, branch: 1, merge: 1, track: 2 };
 			edges.sort((a, b) => rank[a.kind] - rank[b.kind]);
 			return { lanes, nodes, edges, base, width, height };
 		}
 
-		/** Station glyph: plain stop, interchange ring for merges, halo for a live HEAD. */
+		/** Commit node glyph: plain dot, double ring for merges, halo for a live HEAD. */
 		function station(node) {
 			const color = node.lane.color;
 			return h("g", { key: "s" + node.item.id, className: "dshSwarm_station" },
@@ -730,7 +742,7 @@ window.__ModuleLoader__.load({
 					h("span", { className: "dshSwarm_laneHeadSha" }, lane.head ? h("code", { style: { color: lane.color } }, "HEAD " + lane.head.slice(0, 7)) : lane.diagnostic ?? t("git.worktreeMissing", {})))));
 		}
 
-		/** Track canvas for the loaded prefix; a later page appends more stations to the right. */
+		/** Track canvas for the loaded prefix; an older page prepends nodes on the left (scroll stays anchored to the right). */
 		function renderCommitTrack(t, items, worktrees, tips, more) {
 			const { lanes, nodes, edges, base, width, height } = trackLayout(items, worktrees, tips, more);
 			const rails = lanes.map((lane) => h("line", { key: "rail" + lane.key, x1: TRACK.pad / 2, y1: TRACK.pad + lane.index * TRACK.lane + TRACK.lane / 2, x2: width - TRACK.pad / 2, y2: TRACK.pad + lane.index * TRACK.lane + TRACK.lane / 2, strokeWidth: 8, strokeLinecap: "round", style: { stroke: lane.color, opacity: 0.08 } }));
@@ -770,11 +782,22 @@ window.__ModuleLoader__.load({
 				h("span", { className: "dshSwarm_trackAxis" }, t("git.axis", {})));
 		}
 
+		/**
+		 * Horizontal scroll position after the loaded prefix changed width. The first render
+		 * shows the newest (rightmost) commits; an older page grows the canvas on the left, so
+		 * the view shifts by the added width and the commits being read stay in place.
+		 */
+		function anchorHistoryScroll(previousWidth, scrollLeft, scrollWidth) {
+			if (!previousWidth) return scrollWidth;
+			return scrollLeft + Math.max(0, scrollWidth - previousWidth);
+		}
+
 		function GitStreamSection({ t, progress, sessionId, loadHistory }) {
 			const [state, setState] = React.useState(() => initialHistory(sessionId, progress.runId));
 			const pager = React.useRef(null);
 			const scroll = React.useRef(null);
 			const sentinel = React.useRef(null);
+			const width = React.useRef(0);
 			const current = state.sessionId === sessionId && state.runId === progress.runId ? state : initialHistory(sessionId, progress.runId);
 			const available = typeof loadHistory === "function";
 			React.useEffect(() => {
@@ -785,6 +808,13 @@ window.__ModuleLoader__.load({
 				return () => { owned.dispose(); if (pager.current === owned) pager.current = null; };
 			}, [sessionId, progress.runId, loadHistory, available]);
 			React.useEffect(() => {
+				const node = scroll.current;
+				if (!node) return;
+				if (!current.items.length) { width.current = 0; return; }
+				node.scrollLeft = anchorHistoryScroll(width.current, node.scrollLeft, node.scrollWidth);
+				width.current = node.scrollWidth;
+			}, [sessionId, progress.runId, current.items.length]);
+			React.useEffect(() => {
 				if (current.loading || current.error || !current.started || current.nextCursor === null) return undefined;
 				return observeHistoryEnd(scroll.current, sentinel.current, () => void pager.current?.loadMore());
 			}, [sessionId, progress.runId, current.loading, current.error, current.started, current.nextCursor]);
@@ -792,7 +822,7 @@ window.__ModuleLoader__.load({
 			const missing = !available || ["gateway/invocation-unavailable", "gateway/method-unavailable"].includes(current.error?.code);
 			const errorText = current.error?.code === "history/run-changed" ? t("git.missingRun", {}) : current.error?.code === "history/invalid" ? t("git.invalid", {}) : current.error?.message;
 			return h("section", { className: "dshSwarm_section", "aria-label": t("git.title", {}) },
-				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("git.title", {})), h("button", { type: "button", className: "dshSwarm_button", disabled: !available || current.loading, onClick: () => { if (scroll.current) { scroll.current.scrollTop = 0; scroll.current.scrollLeft = 0; } void pager.current?.refresh(); } }, t("git.refresh", {}))),
+				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("git.title", {})), h("button", { type: "button", className: "dshSwarm_button", disabled: !available || current.loading, onClick: () => { width.current = 0; if (scroll.current) scroll.current.scrollTop = 0; void pager.current?.refresh(); } }, t("git.refresh", {}))),
 				h("p", { className: "dshSwarm_scopeNote" }, t("git.note", {})),
 				h("p", { className: "dshSwarm_scopeNote" }, t("git.snapshot", {})),
 				missing ? h("p", { className: "dshSwarm_notice", role: "status" }, t("git.unavailable", {})) : null,
@@ -801,8 +831,8 @@ window.__ModuleLoader__.load({
 					current.items.length
 						? h("div", { className: "dshSwarm_trackRow" },
 							renderLaneHeads(t, trackLanes(current.worktrees, current.items), name),
-							renderCommitTrack(t, current.items, current.worktrees, current.tips ?? [], current.nextCursor !== null),
-							h("div", { ref: sentinel, className: "dshSwarm_gitSentinel", "aria-hidden": true }))
+							h("div", { ref: sentinel, className: "dshSwarm_gitSentinel", "aria-hidden": true }),
+							renderCommitTrack(t, current.items, current.worktrees, current.tips ?? [], current.nextCursor !== null))
 						: current.started ? h("p", { className: "dshSwarm_empty" }, t("git.empty", {})) : null,
 					current.error && !missing ? h("p", { className: "dshSwarm_notice", role: "alert" }, t("git.failed", {}), ": ", errorText) : null),
 				h("div", { className: "dshSwarm_gitFooter" }, h("span", { className: "dshSwarm_subtle", role: "status", "aria-live": "polite" }, t(current.loading ? "git.loading" : "git.loaded", { count: current.items.length })),
@@ -884,35 +914,11 @@ window.__ModuleLoader__.load({
 			const task = event.kind === "task" ? tasks.find((task) => task.id === event.objectId) : event.kind === "proposal" ? tasks.find((task) => task.proposalId === event.objectId) : null;
 			return { subject: task?.subject ?? (event.kind === "run" ? null : event.objectId.slice(0, 12)), workerNumber: progress.workers.findIndex((worker) => worker.id === event.authorWorkerId) + 1 };
 		}
-		function Timeline({ t, progress }) {
-			const [kind, setKind] = React.useState("all");
-			const events = progress.recentEvents;
-			const rows = (items) => h("ol", { className: "dshSwarm_timeline" }, items.map((event) => {
-				const description = describeEvent(progress, event);
-				return h("li", { className: "dshSwarm_event", key: event.seq, "data-kind": event.kind }, h("i", { className: "dshSwarm_eventDot", "aria-hidden": true, style: { background: description.workerNumber ? workerColor(description.workerNumber - 1) : TRACK_TRUNK } }), timeElement(event.createdAt), label(t, "event", event.kind), " · ", description.subject ? h("span", { title: event.objectId }, description.subject, " · ") : null,
-					event.kind === "head" ? t("event.updated", {}) : label(t, event.kind === "run" ? "phase" : event.kind, event.status), description.workerNumber ? h("span", { className: "dshSwarm_subtle" }, " · ", workerName(t, progress.workers[description.workerNumber - 1], description.workerNumber)) : null);
-			}));
-			const newest = filterEvents(progress, kind);
-			return h("section", { className: "dshSwarm_section", "aria-label": t("events.recent", {}) },
-				h("div", { className: "dshSwarm_sectionHead" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("events.recent", {})), events ? h("span", { className: "dshSwarm_subtle" }, t("events.scope", { count: events.length })) : null),
-				events ? h("div", { className: "dshSwarm_filters", role: "group", "aria-label": t("events.title", {}) }, ["all", "task", "proposal", "head", "run"].map((key) => filterButton(key, t(key === "all" ? "filter.all" : key === "head" ? "events.revision" : "event." + key, {}), kind === key, setKind))) : null,
-				!events || !newest.length ? h("p", { className: "dshSwarm_subtle" }, t(!events ? "events.missing" : events.length ? "events.noMatch" : "events.empty", {})) : h(React.Fragment, { key: kind }, rows(newest.slice(0, 6)), newest.length > 6 ? h("details", { className: "dshSwarm_details" }, h("summary", {}, t("events.more", { count: newest.length - 6 })), rows(newest.slice(6))) : null),
-				events ? h("details", { className: "dshSwarm_details" }, h("summary", {}, t("events.source", {})), h("p", {}, t("events.sourceNote", {}))) : null);
-		}
 		function deliveryState(progress) {
 			if (["completed", "stopped", "failed"].includes(progress.phase)) return progress.phase;
 			if (progress.phase === "quiescing" && progress.quiesceTarget === "completed") return "closing";
 			if (progress.phase === "draining") return "verifying";
 			return progress.acceptedHead === progress.baseCommit ? "baseline" : "integrated";
-		}
-		function DeliveryCard({ t, progress: p }) {
-			const delivery = deliveryState(p);
-			return h("section", { className: "dshSwarm_delivery", "aria-label": t("delivery.title", {}) },
-				h("div", { className: "dshSwarm_deliveryTop" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("delivery.title", {})), badge(t("delivery." + delivery, {}), tone(delivery))),
-				h("div", { className: "dshSwarm_deliveryRevision" }, h("code", { title: p.acceptedHead, "aria-label": t("result.head", {}) + ": " + p.acceptedHead }, p.acceptedHead.slice(0, 12)), h("span", { className: "dshSwarm_subtle" }, t("result.ref", {}), " · ", h("code", {}, p.resultRef))),
-				h("div", { className: "dshSwarm_deliveryChecks" }, h("span", {}, t("delivery.accepted", { count: p.proposals.accepted })), p.proposals.queued + p.proposals.integrating ? h("span", { className: "dshSwarm_active" }, t("delivery.pending", { count: p.proposals.queued + p.proposals.integrating })) : null, h("span", {}, t("delivery.checks", { count: p.verifications.passed })), p.verifications.failed + p.verifications.interrupted ? h("span", { className: "dshSwarm_warn" }, t("delivery.errors", p.verifications)) : null),
-				h("details", { className: "dshSwarm_details" }, h("summary", {}, t("delivery.details", {})), h("dl", { className: "dshSwarm_facts" },
-					fact(t("result.head", {}), h("code", {}, p.acceptedHead)), fact(t("result.base", {}), h("code", {}, p.baseCommit)), fact(t("result.run", {}), h("code", {}, p.runId)), fact(t("result.proposals", {}), t("proposal.summary", p.proposals)), fact(t("result.verification", {}), t("verification.summary", p.verifications)), fact(t("result.finish", {}), p.finishRequest?.verificationId ?? (p.finishRequest ? p.finishRequest.id : t("result.noFinish", {}))))));
 		}
 		/** Original peer-orbit mark; follows the Host theme, never patches Host DOM. */
 		function SwarmMark() {
@@ -1025,23 +1031,7 @@ window.__ModuleLoader__.load({
 					goals.length ? h("div", { className: "dshSwarm_goalList" }, goals.map((goal) => h(GoalCard, { key: goal.id, t, goal, phase: p.phase }))) : h("p", { className: "dshSwarm_laneEmpty" }, t("goals.laneEmpty", {}))))),
 				board?.truncated ? h("p", { className: "dshSwarm_subtle" }, t("goals.more", { shown: board.items.length, total: board.total })) : null);
 		}
-		/** Compact roster for the dashboard: identity color, current task and work state. */
-		function TeamCard({ t, progress: p, live }) {
-			const views = p.workers.map(deriveWorker);
-			const busy = views.filter((view) => ["executing", "running"].includes(view.activity)).length;
-			const waiting = views.filter((view) => ["waiting", "integration", "integrating"].includes(view.work)).length;
-			return h("section", { className: "dshSwarm_teamCard", "aria-label": t("dash.team", {}) },
-				h("div", { className: "dshSwarm_deliveryTop" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("dash.team", {})), h("span", { className: "dshSwarm_subtle" }, t("dash.teamNote", { busy, waiting }))),
-				p.workers.length ? h("ul", { className: "dshSwarm_teamList" }, p.workers.map((worker, index) => {
-					const view = views[index];
-					const name = workerName(t, worker, index + 1);
-					return h("li", { key: worker.id, className: "dshSwarm_teamRow" },
-						h("span", { className: "dshSwarm_avatar dshSwarm_avatarSmall", "aria-hidden": true, style: { background: workerColor(index) } }, initials(name)),
-						h("span", { className: "dshSwarm_teamName" }, h("strong", {}, name), h("span", { className: "dshSwarm_teamTask", "data-empty": !view.task }, view.task?.subject ?? t("worker.noTask", {}))),
-						h("span", { className: "dshSwarm_workPill", "data-tone": workTone(view.work) }, h("i", { className: "dshSwarm_pulse", "data-live": live && ["executing", "running"].includes(view.activity), "aria-hidden": true }), t("work." + view.work, {})));
-				})) : h("p", { className: "dshSwarm_laneEmpty" }, t("dash.noWorkers", {})));
-		}
-		/** Dashboard: goal, stage stepper, KPI cards, delivery and team, then tasks and activity. */
+		/** Dashboard: key task progress only — goal, stage stepper, KPIs, delivery state and the task board. */
 		function DashboardPanel({ t, state, now }) {
 			const p = state.progress;
 			const clock = deriveClock(state, now);
@@ -1054,6 +1044,7 @@ window.__ModuleLoader__.load({
 				h("span", { key: "legend", className: "dshSwarm_kpiLegend" }, segments.map((key) => h("span", { key }, h("i", { "data-seg": key, "aria-hidden": true }), label(t, "task", key) + " " + p.tasks[key]))),
 			] : null;
 			const failedChecks = p.verifications.failed + p.verifications.interrupted;
+			const delivery = deliveryState(p);
 			return h(React.Fragment, {},
 				h("details", { className: "dshSwarm_goalBox" }, h("summary", {}, t("overview.goal", {}), h("span", { className: "dshSwarm_goalPreview" }, p.goal ?? t("overview.goalMissing", {}))), h("p", { className: "dshSwarm_goalFull" }, p.goal)),
 				p.reason ? notice(t("reason", { reason: p.reason }), p.phase === "quiescing" && p.quiesceTarget ? label(t, "phase", p.quiesceTarget) : null) : null,
@@ -1068,9 +1059,9 @@ window.__ModuleLoader__.load({
 					kpi("verify", t("verification.kpi", {}), String(p.verifications.passed), p.verifications.running + failedChecks ? t("verification.note", p.verifications) : null, failedChecks ? h("span", { className: "dshSwarm_kpiFlag" }, t("delivery.errors", p.verifications)) : null),
 					kpi("time", t(budgetKey(p), {}), p.deadline === null ? (clock.elapsedMs === null ? "—" : duration(clock.elapsedMs)) : duration(clock.remainingMs), p.deadline === null ? t("budget.noDeadline", {}) : clock.elapsedMs === null ? t("elapsed.unknown", {}) : t("elapsed", { duration: duration(clock.elapsedMs) }))),
 				clock.remainingMs === 0 && !terminal(p.phase) ? h("p", { className: "dshSwarm_subtle dshSwarm_warn" }, t("budget.expired", {})) : null,
-				h("div", { className: "dshSwarm_dashGrid" }, h(DeliveryCard, { t, progress: p }), h(TeamCard, { t, progress: p, live })),
+				h("p", { className: "dshSwarm_dashDelivery", "aria-label": t("delivery.title", {}) }, h("span", { className: "dshSwarm_subtle" }, t("delivery.title", {})), badge(t("delivery." + delivery, {}), tone(delivery)), h("code", { title: p.acceptedHead }, p.acceptedHead.slice(0, 12)), h("span", { className: "dshSwarm_subtle" }, t("result.run", {}), " ", h("code", {}, p.runId))),
 				p.detailError ? notice(t("unavailable", {}), t("detail.error", { message: p.detailError })) : null,
-				h("div", { className: "dshSwarm_collaboration" }, h(TaskBoard, { t, progress: p }), h(Timeline, { t, progress: p })));
+				h(TaskBoard, { t, progress: p }));
 		}
 
 		/*
@@ -1079,7 +1070,9 @@ window.__ModuleLoader__.load({
 		 * results rise from the author's lane to the result lane. Metadata only: the Host
 		 * never sends message bodies or finding text, so neither does this view.
 		 */
-		const FLOW = Object.freeze({ column: 40, lane: 58, pad: 18, axis: 26 });
+		// Same lane height, padding and palette as the Git tracks; columns are narrower
+		// because events are denser than commits and carry no inline labels.
+		const FLOW = Object.freeze({ column: 48, lane: TRACK.lane, pad: TRACK.pad, axis: 26 });
 		const flowKinds = ["all", "message", "finding", "task", "proposal"];
 		const FINDING_KINDS = ["observed", "fact", "fail", "patch_summary"];
 		const interactionValid = (item) => object(item) && count(item.seq) && ["message", "finding", "task", "proposal", "head"].includes(item.kind) && typeof item.status === "string" && textOrNull(item.actorWorkerId) && textOrNull(item.peerWorkerId) && typeof item.objectId === "string" && textOrNull(item.taskId) && validTime(item.createdAt);
@@ -1119,26 +1112,83 @@ window.__ModuleLoader__.load({
 			return [...pairs.values()].sort((a, b) => b.count - a.count || b.last - a.last);
 		}
 
+		/*
+		 * Unified track style shared with the Git graph: every event is a station on its
+		 * member's line (ring with the Git stroke width on the layer background), cross-lane
+		 * links are the same rounded curves as Git branch/merge edges, and a result advance
+		 * is drawn like a merge commit (larger ring, center dot, HEAD halo). Kind is told
+		 * apart by the station outline: ring = message, diamond = finding, rounded square =
+		 * task, triangle = proposal.
+		 */
+		const FLOW_STROKE = 3;
+		const STATION_BG = "var(--dsw-alias-bg-layer-1)";
+		const ERROR_COLOR = "var(--dsw-alias-state-error-primary)";
+		const WARN_COLOR = "var(--dsw-alias-state-warn-primary)";
+		/** One station outline at (x, y); `r` is the Git commit radius (6) or a legend size. */
+		function flowStation(kind, status, x, y, color, r = 6, key = "s") {
+			const filled = (kind === "task" && ["done", "claimed"].includes(status)) || (kind === "proposal" && status === "accepted");
+			const stroke = kind === "finding" && status === "fail" ? ERROR_COLOR : kind === "task" && ["blocked", "cancelled"].includes(status) ? WARN_COLOR : color;
+			const style = { fill: filled ? color : kind === "finding" && status === "fail" ? ERROR_COLOR : STATION_BG, stroke, opacity: kind === "task" && status === "cancelled" ? .5 : 1 };
+			const width = r < 6 ? 2.2 : FLOW_STROKE;
+			switch (kind) {
+				case "finding": return h("rect", { key, x: x - r * .8, y: y - r * .8, width: r * 1.6, height: r * 1.6, rx: 1.5, transform: `rotate(45 ${x} ${y})`, strokeWidth: width, style });
+				case "task": return h("rect", { key, x: x - r, y: y - r, width: r * 2, height: r * 2, rx: r / 2, strokeWidth: width, style });
+				case "proposal": return status === "rejected"
+					? h("path", { key, d: `M ${x - r} ${y - r} L ${x + r} ${y + r} M ${x + r} ${y - r} L ${x - r} ${y + r}`, strokeWidth: width, strokeLinecap: "round", style: { fill: "none", stroke: ERROR_COLOR } })
+					: h("path", { key, d: `M ${x} ${y - r * 1.15} L ${x + r * 1.1} ${y + r * .85} L ${x - r * 1.1} ${y + r * .85} Z`, strokeWidth: width, strokeLinejoin: "round", style });
+				case "head": return h(React.Fragment, { key },
+					h("circle", { cx: x, cy: y, r: r * 2, style: { fill: color, opacity: .16 } }),
+					h("circle", { cx: x, cy: y, r: r * 4 / 3, strokeWidth: width, style: { fill: STATION_BG, stroke: color } }),
+					h("circle", { cx: x, cy: y, r: r * 5 / 12, style: { fill: color } }));
+				default: return h("circle", { key, cx: x, cy: y, r, strokeWidth: width, style: { fill: STATION_BG, stroke: color } });
+			}
+		}
+		/** Git-style cross-lane curve: leave horizontally, bend, arrive horizontally. */
+		function flowCurve(x1, y1, x2, y2) {
+			const half = (x2 - x1) / 2;
+			return `M ${x1} ${y1} C ${x1 + half} ${y1}, ${x2 - half} ${y2}, ${x2} ${y2}`;
+		}
 		function flowGlyph(mark) {
 			const { item, x, y, lane } = mark;
 			const color = lane.color;
-			const bg = "var(--dsw-alias-bg-layer-1)";
+			const link = { fill: "none", strokeWidth: FLOW_STROKE, strokeLinecap: "round", strokeLinejoin: "round" };
 			switch (item.kind) {
-				case "message": return [
-					h("path", { key: "a", d: `M ${x} ${y} C ${x + FLOW.column * .7} ${y}, ${x + FLOW.column * .1} ${mark.targetY}, ${x + FLOW.column * .5} ${mark.targetY}`, fill: "none", strokeWidth: 2, strokeLinecap: "round", style: { stroke: color, opacity: .8 } }),
-					h("circle", { key: "s", cx: x, cy: y, r: 4.5, style: { fill: color } }),
-					h("circle", { key: "t", cx: x + FLOW.column * .5, cy: mark.targetY, r: 3.5, strokeWidth: 2, style: { fill: bg, stroke: color } })];
-				case "finding": return [h("rect", { key: "d", x: x - 5, y: y - 5, width: 10, height: 10, rx: 1.5, transform: `rotate(45 ${x} ${y})`, strokeWidth: 2, style: { fill: item.status === "fail" ? "var(--dsw-alias-state-error-primary)" : bg, stroke: item.status === "fail" ? "var(--dsw-alias-state-error-primary)" : color } })];
-				case "task": return [h("rect", { key: "q", x: x - 5, y: y - 5, width: 10, height: 10, rx: 3, strokeWidth: 2, style: { fill: ["done", "claimed"].includes(item.status) ? color : bg, stroke: ["blocked", "cancelled"].includes(item.status) ? "var(--dsw-alias-state-warn-primary)" : color, opacity: item.status === "cancelled" ? .5 : 1 } })];
-				case "proposal": return item.status === "rejected"
-					? [h("path", { key: "x", d: `M ${x - 5} ${y - 5} L ${x + 5} ${y + 5} M ${x + 5} ${y - 5} L ${x - 5} ${y + 5}`, strokeWidth: 2.5, strokeLinecap: "round", style: { stroke: "var(--dsw-alias-state-error-primary)" } })]
-					: [h("path", { key: "p", d: `M ${x} ${y - 6} L ${x + 6} ${y + 5} L ${x - 6} ${y + 5} Z`, strokeWidth: 2, strokeLinejoin: "round", style: { fill: item.status === "accepted" ? color : bg, stroke: color } })];
+				case "message": {
+					// Sender station, Git branch-style curve, arrival dot on the recipient's line.
+					const arrive = x + FLOW.column * .5;
+					return [
+						h("path", { key: "a", d: flowCurve(x, y, arrive, mark.targetY), ...link, style: { stroke: color, opacity: .85 } }),
+						flowStation("message", item.status, x, y, color),
+						h("circle", { key: "t", cx: arrive, cy: mark.targetY, r: 3.5, strokeWidth: 2.2, style: { fill: STATION_BG, stroke: color } })];
+				}
 				case "head": return [
-					mark.targetY !== null ? h("path", { key: "l", d: `M ${x} ${mark.targetY} L ${x} ${y}`, strokeWidth: 2.5, strokeDasharray: "1 5", strokeLinecap: "round", style: { stroke: mark.targetLane.color } }) : null,
-					h("circle", { key: "h", cx: x, cy: y, r: 7, strokeWidth: 3, style: { fill: bg, stroke: TRACK_TRUNK } }),
-					h("circle", { key: "c", cx: x, cy: y, r: 2.5, style: { fill: TRACK_TRUNK } })];
-				default: return [];
+					// Like a Git merge edge: the author's line curves into the result station.
+					mark.targetY !== null ? h("path", { key: "l", d: flowCurve(x - FLOW.column * .5, mark.targetY, x, y), ...link, style: { stroke: mark.targetLane.color, opacity: .85 } }) : null,
+					flowStation("head", item.status, x, y, TRACK_TRUNK)];
+				default: return [flowStation(item.kind, item.status, x, y, color)];
 			}
+		}
+		/** Solid track segments joining consecutive stations on each lane, like Git first-parent edges. */
+		function flowTracks(marks) {
+			const last = new Map();
+			const segments = [];
+			for (const mark of marks) {
+				const previous = last.get(mark.lane);
+				if (previous) segments.push({ key: previous.item.seq + ":" + mark.item.seq, x1: previous.x, x2: mark.x, y: mark.y, color: mark.lane.color });
+				last.set(mark.lane, mark);
+			}
+			return segments;
+		}
+		/** Symbol key built from the same stations as the chart, in the Git legend layout. */
+		function renderFlowLegend(t) {
+			const glyph = (kind, status) => h("svg", { width: 18, height: 18, viewBox: "0 0 18 18", "aria-hidden": true }, flowStation(kind, status, 9, 9, "var(--dsw-alias-label-secondary)", 4.5));
+			return h("div", { className: "dshSwarm_trackLegend" },
+				h("span", {}, glyph("message"), t("flow.kind.message", {})),
+				h("span", {}, glyph("finding"), t("flow.kind.finding", {})),
+				h("span", {}, glyph("task"), t("flow.kind.task", {})),
+				h("span", {}, glyph("proposal"), t("flow.kind.proposal", {})),
+				h("span", {}, glyph("head"), t("flow.legend.head", {})),
+				h("span", { className: "dshSwarm_trackAxis" }, t("flow.axis", {})));
 		}
 
 		/**
@@ -1183,8 +1233,6 @@ window.__ModuleLoader__.load({
 				head: all.filter((item) => item.kind === "head").length,
 			};
 			const { lanes, marks, width, height, y } = flowLayout(progress, kind);
-			const pairs = messagePairs(progress).slice(0, 6);
-			const peak = pairs[0]?.count ?? 1;
 			let lastTick = -Infinity, lastLabel = "";
 			const ticks = marks.flatMap((mark) => {
 				const text = new Date(mark.item.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -1195,7 +1243,7 @@ window.__ModuleLoader__.load({
 			const show = (mark, pinned) => {
 				const node = scroll.current, box = stage.current;
 				const position = flowHoverPosition(mark, {
-					headWidth: node?.querySelector(".dshSwarm_laneHeads")?.offsetWidth ?? 150, scrollLeft: node?.scrollLeft ?? 0, scrollTop: node?.scrollTop ?? 0,
+					headWidth: node?.querySelector(".dshSwarm_laneHeads")?.offsetWidth ?? 168, scrollLeft: node?.scrollLeft ?? 0, scrollTop: node?.scrollTop ?? 0,
 					top: node ? node.offsetTop : 0, width: box?.clientWidth ?? 1000, height: box?.clientHeight ?? 400,
 				});
 				setHover((value) => value?.pinned && !pinned ? value : { seq: mark.item.seq, pinned, ...position });
@@ -1236,23 +1284,19 @@ window.__ModuleLoader__.load({
 					h("div", { className: "dshSwarm_flowStats" }, stat("message", stats.message), stat("finding", stats.finding), stat("proposal", stats.proposal), stat("head", stats.head))),
 				!supported ? h("p", { className: "dshSwarm_notice", role: "status" }, t("flow.unavailable", {})) : null,
 				supported ? h("div", { className: "dshSwarm_memberFilters", role: "group", "aria-label": t("flow.filter", {}) }, flowKinds.map((id) => h("button", { key: id, type: "button", className: "dshSwarm_button dshSwarm_memberFilter", "aria-pressed": kind === id, onClick: () => setKind(id) }, t("flow.kind." + id, {})))) : null,
-				supported ? h("div", { className: "dshSwarm_trackLegend" },
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "message", "aria-hidden": true }), t("flow.kind.message", {})),
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "finding", "aria-hidden": true }), t("flow.kind.finding", {})),
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "task", "aria-hidden": true }), t("flow.kind.task", {})),
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "proposal", "aria-hidden": true }), t("flow.kind.proposal", {})),
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "head", "aria-hidden": true }), t("flow.legend.head", {})),
-					h("span", { className: "dshSwarm_trackAxis" }, t("flow.axis", {}))) : null,
+				supported ? renderFlowLegend(t) : null,
 				supported && marks.length ? h("div", { className: "dshSwarm_flowStage", ref: stage, onKeyDown: (event) => { if (event.key === "Escape") setHover(null); } },
 				h("div", { className: "dshSwarm_gitScroll dshSwarm_flowScroll", ref: scroll, tabIndex: 0, role: "region", "aria-label": t("flow.chart", {}), onScroll: () => setHover(null) },
 					h("div", { className: "dshSwarm_trackRow" },
 						h("div", { className: "dshSwarm_laneHeads", "aria-hidden": true, style: { paddingTop: FLOW.pad + "px" } }, lanes.map((lane) => h("div", { key: String(lane.key), className: "dshSwarm_laneHead", "data-trunk": !!lane.host, style: { height: FLOW.lane + "px", borderInlineStartColor: lane.color } },
 							h("span", { className: "dshSwarm_laneName" }, h("i", { style: { background: lane.color } }), lane.host ? t("flow.host", {}) : name(lane.key)),
-							h("span", { className: "dshSwarm_laneBranch" }, lane.host ? t("flow.hostNote", {}) : lane.key)))),
+							h("code", { className: "dshSwarm_laneBranch" }, lane.host ? t("flow.hostNote", {}) : lane.key)))),
 						h("div", { className: "dshSwarm_trackCanvas", style: { width: width + "px", height: height + "px" } },
 							h("svg", { className: "dshSwarm_trackEdges", width, height, viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": t("flow.chart", {}) },
 								lanes.map((lane, index) => h("rect", { key: "b" + index, x: 0, y: FLOW.pad + index * FLOW.lane, width, height: FLOW.lane, className: "dshSwarm_trackBand", "data-odd": index % 2 === 1 })),
-								lanes.map((lane, index) => h("line", { key: "r" + index, x1: 0, x2: width, y1: y(index), y2: y(index), strokeWidth: lane.host ? 3 : 2, style: { stroke: lane.color, opacity: lane.host ? .25 : .18 } })),
+								// Same faint wide rail and solid station-to-station track as the Git graph.
+								lanes.map((lane, index) => h("line", { key: "r" + index, className: "dshSwarm_trackRail", x1: TRACK.pad / 2, x2: width - TRACK.pad / 2, y1: y(index), y2: y(index), strokeWidth: 8, strokeLinecap: "round", style: { stroke: lane.color, opacity: 0.08 } })),
+								flowTracks(marks).map((segment) => h("path", { key: "k" + segment.key, d: `M ${segment.x1} ${segment.y} H ${segment.x2}`, fill: "none", strokeWidth: 4, strokeLinecap: "round", style: { stroke: segment.color } })),
 								marks.map((mark) => h("g", {
 									key: mark.item.seq, className: "dshSwarm_flowMark", tabIndex: 0, role: "button", "aria-label": describe(mark.item), "data-active": hover?.seq === mark.item.seq,
 									onMouseEnter: () => show(mark, false), onMouseLeave: hide, onFocus: () => show(mark, false), onBlur: hide,
@@ -1262,25 +1306,7 @@ window.__ModuleLoader__.load({
 									h("circle", { cx: mark.x, cy: mark.y, r: 14, className: "dshSwarm_flowHit" }),
 									flowGlyph(mark))),
 								ticks)))),
-				hovered ? card(hovered) : null) : supported ? h("p", { className: "dshSwarm_empty" }, t("flow.empty", {})) : null,
-				supported && all.length ? h("div", { className: "dshSwarm_flowBottom" },
-					h("div", { className: "dshSwarm_flowPanel" }, h("h3", { className: "dshSwarm_flowPanelTitle" }, t("flow.pairs", {})),
-						pairs.length ? h("ul", { className: "dshSwarm_pairs" }, pairs.map((pair) => {
-							const fromIndex = progress.workers.findIndex((worker) => worker.id === pair.from);
-							const toIndex = progress.workers.findIndex((worker) => worker.id === pair.to);
-							return h("li", { key: pair.from + pair.to, className: "dshSwarm_pair" },
-								h("span", { className: "dshSwarm_pairNames" }, h("i", { style: { background: workerColor(Math.max(0, fromIndex)) } }), name(pair.from), h("span", { className: "dshSwarm_pairArrow", "aria-label": t("flow.to", {}) }, "→"), h("i", { style: { background: workerColor(Math.max(0, toIndex)) } }), name(pair.to)),
-								h("span", { className: "dshSwarm_pairBar", "aria-hidden": true }, h("span", { style: { width: pair.count / peak * 100 + "%", background: workerColor(Math.max(0, fromIndex)) } })),
-								h("span", { className: "dshSwarm_pairCount" }, "×" + pair.count));
-						})) : h("p", { className: "dshSwarm_laneEmpty" }, t("flow.noPairs", {}))),
-					h("div", { className: "dshSwarm_flowPanel" }, h("h3", { className: "dshSwarm_flowPanelTitle" }, t("flow.feed", {})),
-						h("ol", { className: "dshSwarm_flowFeed" }, [...all].reverse().slice(0, 14).map((item) => {
-							const owner = item.kind === "task" || item.kind === "proposal" || item.kind === "head" ? item.peerWorkerId ?? item.actorWorkerId : item.actorWorkerId;
-							const lane = progress.workers.findIndex((worker) => worker.id === owner);
-							return h("li", { key: item.seq, className: "dshSwarm_flowItem", "data-kind": item.kind },
-								h("i", { "aria-hidden": true, style: { background: lane < 0 ? TRACK_TRUNK : workerColor(lane) } }),
-								h("span", { className: "dshSwarm_flowText" }, describe(item)), timeElement(item.createdAt));
-						})))) : null);
+				hovered ? card(hovered) : null) : supported ? h("p", { className: "dshSwarm_empty" }, t("flow.empty", {})) : null);
 		}
 
 		/** Validate the owner conversation page at the unknown-codec boundary. */
@@ -1298,8 +1324,7 @@ window.__ModuleLoader__.load({
 			for (const item of incoming) bySeq.set(item.seq, item);
 			return [...bySeq.values()].sort((a, b) => b.seq - a.seq);
 		}
-		const conversationKinds = ["all", "message", "finding"];
-		/**
+				/**
 		 * Owner-only reader of what workers actually said: message bodies and findings with
 		 * scope and evidence. Loaded on demand from the Host, refreshed when new
 		 * message/finding events appear in the progress stream.
@@ -1342,53 +1367,139 @@ window.__ModuleLoader__.load({
 			React.useEffect(() => () => { for (const controller of around.current.values()) controller.abort(); around.current.clear(); }, [sessionId, progress.runId]);
 			return { state, load, loadAround, available, bodies: new Map(state.items.map((item) => [item.seq, item])) };
 		}
-		/** Swimlanes and the reader share one conversation state. */
+		/** Swimlanes, the public channel and the DM matrix share one conversation state. */
 		function FlowPanel({ t, progress, sessionId, loadConversation }) {
 			const conversation = useConversation(progress, sessionId, loadConversation);
-			return h(React.Fragment, {}, h(FlowSection, { t, progress, conversation }), h(ConversationSection, { t, progress, conversation }));
+			return h(React.Fragment, {}, h(FlowSection, { t, progress, conversation }), h(ChannelSection, { t, progress, conversation }), h(DmSection, { t, progress, conversation }));
 		}
-		function ConversationSection({ t, progress, conversation }) {
-			const { state, load, available } = conversation;
-			const [kind, setKind] = React.useState("all");
-			const [member, setMember] = React.useState(null);
-			const names = new Map(progress.workers.map((worker, number) => [worker.id, workerName(t, worker, number + 1)]));
-			const color = (id) => { const index = progress.workers.findIndex((worker) => worker.id === id); return index < 0 ? TRACK_TRUNK : workerColor(index); };
-			const name = (id) => names.get(id) ?? id;
-			const tasks = new Map((progress.taskBoard?.items ?? []).map((task) => [task.id, task.subject]));
-			const items = state.items.filter((item) => (kind === "all" || item.kind === kind) && (member === null || item.authorWorkerId === member || item.targetWorkerId === member));
-			const person = (id) => h("span", { className: "dshSwarm_convPerson" }, h("i", { "aria-hidden": true, style: { background: color(id) } }), name(id));
-			const entry = (item) => h("li", { key: item.seq, className: "dshSwarm_convItem", "data-kind": item.kind, "data-finding": item.kind === "finding" ? item.findingKind : undefined, style: { borderInlineStartColor: color(item.authorWorkerId) } },
-				h("div", { className: "dshSwarm_convHead" },
-					h("span", { className: "dshSwarm_avatar dshSwarm_avatarSmall", "aria-hidden": true, style: { background: color(item.authorWorkerId) } }, initials(name(item.authorWorkerId))),
-					h("span", { className: "dshSwarm_convWho" }, person(item.authorWorkerId),
-						item.kind === "message" ? h(React.Fragment, {}, h("span", { className: "dshSwarm_pairArrow", "aria-label": t("flow.to", {}) }, "→"), person(item.targetWorkerId))
-							: h("span", { className: "dshSwarm_convTag", "data-finding": item.findingKind }, FINDING_KINDS.includes(item.findingKind) ? t("flow.finding." + item.findingKind, {}) : item.findingKind)),
-					h("span", { className: "dshSwarm_convMeta" }, h("code", {}, "#" + item.seq), timeElement(item.createdAt))),
-				h("p", { className: "dshSwarm_convBody" }, item.body),
-				item.truncated ? h("p", { className: "dshSwarm_subtle" }, t("conv.truncated", {})) : null,
-				item.kind === "finding" && (item.taskId || item.scope.length || item.evidenceRefs.length || item.supersedesId) ? h("div", { className: "dshSwarm_convRefs" },
-					item.taskId ? h("span", { className: "dshSwarm_convRef" }, t("conv.task", {}), " ", tasks.get(item.taskId) ?? h("code", {}, item.taskId)) : null,
-					item.scope.map((value, index) => h("span", { key: "s" + index, className: "dshSwarm_convRef" }, t("conv.scope", {}), " ", h("code", {}, value))),
-					item.evidenceRefs.map((value, index) => h("span", { key: "e" + index, className: "dshSwarm_convRef" }, t("conv.evidence", {}), " ", h("code", {}, value))),
-					item.supersedesId ? h("span", { className: "dshSwarm_convRef" }, t("conv.supersedes", {}), " ", h("code", {}, item.supersedesId)) : null) : null);
-			const errorText = state.error?.code === "history/run-changed" ? t("git.missingRun", {}) : state.error?.code === "history/invalid" ? t("conv.invalid", {}) : state.error?.message;
-			return h("section", { className: "dshSwarm_section dshSwarm_conv", "aria-label": t("conv.title", {}) },
-				h("div", { className: "dshSwarm_memberHead" },
-					h("div", { className: "dshSwarm_memberIntro" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("conv.title", {})), h("p", { className: "dshSwarm_subtle" }, t("conv.note", {}))),
-					h("button", { type: "button", className: "dshSwarm_button", disabled: !available || state.loading, onClick: () => load(null) }, t("conv.refresh", {}))),
-				!available ? h("p", { className: "dshSwarm_notice", role: "status" }, t("conv.unavailable", {})) : h(React.Fragment, {},
-					h("div", { className: "dshSwarm_memberFilters", role: "group", "aria-label": t("conv.filter", {}) },
-						conversationKinds.map((id) => h("button", { key: id, type: "button", className: "dshSwarm_button dshSwarm_memberFilter", "aria-pressed": kind === id, onClick: () => setKind(id) }, t("conv.kind." + id, {}))),
-						h("span", { className: "dshSwarm_convDivider", "aria-hidden": true }),
-						h("button", { type: "button", className: "dshSwarm_button dshSwarm_memberFilter", "aria-pressed": member === null, onClick: () => setMember(null) }, t("workers.all", { count: progress.workers.length })),
-						progress.workers.map((worker, number) => h("button", { key: worker.id, type: "button", className: "dshSwarm_button dshSwarm_memberFilter", "aria-pressed": member === worker.id, onClick: () => setMember(worker.id) }, h("i", { className: "dshSwarm_filterDot", "aria-hidden": true, style: { background: workerColor(number) } }), workerName(t, worker, number + 1)))),
-					state.error ? h("p", { className: "dshSwarm_notice", role: "alert" }, t("conv.failed", {}), ": ", errorText) : null,
-					items.length ? h("ol", { className: "dshSwarm_convList", "aria-live": "polite", "aria-busy": state.loading }, items.map(entry))
-						: state.started && !state.loading ? h("p", { className: "dshSwarm_laneEmpty" }, t(state.items.length ? "conv.noMatch" : "conv.empty", {})) : null,
-					h("div", { className: "dshSwarm_gitFooter" },
-						state.loading ? h("span", { className: "dshSwarm_subtle", role: "status" }, t("conv.loading", {})) : null,
-						state.next !== null && !state.loading ? h("button", { type: "button", className: "dshSwarm_button", onClick: () => load(state.next) }, t("conv.more", {})) : null,
-						state.started && state.next === null && state.items.length ? h("span", { className: "dshSwarm_subtle" }, t("conv.end", { count: state.items.length })) : null)));
+		/**
+		 * Public channel lines, oldest first: every collaboration event except direct messages.
+		 * Host-authored events (null actor) sit on the right, the owner's side; worker events left.
+		 * Older Hosts without `interactions` fall back to the public recent-event list.
+		 */
+		function channelItems(progress) {
+			const bySeq = new Map();
+			const add = (item) => { if (item.kind !== "message" && !bySeq.has(item.seq)) bySeq.set(item.seq, { ...item, side: item.actorWorkerId === null ? "right" : "left" }); };
+			if (Array.isArray(progress.interactions)) progress.interactions.forEach(add);
+			for (const event of progress.recentEvents ?? []) {
+				if (Array.isArray(progress.interactions) && event.kind !== "run") continue;
+				add({ seq: event.seq, kind: event.kind, status: event.status, actorWorkerId: event.authorWorkerId ?? null, peerWorkerId: null, objectId: event.objectId ?? "", taskId: event.kind === "task" ? event.objectId ?? null : null, createdAt: event.createdAt });
+			}
+			return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+		}
+		/** Sender × recipient direct-message counts; roster order, unknown ids appended. */
+		function dmMatrix(progress) {
+			const members = progress.workers.map((worker) => worker.id);
+			const counts = new Map();
+			for (const pair of messagePairs(progress)) {
+				for (const id of [pair.from, pair.to]) if (id !== null && !members.includes(id)) members.push(id);
+				counts.set(pair.from + "→" + pair.to, pair.count);
+			}
+			const cells = members.map((from) => members.map((to) => counts.get(from + "→" + to) ?? 0));
+			return { members, cells, max: Math.max(0, ...cells.flat()) };
+		}
+		/** Loaded direct messages between two members in either direction, oldest first. */
+		function dmThread(items, a, b) {
+			return items.filter((item) => item.kind === "message" && ((item.authorWorkerId === a && item.targetWorkerId === b) || (item.authorWorkerId === b && item.targetWorkerId === a))).sort((x, y) => x.seq - y.seq);
+		}
+		function memberIdentity(t, progress) {
+			const index = new Map(progress.workers.map((worker, number) => [worker.id, number]));
+			const name = (id) => id === null ? t("chat.host", {}) : index.has(id) ? workerName(t, progress.workers[index.get(id)], index.get(id) + 1) : id;
+			const color = (id) => id === null || !index.has(id) ? TRACK_TRUNK : workerColor(index.get(id));
+			return { name, color };
+		}
+		/** One IM line: avatar, sender name and time above the bubble. */
+		function chatRow({ key, side, sender, name, color, createdAt, tag, tagFinding }, ...children) {
+			return h("li", { key, className: "dshSwarm_chatRow", "data-side": side, "data-sender": sender ?? "host" },
+				h("span", { className: "dshSwarm_avatar", "aria-hidden": true, style: { background: color } }, initials(name)),
+				h("div", { className: "dshSwarm_chatBubble" },
+					h("div", { className: "dshSwarm_chatMeta" }, h("span", { className: "dshSwarm_chatName" }, name), tag ? h("span", { className: "dshSwarm_convTag", "data-finding": tagFinding }, tag) : null, timeElement(createdAt)),
+					children));
+		}
+		function ChannelSection({ t, progress, conversation }) {
+			const log = React.useRef(null);
+			const items = channelItems(progress);
+			const latest = items.at(-1)?.seq ?? 0;
+			// Like a chat client, keep the newest line in view as the run advances.
+			React.useEffect(() => { const node = log.current; if (node) node.scrollTop = node.scrollHeight; }, [latest]);
+			const { name, color } = memberIdentity(t, progress);
+			const tasks = new Map([...(progress.taskBoard?.items ?? []), ...progress.workers.map((worker) => worker.currentTask).filter(Boolean)].map((task) => [task.id, task.subject]));
+			const text = (item) => {
+				const vars = { actor: name(item.actorWorkerId), peer: name(item.peerWorkerId), task: (item.taskId && tasks.get(item.taskId)) || item.taskId || item.objectId.slice(0, 12), id: item.objectId.slice(0, 7) };
+				switch (item.kind) {
+					case "finding": return t("flow.say.finding", { ...vars, kind: FINDING_KINDS.includes(item.status) ? t("flow.finding." + item.status, {}) : item.status });
+					case "task": return t("flow.say.task", { ...vars, status: label(t, "task", item.status) });
+					case "proposal": return t("flow.say.proposal", { ...vars, actor: name(item.peerWorkerId ?? item.actorWorkerId), status: label(t, "proposal", item.status) });
+					case "head": return t(item.peerWorkerId ? "flow.say.head" : "flow.say.headHost", vars);
+					case "run": return t("chat.run", { phase: label(t, "phase", item.status) });
+					default: return item.kind;
+				}
+			};
+			const tag = (item) => item.kind === "finding" ? (FINDING_KINDS.includes(item.status) ? t("flow.finding." + item.status, {}) : item.status) : label(t, "event", item.kind);
+			const body = (item) => {
+				const found = item.kind === "finding" ? conversation?.bodies.get(item.seq) : null;
+				if (!found) return null;
+				const refs = [...found.scope.map((value) => [t("conv.scope", {}), value]), ...found.evidenceRefs.map((value) => [t("conv.evidence", {}), value])];
+				return h(React.Fragment, {}, h("p", { className: "dshSwarm_chatBody" }, found.body), found.truncated ? h("p", { className: "dshSwarm_subtle" }, t("conv.truncated", {})) : null,
+					refs.length ? h("div", { className: "dshSwarm_convRefs" }, refs.map(([key, value], index) => h("span", { key: index, className: "dshSwarm_convRef" }, key, " ", h("code", {}, value)))) : null);
+			};
+			const supported = Array.isArray(progress.interactions) || Array.isArray(progress.recentEvents);
+			const state = conversation?.state;
+			return h("section", { className: "dshSwarm_section dshSwarm_chat", "aria-label": t("chat.title", {}) },
+				h("div", { className: "dshSwarm_memberIntro" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("chat.title", {})), h("p", { className: "dshSwarm_subtle" }, t("chat.note", {}))),
+				// Member status rides along at the top of the channel, like a group's member bar.
+				progress.workers.length ? h("ul", { className: "dshSwarm_presence", "aria-label": t("chat.presence", {}) }, progress.workers.map((worker, index) => {
+					const view = deriveWorker(worker);
+					const who = workerName(t, worker, index + 1);
+					return h("li", { key: worker.id, className: "dshSwarm_presenceItem", title: view.task?.subject ?? undefined },
+						h("span", { className: "dshSwarm_avatar", "aria-hidden": true, style: { background: workerColor(index) } }, initials(who)),
+						h("strong", {}, who), h("span", { className: "dshSwarm_workPill", "data-tone": workTone(view.work) }, t("work." + view.work, {})));
+				})) : null,
+				!supported ? h("p", { className: "dshSwarm_notice", role: "status" }, t("chat.unavailable", {}))
+					: items.length ? h("div", { className: "dshSwarm_chatLog", ref: log, tabIndex: 0, role: "log", "aria-label": t("chat.label", {}), "aria-live": "polite" },
+						state && state.next !== null && !state.loading ? h("div", { className: "dshSwarm_gitFooter" }, h("button", { type: "button", className: "dshSwarm_button", onClick: () => conversation.load(state.next) }, t("conv.more", {}))) : null,
+						h("ol", { className: "dshSwarm_chatList" }, items.map((item) => chatRow({ key: item.seq, side: item.side, sender: item.actorWorkerId, name: name(item.actorWorkerId), color: color(item.actorWorkerId), createdAt: item.createdAt, tag: tag(item), tagFinding: item.kind === "finding" ? item.status : undefined },
+							h("p", { className: "dshSwarm_chatText" }, text(item)), body(item)))))
+						: h("p", { className: "dshSwarm_empty" }, t("chat.empty", {})));
+		}
+		function DmSection({ t, progress, conversation }) {
+			const [selected, setSelected] = React.useState(null);
+			const { members, cells, max } = dmMatrix(progress);
+			const { name, color } = memberIdentity(t, progress);
+			const head = (id) => h("span", { className: "dshSwarm_dmHead" }, h("i", { "aria-hidden": true, style: { background: color(id) } }), name(id));
+			const pair = selected && members.includes(selected[0]) && members.includes(selected[1]) ? selected : null;
+			const state = conversation?.state;
+			const thread = pair && state ? dmThread(state.items, pair[0], pair[1]) : [];
+			const total = pair ? cells[members.indexOf(pair[0])][members.indexOf(pair[1])] + cells[members.indexOf(pair[1])][members.indexOf(pair[0])] : 0;
+			const errorText = state?.error?.code === "history/run-changed" ? t("git.missingRun", {}) : state?.error?.code === "history/invalid" ? t("conv.invalid", {}) : state?.error?.message;
+			return h("section", { className: "dshSwarm_section dshSwarm_dm", "aria-label": t("dm.title", {}) },
+				h("div", { className: "dshSwarm_memberIntro" }, h("h2", { className: "dshSwarm_sectionTitle" }, t("dm.title", {})), h("p", { className: "dshSwarm_subtle" }, t("dm.note", {}))),
+				members.length < 2 ? h("p", { className: "dshSwarm_empty" }, t("dm.empty", {})) : h("div", { className: "dshSwarm_dmLayout" },
+					h("div", { className: "dshSwarm_dmScroll" }, h("table", { className: "dshSwarm_dmTable" },
+						h("caption", { className: "dshSwarm_subtle" }, max ? t("dm.caption", {}) : t("dm.empty", {})),
+						h("thead", {}, h("tr", {}, h("th", { scope: "col" }, t("dm.axes", {})), members.map((id) => h("th", { key: id, scope: "col" }, head(id))))),
+						h("tbody", {}, members.map((from, row) => h("tr", { key: from }, h("th", { scope: "row" }, head(from)), members.map((to, column) => {
+							const value = cells[row][column];
+							const self = from === to;
+							const active = pair !== null && pair[0] === from && pair[1] === to;
+							return h("td", { key: to }, h("button", {
+								type: "button", className: "dshSwarm_dmCell", disabled: self, "aria-pressed": active, "data-count": value,
+								"aria-label": self ? name(from) : t("dm.cell", { from: name(from), to: name(to), count: value }),
+								style: value && max ? { background: `color-mix(in srgb, ${color(from)} ${Math.round(18 + 62 * value / max)}%, var(--dsw-alias-bg-layer-1))` } : undefined,
+								onClick: () => setSelected(active ? null : [from, to]),
+							}, self ? "—" : String(value)));
+						})))))),
+					pair ? h("div", { className: "dshSwarm_dmThread", role: "region", "aria-label": t("dm.pair", { a: name(pair[0]), b: name(pair[1]) }) },
+						h("div", { className: "dshSwarm_dmThreadHead" }, h("strong", {}, t("dm.pair", { a: name(pair[0]), b: name(pair[1]) })), h("span", { className: "dshSwarm_subtle" }, t("dm.count", { count: total })),
+							h("button", { type: "button", className: "dshSwarm_button", onClick: () => setSelected(null) }, t("hover.close", {}))),
+						!conversation?.available ? h("p", { className: "dshSwarm_subtle" }, t("hover.noBody", {}))
+							: h(React.Fragment, {},
+								state.error ? h("p", { className: "dshSwarm_notice", role: "alert" }, t("conv.failed", {}), ": ", errorText) : null,
+								state.next !== null && !state.loading && thread.length < total ? h("div", { className: "dshSwarm_gitFooter" }, h("button", { type: "button", className: "dshSwarm_button", onClick: () => conversation.load(state.next) }, t("conv.more", {}))) : null,
+								thread.length ? h("ol", { className: "dshSwarm_chatList", "aria-live": "polite" }, thread.map((item) => chatRow({ key: item.seq, side: item.authorWorkerId === pair[0] ? "left" : "right", sender: item.authorWorkerId, name: name(item.authorWorkerId), color: color(item.authorWorkerId), createdAt: item.createdAt },
+									h("p", { className: "dshSwarm_chatBody" }, item.body), item.truncated ? h("p", { className: "dshSwarm_subtle" }, t("conv.truncated", {})) : null)))
+									: h("p", { className: "dshSwarm_laneEmpty" }, t(state.loading ? "conv.loading" : "dm.pairEmpty", {}))))
+						: h("p", { className: "dshSwarm_dmHint dshSwarm_subtle" }, t(max ? "dm.pick" : "dm.empty", {}))));
 		}
 
 		const publicViews = ["channels", "threads", "messages", "requests", "agreements", "attention", "activity", "message_revisions", "agreement_versions"];
@@ -1687,6 +1798,6 @@ window.__ModuleLoader__.load({
 			}, "dsh-swarm: progress panel");
 		}
 		// Pure derivations and the stream owner are also exercised without emulating a browser.
-		return { apply, inject: ["slots", "locale", "remote"], progressClient: { publicQueryInput, readPublicPage, createPublicPager, PublicSection, PublicRecord, PublicPagination, readConversationPage, mergeConversation, ConversationSection, FlowPanel, flowHoverPosition, computeGraph, trackLanes, trackLayout, WorkersSection, FlowSection, flowLayout, messagePairs, readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, goalLane, goalColumns, workerName, addWorkerState, workerReceipt, nextTab, viewTabs, RunBody, GoalSection, AddWorkerControl, dictionaries: { zh, en } } };
+		return { apply, inject: ["slots", "locale", "remote"], progressClient: { publicQueryInput, readPublicPage, createPublicPager, PublicSection, PublicRecord, PublicPagination, readConversationPage, mergeConversation, channelItems, dmMatrix, dmThread, ChannelSection, DmSection, FlowPanel, flowHoverPosition, computeGraph, trackLanes, trackLayout, WorkersSection, FlowSection, flowLayout, messagePairs, readHistoryPage, executeHistoryRead, initialHistory, createHistoryPager, observeHistoryEnd, anchorHistoryScroll, GitStreamSection, readFrame, initialState, visibleState, subscribeProgress, deriveWorkflow, deriveWorker, selectWorkers, deriveClock, startClock, budgetKey, describeEvent, filterTasks, filterEvents, deliveryState, duration, appendGoalLine, executeGoalCommand, appendReceipt, goalState, goalLane, goalColumns, workerName, addWorkerState, workerReceipt, nextTab, viewTabs, RunBody, GoalSection, AddWorkerControl, dictionaries: { zh, en } } };
 	}
 });

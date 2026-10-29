@@ -14,6 +14,7 @@ interface Client {
   initialHistory(sessionId: string, runId: string): HistoryState;
   createHistoryPager(options: { sessionId: string; runId: string; loadHistory: Loader; onChange(state: HistoryState): void }): Pager;
   observeHistoryEnd(root: object, target: object, loadMore: () => void): (() => void) | undefined;
+  anchorHistoryScroll(previousWidth: number, scrollLeft: number, scrollWidth: number): number;
   GitStreamSection(props: { t: (key: string) => string; progress: { runId: string; workers: unknown[] }; sessionId: string; loadHistory?: Loader }): Element;
   trackLayout(items: Commit[], worktrees: Page['worktrees'], tips: { sha: string; workerId: string }[], more: boolean): { lanes: { key: string }[]; nodes: { lane: { key: string }; merge: boolean; head: boolean }[]; edges: { key: string; kind: string }[]; base: object | null };
   dictionaries: Record<'zh' | 'en', Record<string, string>>;
@@ -144,7 +145,7 @@ describe('Git history infinite-scroll enhancement and presentation', () => {
     } });
     const root = {}, target = {}, next = vi.fn();
     const dispose = enhanced.observeHistoryEnd(root, target, next);
-    expect(construct).toHaveBeenCalledWith({ root, rootMargin: '0px 0px 240px 0px' });
+    expect(construct).toHaveBeenCalledWith({ root, rootMargin: '0px 0px 0px 240px' });
     expect(observe).toHaveBeenCalledExactlyOnceWith(target);
     callback([{ isIntersecting: false }]);
     expect(next).not.toHaveBeenCalled();
@@ -216,6 +217,39 @@ describe('Git history infinite-scroll enhancement and presentation', () => {
     // Without a tip, b is only reachable from the result head and falls back to the trunk.
     expect(keys([])[2]).toBe('result:swarm/result');
     expect(keys([{ sha: sha('b'), workerId: 'w1' }])[2]).toBe('worker:w1');
+  });
+
+  it('lays commits oldest-left to newest-right and keeps that order after an older page loads', () => {
+    const result = { workerId: null, displayName: null, branch: 'swarm/result', worktreePath: null, head: sha('e'), diagnostic: null };
+    const src = { workerId: null, displayName: null, branch: 'swarm/result', worktreePath: null };
+    const all = [
+      commit('e', { ...src, parents: [sha('d')] }),
+      commit('d', { ...src, parents: [sha('c')] }),
+      commit('c', { ...src, parents: [sha('b')] }),
+      commit('b', { ...src, parents: [sha('0')] }),
+    ];
+    type Node = { item: { sha: string }; x: number };
+    const order = (nodes: Node[]) => [...nodes].sort((a, b) => a.x - b.x).map((node) => node.item.sha[0]);
+    const first = client.trackLayout(all.slice(0, 2), [result], [], true) as unknown as { nodes: Node[]; edges: { kind: string; path: string }[] };
+    expect(order(first.nodes)).toEqual(['d', 'e']);
+    // The open edge toward unloaded history fades out on the left, not the right.
+    const open = first.edges.find((edge) => edge.kind === 'open');
+    expect(Number(open?.path.split(' H ')[1])).toBeLessThan(Math.min(...first.nodes.map((node) => node.x)));
+    const second = client.trackLayout(all, [result], [], false) as unknown as { nodes: Node[]; base: { x: number } | null };
+    expect(order(second.nodes)).toEqual(['b', 'c', 'd', 'e']);
+    expect(second.base?.x).toBeLessThan(Math.min(...second.nodes.map((node) => node.x)));
+    // Older pages grow the canvas on the left; the scroll anchor keeps the viewed commits in place.
+    expect(client.anchorHistoryScroll(0, 0, 900)).toBe(900);
+    expect(client.anchorHistoryScroll(900, 300, 1300)).toBe(700);
+  });
+
+  it('uses no transit metaphors in any UI text and reads the axis oldest to newest', () => {
+    for (const lang of ['zh', 'en'] as const) {
+      const text = Object.values(client.dictionaries[lang]).join('\n');
+      expect(text).not.toMatch(/换乘|站点|车站|地铁|interchange|transfer station|metro|subway|station/i);
+    }
+    expect(client.dictionaries.en['git.axis']).toBe('← Older · Newer →');
+    expect(client.dictionaries.zh['git.axis']).toBe('← 更早 · 最新 →');
   });
 
   it('provides bilingual labels and retains truthful unavailable/empty states', () => {
