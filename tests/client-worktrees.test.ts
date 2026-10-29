@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { loadClient } from './client-fixture.ts';
 import { describe, expect, it, vi } from 'vitest';
 
 interface Lane { workerId: string | null; displayName: string | null; branch: string; worktreePath: string | null }
@@ -19,19 +18,11 @@ interface Client {
   trackLayout(items: Commit[], worktrees: Page['worktrees'], tips: { sha: string; workerId: string }[], more: boolean): { lanes: { key: string }[]; nodes: { lane: { key: string }; merge: boolean; head: boolean }[]; edges: { key: string; kind: string }[]; base: object | null };
   dictionaries: Record<'zh' | 'en', Record<string, string>>;
 }
-interface Module { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
 function load(extras: Record<string, unknown> = {}, state?: HistoryState): Client {
-  let module: Module | undefined;
-  runInNewContext(source, {
-    window: { __ModuleLoader__: { load(value: Module) { module = value; } } },
-    console, AbortController, Date, Error, TypeError, ...extras,
-  });
-  if (!module) throw new Error('Client did not register');
-  return module.factory(() => ({
+  return loadClient<{ progressClient: Client }>({
     createElement: (type: string, props: Record<string, unknown>, ...children: unknown[]) => ({ type, props, children }),
     useState: (init: () => unknown) => [state ?? init(), vi.fn()], useRef: () => ({ current: null }), useEffect: vi.fn(),
-  })).progressClient;
+  }, extras).progressClient;
 }
 const client = load();
 const lane: Lane = { workerId: 'w1', displayName: 'Bright Otter', branch: 'run-w1', worktreePath: '/repo/.agents/worktrees/w1' };

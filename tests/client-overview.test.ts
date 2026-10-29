@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { clientSource as source, loadClient } from './client-fixture.ts';
 import { describe, expect, it } from 'vitest';
 
 // Pure presentation facts only. These checks are not a browser/visual acceptance test.
@@ -20,15 +19,7 @@ interface Client {
   deliveryState(progress: Progress): string;
   dictionaries: Record<'zh' | 'en', Record<string, string>>;
 }
-interface Module { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
-let module: Module | undefined;
-runInNewContext(source, {
-  window: { __ModuleLoader__: { load(value: Module) { module = value; } } },
-  console, AbortController, Date, Error, TypeError,
-});
-if (!module) throw new Error('Client was not registered');
-const client = module.factory(() => ({})).progressClient;
+const client = loadClient<{ progressClient: Client }>().progressClient;
 
 describe('overview and collaboration presentation', () => {
   it('filters only supplied tasks without inventing missing/truncated rows', () => {

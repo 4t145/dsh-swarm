@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { clientSource as source, loadClient } from './client-fixture.ts';
 import { describe, expect, it, vi } from 'vitest';
 
 // These tests exercise pure UI derivation and stream ownership, not a browser or visual preview.
@@ -57,20 +56,7 @@ interface Client {
   duration(ms: number): string;
   dictionaries: Record<'en' | 'zh', Record<string, string>>;
 }
-interface BrowserModule { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
-let captured: BrowserModule | undefined;
-runInNewContext(source, {
-  window: { __ModuleLoader__: { load: (module: BrowserModule) => { captured = module; } } },
-  AbortController, Date, Error, TypeError, console,
-  setInterval: (callback: () => void, ms: number) => globalThis.setInterval(callback, ms),
-  clearInterval: (timer: ReturnType<typeof setInterval>) => globalThis.clearInterval(timer),
-});
-if (!captured) throw new Error('Client module did not register');
-const client = captured.factory((name) => {
-  if (name === 'react') return {}; // Pure helpers never render or emulate React.
-  throw new Error(`Unexpected import ${name}`);
-}).progressClient;
+const client = loadClient<{ progressClient: Client }>().progressClient;
 
 function worker(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {

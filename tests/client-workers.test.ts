@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { clientSource as source, loadClient } from './client-fixture.ts';
 import { describe, expect, it } from 'vitest';
 
 // Fact derivations only; these tests do not claim browser or visual acceptance.
@@ -11,12 +10,7 @@ interface Client {
   selectWorkers(progress: Progress, selection: Selection | null): { selectedId: string | null; items: { worker: Worker; number: number }[] };
   dictionaries: Record<'en' | 'zh', Record<string, string>>;
 }
-interface BrowserModule { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
-let captured: BrowserModule | undefined;
-runInNewContext(source, { window: { __ModuleLoader__: { load: (module: BrowserModule) => { captured = module; } } } });
-if (!captured) throw new Error('Client module did not register');
-const client = captured.factory(() => ({})).progressClient;
+const client = loadClient<{ progressClient: Client }>().progressClient;
 
 function worker(overrides: Record<string, unknown> = {}): Worker {
   return {
