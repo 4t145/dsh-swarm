@@ -332,4 +332,6 @@ pnpm test
 - [worker 指令](<src/worker-policy.ts>) 和[工具](<src/tools.ts>) 不再要求 ACK-only 调用，正常 wait 无必填 cursor。旧 ack_notifications/mark_read 只用于兼容；respond/confirm_agreement 仍是必要的显式业务动作。
 - [自动回执测试](<tests/notification-receipts.test.ts>) 使用真实 Session/ProjectionRegistry 和受控持久化屏障，覆盖日志先于回执、失败/取消/截断/改写、存储/flush 失败恢复、分页不越界、精确合并/修订版本、权限以及回应/同意不被自动修改。[真实工具管线](<tests/tools.test.ts>) 验证 sync 结果落日志后，下一次 wait 无需任何模型 ACK；[Host 适配](<tests/dsh-worker-host.test.ts>) 核对原生 Host 消息来源。
 
-本节描述源码实现；当前宿主仍需单独授权部署，未声称真实模型或浏览器已加载此补丁。最终组合验证结果以交付回执为准。
+Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19e9d74af4510950d002be41caee` 合入独立候选后，实际执行 `pnpm typecheck && pnpm build && pnpm test && node --check client.js && git diff --check`，全部退出 0（`bash-0927c506ddbd4f26`，**44 文件 / 560 项通过**）。另执行 `pnpm test:native-headless` 退出 0（`bash-59b21c4c85184074`）：隔离 DSH_HOME、明确 blocking fake 模型，验证缺失路由拒绝、两个原生 worker 启动、SIGINT、持久 stopped/退出130和原始临时 checkout 不变。该原生检查不是付费模型对话或自动 ACK 的真实模型性能测试。
+
+面板将通知状态明确区分为 inbox 接受和技术展示回执，不能显示成业务回应/版本同意；双语渲染回归保留这些断言。本节描述已验证的源码候选，仍须由原 Swarm 集成队列验证接受；当前宿主仍需单独授权部署，未声称真实模型或浏览器已加载此补丁。最终组合发布以 Host 回执为准。
