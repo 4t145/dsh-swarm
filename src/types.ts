@@ -78,8 +78,8 @@ export interface RunSpec {
 export interface SwarmRuntimeConfig {
   /** 允许的 worker 数量下限，架构固定为 2。 */
   workerCountMin: number;
-  /** 允许的 worker 数量上限，架构固定为 4。 */
-  workerCountMax: number;
+  /** Optional team-policy override; absence inherits the live native configuration. */
+  workerCountMax?: number;
   /** spec 未给出时的默认 worker 数量。 */
   defaultWorkerCount: number;
   /** 单次增量事件/列表返回的条目上限，默认 20。 */

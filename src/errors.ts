@@ -10,6 +10,9 @@ import type { JsonObject } from './types.ts';
 /** 固定错误码词表；新增需在 notes/contracts.md 登记，避免各模块各造一套。 */
 export const SWARM_ERROR_CODES = [
   'SWARM_INVALID_SPEC',
+  'SWARM_CONFIG_UNAVAILABLE',
+  'SWARM_WORKER_LIMIT',
+  'SWARM_NATIVE_CAPACITY',
   'SWARM_INVALID_INPUT',
   'SWARM_NOT_FOUND',
   'SWARM_ALREADY_EXISTS',

@@ -18,7 +18,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { JobId, JobView } from '@deepseek-ai/dsh-jobs';
 import type { ContentBlock } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
-import type { SubagentActivation, SubagentRunEndInfo } from '@deepseek-ai/dsh-subagent';
+import { SubagentError, type SubagentActivation, type SubagentRunEndInfo } from '@deepseek-ai/dsh-subagent';
 import { steerHostSubagentPrompt } from '@deepseek-ai/dsh-subagent/internal';
 import { receiptContext } from './notification-receipts.ts';
 import type { CreatedWorktree, CreateWorktreeRequest } from '@deepseek-ai/dsh-experimental-worktree';
@@ -241,6 +241,11 @@ export class DshWorkerHost implements WorkerHost {
     } catch (error) {
       if (!signal.aborted) {
         this.failedSessions.add(worker.sessionId);
+      }
+      if (error instanceof SubagentError && error.code === 'ACTIVATION_LIMIT_REACHED') {
+        throw new SwarmError('SWARM_NATIVE_CAPACITY', `native subagent capacity refused worker ${worker.id}: ${error.message}; the Swarm team limit does not reserve or override native slots`, {
+          cause: error, details: { nativeCode: error.code, ownerSessionId: run.ownerSessionId, workerId: worker.id },
+        });
       }
       throw normalizeError(error, 'SWARM_INTERNAL', `start worker ${worker.id}`);
     }

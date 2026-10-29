@@ -110,6 +110,7 @@ async function fixture(phase: RunPhase = 'running') {
   };
   let id = 0;
   const runtime = new SwarmRuntime(store, host, workspace, artifacts, {
+    workerLimit: () => ({ maxWorkers: 4, source: 'host' }),
     id: () => `generated-${++id}`,
     clock: { now: () => 100, setTimeout: () => { throw new Error('Unlimited runs must not arm a deadline'); } },
   });

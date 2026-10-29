@@ -235,6 +235,7 @@ async function makeHarness(
   const artifacts = new StoredArtifacts(new InMemoryArtifactTable());
   const runtime = new SwarmRuntime(store, new FakeHost(), new FakeWorkspace(), artifacts, {
     eventPageSize: 20,
+    workerLimit: () => ({ maxWorkers: 8, source: 'host' }),
     clock: { now: () => 1000, setTimeout: () => () => {} },
   });
 
