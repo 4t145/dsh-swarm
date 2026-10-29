@@ -12,6 +12,7 @@ interface ViewProps {
   watchSessionProgress(sessionId: string, signal?: AbortSignal): Stream;
   executeCommand(sessionId: string, line: string, attachments: readonly unknown[], signal?: AbortSignal): Promise<unknown>;
   loadHistory(sessionId: string, cursor: string | null, signal?: AbortSignal): Promise<unknown>;
+  loadPublic(sessionId: string, runId: string, query: unknown, signal?: AbortSignal): Promise<unknown>;
   listWorktrees(sessionId: string): Promise<unknown>;
   createWorktree(sessionId: string, request: unknown): Promise<unknown>;
 }
@@ -161,6 +162,28 @@ describe('client.js with the real Remote client', () => {
     } finally {
       await ctx.fiber.dispose();
     }
+  });
+
+  it('forwards bounded public query identity and cancellation through the real Remote descriptor', async () => {
+    const ctx = new Context();
+    const page = { runId: 'run', items: [], total: 0, hasMore: false, truncated: false, nextCursor: null, snapshotSeq: 0 };
+    let rawSignal: AbortSignal | undefined;
+    const call = vi.fn(async (_path: string, _endpoint: string, _payload: unknown, signal: AbortSignal) => { rawSignal = signal; return { ok: true, value: page }; });
+    try {
+      ctx.provide('connection', { interactions: 'none', isLoopback: true, generation: { getSnapshot: () => undefined }, rpc: { call } });
+      await ctx.plugin(registry); await ctx.plugin(gateway);
+      const view = viewServices(ctx); const panel = await ctx.plugin(load());
+      const props = view.registration()!.inject();
+      const abort = new AbortController();
+      const query = { view: 'messages', threadId: 'thread', cursor: 'opaque', limit: 10 };
+      await expect(props.loadPublic('owner', 'run', query, abort.signal)).resolves.toEqual(page);
+      expect(call).toHaveBeenCalledWith('/api', 'swarmProgress/publicDiscussion', { args: { sessionId: 'owner', runId: 'run', query } }, expect.any(AbortSignal));
+      abort.abort(); expect(rawSignal?.aborted).toBe(true);
+      expect(view.registration()!.inject().loadPublic).toBe(props.loadPublic);
+      await expect(props.loadPublic('owner', 'run', { view: 'messages', limit: 21 })).rejects.toThrow('page limit');
+      expect(call).toHaveBeenCalledTimes(1);
+      await panel.dispose(); expect(ctx.get('remote.swarmProgress')).toBeUndefined();
+    } finally { await ctx.fiber.dispose(); }
   });
 
   it('lists and creates worktrees through the real repository descriptors', async () => {
