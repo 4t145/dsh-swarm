@@ -358,4 +358,10 @@ Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19
 
 本轮 presentation 工作树执行固定 `pnpm install --frozen-lockfile` 与 `pnpm run link:harness -- <当前安装目录>` 均退出 0（`bash-52e7234e3dba4aab`）；只链接开发依赖，不安装到用户 profile。第一次所谓定向 `pnpm test -- <files>` 在当前 pnpm/Vitest 实际运行全套，564 项通过、1 项失败（`bash-d8dd358297ce4d00`）：新 owner-tools 的 5/8/12 人断言碰到尚未合入的旧 spec 上限。该失败保留，等待 backend 合并，不删断言或冒充通过。owner context/progress/client 的新测试已通过：真实来源/null 诊断、超过八人的全名册、降低后保留、坏 DTO 拒绝、旧 DTO 兼容、按钮与真实 Host 命令路径。
 
-随后以 `pnpm exec vitest run` 明确选择 5 个 presentation 测试文件，89 项全部通过，并且 `node --check client.js` / `git diff --check` 均退出 0（`bash-00b4a2980e82451e`）。最终组合必须再次执行固定 install/link/typecheck/build/test，结果另行补充；以上局部证据不代替 Host 组合验收。没有修改 DSH 源码/用户 profile、部署或重启 GUI，没有启动替代服务器；源码/组件单测不等于当前 URL 已生效或真实模型/browser 端到端验收。
+随后以 `pnpm exec vitest run` 明确选择 5 个 presentation 测试文件，89 项全部通过，并且 `node --check client.js` / `git diff --check` 均退出 0（`bash-00b4a2980e82451e`）。
+
+组合源码 `6263b62bf8224a93ed11bf847664e2d95fc10b6c` 的固定全套检查（`bash-2438639bfca14b4a`）全部退出 0：`pnpm install --frozen-lockfile`、`pnpm run link:harness -- /nix/store/an75q8mv8px3l5nqv13fcy6xwnwd0mys-dsh-0.2.1-rc.4/lib/node_modules/@deepseek-ai/dsh/`、`pnpm typecheck`、`pnpm build`、`pnpm test`（45 文件 / 591 测试）以及 `git diff --check`。前期类型检查曾发现 const-enum 引用、无效输入测试参数类型及尚未合并的 DTO 不匹配，已修复后重跑；没有忽略这些失败。定向验证用 `pnpm exec vitest run`，避免 pnpm 的 `--` 导致实际跑全套却误报范围。
+
+[原生配置测试](<tests/dsh-worker-limit.test.ts>) 实际加载当前安装版 Cordis/SubagentRuntime（不启动模型），验证宿主默认 8、配置 12、替换 provider、隔离作用域、动态 getter、显式覆盖/移除和无效值。Schemastery 的 optional number 会保留显式 null，因此 Swarm 初始化在获取存储前再次验证，解析器每次也验证，null 从不被当作未设置。[Runtime 测试](<tests/runtime.test.ts>) 验证 8→12、并发第五次追加拒绝、降为 3 保留 12 人、旧数据恢复/resume 与 continue 重新验限、原生容量失败不伪造成功；[原生 adapter 测试](<tests/dsh-worker-host.test.ts>) 单独验证 `ACTIVATION_LIMIT_REACHED` 的错误分类。命令、owner、GUI、headless、公共频道/自动技术回执及原回归全部保留。
+
+没有修改 DSH 源码/用户 profile、部署或重启 GUI，没有启动替代服务器；源码/组件单测不等于当前 URL 已生效或真实模型/browser 端到端验收。最终提交仍须通过 Host 的组合验收，以上检查不替代它。
