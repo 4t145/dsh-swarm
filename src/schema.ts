@@ -38,10 +38,28 @@ export const verificationConfigSchema = z.strictObject({
   test: z.array(commandSpecSchema).min(1),
 });
 
+/** Claims leave live views/notices after this long by default (1 hour); history keeps them. */
+export const DEFAULT_CLAIM_TTL_MS = 3_600_000;
+/** Validated bounds for the configurable claim TTL: 1 minute to 7 days. */
+export const CLAIM_TTL_MIN_MS = 60_000;
+export const CLAIM_TTL_MAX_MS = 7 * 24 * 3_600_000;
+
+/** Publication-time summary caps per Finding kind; longer supporting text belongs in `details`. */
+export const FINDING_SUMMARY_LIMITS = {
+  observed: 100,
+  fact: 100,
+  fail: 100,
+  claim: 100,
+  patch_summary: 300,
+} as const;
+/** Cap for the optional on-demand `details` field. */
+export const FINDING_DETAILS_MAX_CHARS = 4000;
+
 export const DEFAULT_RUNTIME_CONFIG: SwarmRuntimeConfig = {
   workerCountMin: 2,
   defaultWorkerCount: 2,
   eventPageSize: 20,
+  claimTtlMs: DEFAULT_CLAIM_TTL_MS,
 };
 
 export const runtimeConfigSchema = z.strictObject({
@@ -49,6 +67,7 @@ export const runtimeConfigSchema = z.strictObject({
   workerCountMax: z.number().int().min(1).optional(),
   defaultWorkerCount: z.number().int().min(1),
   eventPageSize: z.number().int().min(1).max(200),
+  claimTtlMs: z.number().int().min(CLAIM_TTL_MIN_MS).max(CLAIM_TTL_MAX_MS).default(DEFAULT_CLAIM_TTL_MS),
 });
 
 /* --------------------------- 判别字段 --------------------------- */
@@ -67,7 +86,7 @@ const runPhaseSchema = z.enum([
 const quiesceTargetSchema = z.enum(['completed', 'paused', 'stopped', 'failed']);
 const taskKindSchema = z.enum(['code', 'research']);
 const taskStatusSchema = z.enum(['open', 'claimed', 'proposed', 'done', 'blocked', 'cancelled']);
-const findingKindSchema = z.enum(['observed', 'fact', 'fail', 'patch_summary']);
+const findingKindSchema = z.enum(['observed', 'fact', 'fail', 'patch_summary', 'claim']);
 const proposalStatusSchema = z.enum(['queued', 'integrating', 'accepted', 'rejected']);
 const attemptStatusSchema = z.enum([
   'merging',
@@ -163,7 +182,9 @@ export const findingRecordSchema = z.strictObject({
   authorWorkerId: idSchema,
   taskId: idSchema.nullable(),
   kind: findingKindSchema,
+  // Caps apply at publication only, so older stored records with long summaries still load.
   summary: z.string().min(1),
+  details: z.string().min(1).optional(),
   scope: z.array(z.string()),
   evidenceRefs: z.array(z.string()),
   supersedesId: idSchema.nullable(),
