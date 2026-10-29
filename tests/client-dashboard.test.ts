@@ -29,7 +29,21 @@ interface Options {
   now?: () => number;
   onChange: (state: State) => void;
 }
+interface GraphItem {
+  id: string;
+  sha: string;
+  parents: string[];
+  subject: string;
+  committedAt: number;
+}
+interface GraphRow {
+  id: string;
+  lane: number;
+  incoming: number[];
+  edges: Array<{ from: number; to: number }>;
+}
 interface Client {
+  computeGraph(items: GraphItem[]): { rows: GraphRow[]; maxLanes: number };
   initialState(sessionId: string, available?: boolean): State;
   visibleState(state: State, sessionId: string, available: boolean): State;
   readFrame(item: unknown): Progress | null;
@@ -313,6 +327,28 @@ describe('progress stream ownership', () => {
     await subscription.done;
     expect(seen.states.at(-1)).toMatchObject({ status: 'error', progress: { tasks: { total: 4 } } });
     expect(feed.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('lays out branch and merge lanes for the commit graph', () => {
+    const graph = client.computeGraph([
+      { id: 'm', sha: 'm', parents: ['a', 'b'], subject: 'merge', committedAt: 1 },
+      { id: 'a', sha: 'a', parents: ['c'], subject: 'a', committedAt: 1 },
+      { id: 'b', sha: 'b', parents: ['c'], subject: 'b', committedAt: 1 },
+      { id: 'c', sha: 'c', parents: [], subject: 'c', committedAt: 1 },
+    ]);
+    expect(graph.rows.map((row) => row.lane)).toEqual([0, 0, 1, 0]);
+    expect(graph.rows[0]?.edges).toEqual([{ from: 0, to: 1 }]);
+    expect(graph.rows[2]?.edges).toEqual([{ from: 1, to: 0 }]);
+    expect(graph.maxLanes).toBe(2);
+  });
+
+  it('reuses a closed lane instead of growing the graph', () => {
+    const graph = client.computeGraph([
+      { id: 'a', sha: 'a', parents: ['base'], subject: 'a', committedAt: 2 },
+      { id: 'base', sha: 'base', parents: [], subject: 'base', committedAt: 1 },
+    ]);
+    expect(graph.rows.map((row) => row.lane)).toEqual([0, 0]);
+    expect(graph.maxLanes).toBe(1);
   });
 
   it('cleans abort/stream once and suppresses all late updates after session change/unmount', async () => {

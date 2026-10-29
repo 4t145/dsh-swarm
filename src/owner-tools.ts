@@ -33,12 +33,12 @@ import type {
 } from './commands.ts';
 import { SwarmError, normalizeError } from './errors.ts';
 import { parseRunSpec, runSpecSchema } from './spec.ts';
-import type { AppendGoalReceipt, RunSpec } from './types.ts';
+import type { AddWorkerReceipt, AppendGoalReceipt, RunSpec } from './types.ts';
 
 /** Runtime calls the owner tool needs; the real `SwarmRuntime` satisfies this. */
 export type SwarmOwnerRuntimePort = Pick<
   SwarmRuntimePort,
-  'start' | 'status' | 'pause' | 'resume' | 'stop' | 'appendGoal' | 'continueGoals'
+  'start' | 'status' | 'pause' | 'resume' | 'stop' | 'appendGoal' | 'continueGoals' | 'addWorker'
 >;
 
 /**
@@ -67,7 +67,7 @@ export interface SwarmOwnerInvocation {
 }
 
 /** Actions exposed to the model. `task` mutation stays on the `/swarm` command. */
-export type SwarmManageAction = 'start' | 'status' | 'pause' | 'resume' | 'stop' | 'append' | 'continue';
+export type SwarmManageAction = 'start' | 'status' | 'pause' | 'resume' | 'stop' | 'append' | 'continue' | 'add_workers';
 
 /** Validated `swarm_manage` input. */
 export type SwarmManageInput = z.output<typeof manageInput>;
@@ -75,9 +75,13 @@ export type SwarmManageInput = z.output<typeof manageInput>;
 /** Inline spec shape: exactly the configured spec-file document. */
 const inlineSpecSchema = runSpecSchema;
 
+/** Upper bound for one scale-up call; the runtime still enforces the per-run member limit. */
+const MAX_ADD_WORKERS = 4;
+
 /** Wire schema: snake_case top level, spec file fields keep their file names. */
 const manageInput = z.strictObject({
-  action: z.enum(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue']),
+  action: z.enum(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers']),
+  count: z.number().int().min(1).max(MAX_ADD_WORKERS).optional(),
   goal: z.string().trim().min(1).optional(),
   acceptance_criteria: z.array(z.string().trim().min(1)).min(1).optional(),
   spec_path: z.string().min(1).optional(),
@@ -96,6 +100,15 @@ export interface SwarmManageReceipt {
   resultRef: string;
   deadline: number | null;
   specPath?: string;
+}
+
+/** Result of `action=add_workers`: members actually reserved, plus the error that stopped the loop. */
+export interface SwarmAddWorkersReceipt {
+  action: 'add_workers';
+  requested: number;
+  added: AddWorkerReceipt[];
+  /** Null when every requested member was added. */
+  error: { code: string; message: string } | null;
 }
 
 /** Bounded status projection returned by `action=status`; no message bodies. */
@@ -232,7 +245,7 @@ export async function handleSwarmManage(
   runtime: SwarmOwnerRuntimePort,
   invocation: SwarmOwnerInvocation,
   input: SwarmManageInput,
-): Promise<SwarmManageReceipt | SwarmManageStatus | (AppendGoalReceipt & { action: 'append' })> {
+): Promise<SwarmManageReceipt | SwarmManageStatus | SwarmAddWorkersReceipt | (AppendGoalReceipt & { action: 'append' })> {
   assertOwnerSession(invocation.agent);
   const ownerSessionId = invocation.agent.id;
 
@@ -256,6 +269,27 @@ export async function handleSwarmManage(
         ...(input.acceptance_criteria === undefined ? {} : { acceptanceCriteria: input.acceptance_criteria }),
       }, invocation.callId);
       return { action: 'append', ...result };
+    }
+    case 'add_workers': {
+      if (ctx.sandboxPolicy.resolve({ session: invocation.agent.session }).mode === 'read-only') {
+        throw new SwarmError('SWARM_FORBIDDEN', 'session sandbox mode is read-only; adding workers requires a writable session');
+      }
+      const requested = input.count ?? 1;
+      const added: AddWorkerReceipt[] = [];
+      // Sequential and stop-on-first-failure: each addition is its own atomic reservation.
+      for (let index = 0; index < requested; index++) {
+        if (invocation.signal.aborted) {
+          return { action: 'add_workers', requested, added, error: { code: 'SWARM_CANCELLED', message: 'swarm_manage was cancelled; remaining workers were not added' } };
+        }
+        try {
+          added.push(await runtime.addWorker(ownerSessionId));
+        } catch (error) {
+          if (added.length === 0) throw error;
+          const failure = normalizeError(error, 'SWARM_INTERNAL', 'add worker');
+          return { action: 'add_workers', requested, added, error: { code: failure.code, message: failure.message } };
+        }
+      }
+      return { action: 'add_workers', requested, added, error: null };
     }
     case 'status': {
       const status = runtime.status(ownerSessionId, input.details ?? false);
@@ -306,9 +340,13 @@ export async function handleSwarmManage(
  * Kept as a constant so USAGE and tests can quote the same text.
  */
 export const SWARM_MANAGE_DESCRIPTION =
-  'Start, inspect, append goals to or control the caller\'s own swarm run in this owner session/repository. '
-  + '`start` requires spec or spec_path; `append` saves a concrete goal without replacing history. '
-  + 'Check its disposition: executing, paused, or deferred. `continue` explicitly starts a new round '
+  'The only way to start and control Swarm collaborative development (parallel peer workers in isolated '
+  + 'Git worktrees) for the caller\'s own owner session/repository; there is no other start command to look for. '
+  + 'Start a run with action=start and an inline spec: {repository:".", baseRef:"HEAD", goal, acceptanceCriteria:[...], '
+  + 'workers:2, allowDirtyBaseline:false, verification:{setup:[], test:[{argv:[...]}]}} using the project\'s real '
+  + 'build/test commands; commit the baseline first (ask before committing user work). '
+  + '`append` saves a concrete goal without replacing history; check its disposition: executing, paused, or deferred. '
+  + '`add_workers` scales a running or paused run up by `count` members. `continue` explicitly starts a new round '
   + 'for deferred goals after the old run ends; paused runs use resume. Subagent and worker sessions '
   + 'are refused. Never starts a run from ordinary chat text.';
 
@@ -343,8 +381,12 @@ const INLINE_SPEC_PROPERTIES: Record<string, JsonSchemaNode> = {
 const MANAGE_PROPERTIES: Record<string, JsonSchemaNode> = {
   action: {
     type: 'string',
-    enum: ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue'],
-    description: 'Control action. start requires spec/spec_path; append requires goal; continue starts deferred goals in a new round after termination.',
+    enum: ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers'],
+    description: 'Control action. start requires spec/spec_path; append requires goal; add_workers adds members mid-run; continue starts deferred goals in a new round after termination.',
+  },
+  count: {
+    type: 'integer',
+    description: `For add_workers: members to add (1–${MAX_ADD_WORKERS}, default 1). Stops at the run member limit and reports what was added.`,
   },
   goal: { type: 'string', description: 'For append: concrete additional goal; existing goals and acceptance history stay unchanged.' },
   acceptance_criteria: {

@@ -20,13 +20,13 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-agent';
 import {
-  Remote,
   RemoteError,
   TypertRemoteService,
   remoteMethods,
-  type RemoteMethodOptions,
 } from '@deepseek-ai/dsh-typert-protocol';
 import { isSwarmError } from './errors.ts';
+import { markRemoteMethod } from './remote-marker.ts';
+import { ConversationLog, type ConversationPage } from './conversation-log.ts';
 import { WorktreeHistory, type WorktreeHistoryGitPort, type WorktreeHistoryPage } from './worktree-history.ts';
 import { workerDisplayName } from './worker-names.ts';
 import { isTerminalRunPhase } from './types.ts';
@@ -62,6 +62,7 @@ export const PROGRESS_LIMITS = Object.freeze({
   criterionChars: 2000,
   taskBoard: 40,
   recentEvents: 24,
+  interactions: 80,
   waitIds: 16,
 });
 
@@ -84,6 +85,24 @@ export interface ProgressEvent {
   readonly objectId: string;
   readonly status: string;
   readonly authorWorkerId: string | null;
+  readonly createdAt: number;
+}
+
+/**
+ * Worker-to-worker and worker-to-result interaction metadata. Never carries message
+ * bodies or finding text: a message is only "actor → peer at time".
+ */
+export interface ProgressInteraction {
+  readonly seq: number;
+  readonly kind: 'message' | 'finding' | 'task' | 'proposal' | 'head';
+  /** Task/proposal status, finding kind, `sent` for messages, `accepted` for head. */
+  readonly status: string;
+  readonly actorWorkerId: string | null;
+  /** Message target, proposal author or task owner; null when there is none. */
+  readonly peerWorkerId: string | null;
+  /** Task id, proposal id or accepted SHA; empty for messages and findings, whose ids stay private. */
+  readonly objectId: string;
+  readonly taskId: string | null;
   readonly createdAt: number;
 }
 
@@ -167,6 +186,8 @@ export interface ProgressSnapshot {
   readonly createdAt: number | null;
   readonly taskBoard: { readonly items: readonly ProgressBoardTask[]; readonly total: number; readonly truncated: boolean };
   readonly recentEvents: readonly ProgressEvent[];
+  /** Additive v2 extension; newest last, bounded by `PROGRESS_LIMITS.interactions`. */
+  readonly interactions: readonly ProgressInteraction[];
   readonly runId: RunId;
   readonly phase: RunPhase;
   readonly reason: string | null;
@@ -370,6 +391,43 @@ function recentEvents(detail: ProgressRunDetail | undefined, runId: string): Pro
   return result.reverse();
 }
 
+function interactions(detail: ProgressRunDetail | undefined): ProgressInteraction[] {
+  const events = detail?.events ?? [];
+  const result: ProgressInteraction[] = [];
+  for (let index = events.length - 1; index >= 0 && result.length < PROGRESS_LIMITS.interactions; index--) {
+    const event = events[index];
+    if (!event) continue;
+    const base = { seq: event.seq, actorWorkerId: event.authorWorkerId, createdAt: event.createdAt };
+    switch (event.kind) {
+      case 'message':
+        result.push({ ...base, kind: 'message', status: 'sent', peerWorkerId: event.targetWorkerId, objectId: '', taskId: null });
+        break;
+      case 'finding':
+        result.push({ ...base, kind: 'finding', status: event.findingKind, peerWorkerId: null, objectId: '', taskId: event.taskId });
+        break;
+      case 'task':
+        result.push({ ...base, kind: 'task', status: event.status, peerWorkerId: event.ownerWorkerId, objectId: event.taskId, taskId: event.taskId });
+        break;
+      case 'proposal':
+        result.push({ ...base, kind: 'proposal', status: event.status, peerWorkerId: detail?.proposals?.[event.proposalId]?.authorWorkerId ?? null, objectId: event.proposalId, taskId: event.taskId });
+        break;
+      case 'head': {
+        const author = event.proposalId ? detail?.proposals?.[event.proposalId]?.authorWorkerId ?? null : null;
+        result.push({ ...base, kind: 'head', status: 'accepted', peerWorkerId: author, objectId: event.acceptedHead, taskId: null });
+        break;
+      }
+      case 'run':
+      case 'goal':
+        break; // Control and goal changes are shown by the dashboard and goal board.
+      default: {
+        const unknown: never = event;
+        void unknown;
+      }
+    }
+  }
+  return result.reverse();
+}
+
 function workerWait(workerId: string, detail: ProgressRunDetail | undefined): WaitRegistration | null {
   const wait = detail?.workers[workerId]?.waitRegistration;
   return wait ? { mode: wait.mode, afterSeq: wait.afterSeq,
@@ -425,6 +483,7 @@ export function toProgressSnapshot(
     createdAt: detail?.createdAt ?? null,
     taskBoard: taskBoard(detail),
     recentEvents: recentEvents(detail, status.runId),
+    interactions: interactions(detail),
     runId: status.runId,
     phase: status.phase,
     reason: bounded(status.reason, PROGRESS_LIMITS.reasonChars),
@@ -682,51 +741,18 @@ export class ProgressFeed {
 /* ------------------------------------------------------------------ */
 
 /**
- * 把 Remote 标记直接安装到原型上。
- *
- * `@Remote` 的标准装饰器语义被等价展开：先取标记，再以实例语义执行它注册的
- * initializer。这样源码保持 esbuild 可编译，同时 `remoteMethods()` 与 Gateway
- * 的 SRC 发现行为与生成装饰器一致。
+ * Host 侧只读进度服务；服务键与 Remote 命名空间均为 `swarmProgress`。
  */
-type RemoteMethod = (this: object, ...args: unknown[]) => unknown;
-
-function markRemoteMethod(
-  prototype: object,
-  method: string,
-  options?: Pick<RemoteMethodOptions<unknown[]>, 'mode' | 'name'>,
-): void {
-  const initializers: Array<(this: object) => void> = [];
-  const context = {
-    kind: 'method',
-    name: method,
-    static: false,
-    private: false,
-    access: {
-      has: (target: object): boolean => method in target,
-      get: (target: object): RemoteMethod => Reflect.get(target, method) as RemoteMethod,
-    },
-    addInitializer: (initializer: (this: object) => void): void => {
-      initializers.push(initializer);
-    },
-    metadata: undefined,
-  } satisfies ClassMethodDecoratorContext<object, RemoteMethod>;
-  const target = Reflect.get(prototype, method) as RemoteMethod;
-  if (options?.mode === 'stream') {
-    Remote({ mode: 'stream' })(target, context);
-  } else if (options?.name !== undefined) {
-    Remote(options.name)(target, context);
-  } else {
-    Remote(target, context);
-  }
-  const instance = Object.create(prototype) as object;
-  for (const initializer of initializers) initializer.call(instance);
-}
-
-/** Host 侧只读进度服务；服务键与 Remote 命名空间均为 `swarmProgress`。 */
 export class ProgressService extends TypertRemoteService<never> {
   private readonly feed: ProgressFeed;
 
-  constructor(ctx: Context, runtime: ProgressRuntimePort, options: ProgressFeedOptions, private readonly history?: WorktreeHistory) {
+  constructor(
+    ctx: Context,
+    runtime: ProgressRuntimePort,
+    options: ProgressFeedOptions,
+    private readonly history?: WorktreeHistory,
+    private readonly conversations?: ConversationLog,
+  ) {
     super(ctx, 'swarmProgress');
     this.feed = new ProgressFeed(runtime, options);
   }
@@ -746,8 +772,14 @@ export class ProgressService extends TypertRemoteService<never> {
     return this.feed.watchSession(sessionId, signal);
   }
 
-  /** A bounded page of the merged worker/result Git DAG; a null cursor captures fresh heads. */
-  async worktreeHistory(sessionId: string, cursor: string | null = null, signal?: AbortSignal): Promise<WorktreeHistoryPage | null> {
+  /**
+   * A bounded page of the merged worker/result Git DAG; a null cursor captures
+   * fresh heads.
+   *
+   * SRC fallback: parameters must stay bare identifiers (no defaults or
+   * destructuring), or the gateway rejects the endpoint at discovery.
+   */
+  async worktreeHistory(sessionId: string, cursor: string | null, signal?: AbortSignal): Promise<WorktreeHistoryPage | null> {
     assertSessionId(sessionId);
     if (!this.history) throw new RemoteError('gateway/internal', 'Worktree history is unavailable on this Host', {});
     try { return await this.history.page(sessionId, cursor, signal); }
@@ -765,6 +797,24 @@ export class ProgressService extends TypertRemoteService<never> {
     }
   }
 
+  /**
+   * Owner-only page of worker messages and findings with bodies, newest first.
+   * SRC fallback: bare identifier parameters only.
+   */
+  async conversation(sessionId: string, beforeSeq: number | null): Promise<ConversationPage | null> {
+    assertSessionId(sessionId);
+    if (!this.conversations) throw new RemoteError('gateway/internal', 'Worker conversations are unavailable on this Host', {});
+    try { return this.conversations.page(sessionId, beforeSeq); }
+    catch (error) {
+      if (isSwarmError(error)) {
+        if (error.code === 'SWARM_FORBIDDEN') throw new RemoteError('swarm-progress/forbidden', error.message, { sessionId, runId: '' });
+        if (error.code === 'SWARM_INVALID_INPUT') throw new RemoteError('gateway/bad-request', error.message, { issues: [{ path: 'beforeSeq', message: error.message }] });
+        throw new RemoteError('gateway/internal', error.message, {});
+      }
+      throw error;
+    }
+  }
+
   /** 停止全部 watch 和 Git 读取；由 Host 卸载时调用。 */
   async dispose(): Promise<void> {
     await this.feed.dispose();
@@ -775,6 +825,7 @@ export class ProgressService extends TypertRemoteService<never> {
 // 模块加载时安装标记（幂等）。prototype 上的 SRC 方法名来自真实参数名，
 // 因此 snapshot/watch 必须保持简单的具名参数。
 markRemoteMethod(ProgressService.prototype, 'worktreeHistory');
+markRemoteMethod(ProgressService.prototype, 'conversation');
 markRemoteMethod(ProgressService.prototype, 'snapshot');
 markRemoteMethod(ProgressService.prototype, 'watch', { mode: 'stream' });
 markRemoteMethod(ProgressService.prototype, 'watchSession', { mode: 'stream' });
@@ -808,7 +859,8 @@ export function registerProgress(
         };
       },
       ...(options.now === undefined ? {} : { now: options.now }),
-    }, options.git ? new WorktreeHistory({ status: (sessionId) => runtime.status(sessionId), getRun: (runId) => store.get(runId), git: options.git }) : undefined);
+    }, options.git ? new WorktreeHistory({ status: (sessionId) => runtime.status(sessionId), getRun: (runId) => store.get(runId), git: options.git }) : undefined,
+    new ConversationLog({ status: (sessionId) => runtime.status(sessionId), getRun: (runId) => store.get(runId) }));
   } catch (error) {
     activity.dispose();
     throw error;

@@ -13,6 +13,8 @@ interface ViewProps {
   watchSessionProgress(sessionId: string, signal?: AbortSignal): Stream;
   executeCommand(sessionId: string, line: string, attachments: readonly unknown[], signal?: AbortSignal): Promise<unknown>;
   loadHistory(sessionId: string, cursor: string | null, signal?: AbortSignal): Promise<unknown>;
+  listWorktrees(sessionId: string): Promise<unknown>;
+  createWorktree(sessionId: string, request: unknown): Promise<unknown>;
 }
 interface Registration {
   name: string;
@@ -169,6 +171,47 @@ describe('client.js with the real Remote client', () => {
       controller.abort();
       expect(rawSignal?.aborted).toBe(true);
       expect(view.registration()?.inject().loadHistory).toBe(props.loadHistory);
+      await panel.dispose();
+    } finally {
+      await ctx.fiber.dispose();
+    }
+  });
+
+  it('lists and creates worktrees through the real repository descriptors', async () => {
+    const ctx = new Context();
+    const snapshot = {
+      sessionDirectory: '/repo',
+      repositoryRoot: '/repo',
+      repositoryName: 'repo',
+      note: null,
+      worktrees: [],
+      updatedAt: 1,
+    };
+    const created = { worktree: { branch: 'wt-1' }, snapshot };
+    const calls: Array<{ endpoint: string; payload: unknown }> = [];
+    try {
+      ctx.provide('connection', {
+        interactions: 'none', isLoopback: true,
+        generation: { getSnapshot: () => undefined },
+        rpc: {
+          call: async (_path: string, endpoint: string, payload: unknown) => {
+            calls.push({ endpoint, payload });
+            return { ok: true, value: endpoint === 'swarmWorktrees/list' ? snapshot : created };
+          },
+        },
+      });
+      await ctx.plugin(registry);
+      await ctx.plugin(gateway);
+      const view = viewServices(ctx);
+      const panel = await ctx.plugin(load());
+      const props = view.registration()?.inject();
+      if (!props) throw new Error('missing view');
+      await expect(props.listWorktrees('owner-session')).resolves.toEqual(snapshot);
+      await expect(props.createWorktree('owner-session', { name: 'wt-1' })).resolves.toEqual(created);
+      expect(calls).toEqual([
+        { endpoint: 'swarmWorktrees/list', payload: { args: { sessionId: 'owner-session' } } },
+        { endpoint: 'swarmWorktrees/create', payload: { args: { sessionId: 'owner-session', request: { name: 'wt-1' } } } },
+      ]);
       await panel.dispose();
     } finally {
       await ctx.fiber.dispose();

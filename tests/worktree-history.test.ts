@@ -80,6 +80,17 @@ describe('real merged worktree Git history', () => {
     expect(JSON.stringify(page)).not.toContain('before-run');
   });
 
+  it('exposes proposal source commits as track tips, newest first and deduplicated', async () => {
+    const { run, history } = await fixture();
+    const a = commit(run.workers['w1']!.worktreePath!, 'worker one');
+    const b = commit(run.workers['w2']!.worktreePath!, 'worker two');
+    const proposal = (id: string, authorWorkerId: string, sourceCommit: string, createdAt: number) =>
+      ({ id, authorWorkerId, sourceCommit, createdAt }) as Run['proposals'][string];
+    run.proposals = { p1: proposal('p1', 'w1', a, 1), p2: proposal('p2', 'w2', b, 2), p3: proposal('p3', 'w2', a, 0), p4: proposal('p4', 'gone', b, 3) };
+    const page = await history.page('owner');
+    expect(page?.tips).toEqual([{ sha: b, workerId: 'w2' }, { sha: a, workerId: 'w1' }]);
+  });
+
   it('pins a traversal so new commits do not cause duplicates or missing records between pages', async () => {
     const { run, history } = await fixture();
     const path = run.workers['w1']!.worktreePath!;

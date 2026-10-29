@@ -26,6 +26,7 @@ import { GitWorkspace } from './workspace.ts';
 import { registerOwnerTools } from './owner-tools.ts';
 import { registerOwnerContext } from './owner-context.ts';
 import { registerProgress } from './progress.ts';
+import { registerWorktrees } from './worktrees.ts';
 import { runSwarmHeadless, type RunSwarmHeadlessOptions, type SwarmHeadlessResult } from './headless.ts';
 import { HeadlessDriverLifetime } from './headless-lifetime.ts';
 
@@ -146,6 +147,9 @@ export class SwarmService extends Service {
       disposeOwnerContext = registerOwnerContext(this.ctx, runtime);
       // Read-only progress service used by the browser panel and headless observer.
       progress = registerProgress(this.ctx, runtime, store, { git: workspace });
+      // Repository worktree catalogue and creation; independent of any run and
+      // never changes the owner session's working directory.
+      registerWorktrees(this.ctx, executor);
       return runtime;
     } catch (error) {
       await this.closeResources();

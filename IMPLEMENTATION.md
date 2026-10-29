@@ -146,3 +146,45 @@
 - 前台代办目标澄清、启动 spec、追加需求、进度问答、暂停/继续及结果收集；不要求用户输入命令/JSON，不变成给各 worker 派工的经理。咨询和暂定想法不等于执行授权；命令和面板仍是备用入口。
 - 当前状态由原生 prompt 管线刷新并日志化，仅包含阶段、任务计数、结果引用和最多 6 个待处理目标摘要，不搬入完整消息/事件历史，不新增轮询或模型唤醒。只在用户/现有驱动触发前台下一步时更新，不宣称新增全天候主动通知服务。ACK 协议保持原样。
 - 空态文案改为直接对话引导。[关键回归](<tests/owner-context.test.ts>) 覆盖 owner/worker 边界、有界只读状态、缺失/失败区分与注册清理；本轮仅构建与定向检查，不另开模型验收。
+
+## 工作树页签：无 run 的仓库工作树与创建
+
+- 现象：面板的 Git 工作树历史依赖 `swarmProgress/worktreeHistory`；旧进程未加载该 Host 方法时直连报 HTTP 404。该方法在 `ac1da67` 已存在，错误来自进程仍运行 22:48 的旧代码，重启后消失；源码测试不能代替重启加载。
+- [worktrees](<src/worktrees.ts>) 新增独立的 `swarmWorktrees` Remote：`list(sessionId)` 读取 `git worktree list --porcelain`，返回主树与 linked worktree 的相对路径、分支、HEAD 短 SHA/标题及最多 20 条最近提交；`create(sessionId, request)` 在 `.agents/worktrees/` 下新建分支与检出。两者只依赖会话工作目录，**不要求存在 run**；不调用 `ctx.worktrees.create`，也不调用 `workingDirectory.set`，因此不会改变 owner 会话 cwd 或用户 checkout。
+- Git 命令全部经注入的 `CommandExecutor`（sandbox/subprocess 适配），不使用 shell 字符串；名称/基准 ref 在边界校验，重复分支或路径、非 Git 目录、只读 sandbox、Git 失败分别映射为稳定的 `swarm-worktrees/*` Remote 错误码。会话目录解析只接受 `ctx.agents` 中存活的 Agent，否则返回 forbidden。
+- [remote-marker](<src/remote-marker.ts>) 把 `@Remote` 的显式标记安装抽成共享实现，`progress.ts` 与 `worktrees.ts` 共用，保持 source-fallback 的参数名稳定。
+- [client](<client.js>) 新增 `swarmWorktrees/list|create` 描述符；创建入口改为页签底部可折叠的“新建工作树”，不再把 worktree 列表当作主视图。创建结果通过 `readRemoteValue` 统一解包 `{ok, value}`，失败显示真实错误。
+- “Git 工作树”页签的主视图是**地铁式轨道图**（`trackLanes` / `trackLayout` / `renderCommitTrack`）：一条轨道对应一个工作树，已接受结果是第一条主线（`label-primary` 色），worker 按名册顺序用 alias token 着色。轨道不再按 `computeGraph` 的密集 lane 分配，而是按归属：提交属于第一个沿 first-parent 链认领它的轨道，顺序为主线 HEAD → worker HEAD → 提案 tip；`git log --source` 只表示可达性（集成后所有 worker 提交都从结果 HEAD 可达），因此只作最后兜底。为此 history 页新增 `tips`（`proposals` 的 `sourceCommit`/`authorWorkerId`，最新优先、去重、上限 200），使 worker HEAD 前进后旧提交仍留在自己的轨道上；客户端把缺失的 `tips` 当作空数组，兼容旧 Host。跨轨道曲线只在站点旁无标签的间隙里弯折：分出边沿子轨道走到父站点前再弯，合并边在合并站点后立即弯回父轨道，合并站点的标签翻到曲线对侧。合并是换乘站（双环），当前 HEAD 带光晕，最后一页时在主线末端画 run 基线终点，否则父边用虚线延伸提示还有更早历史。左侧轨道名牌 `position:sticky`，横向滚动时保持可见。颜色全部是 `--dsw-alias-*` token 并通过 inline style 应用，满足主题测试。`computeGraph` 保留为导出的纯函数与既有测试，但渲染不再使用。
+- **SRC 签名修复**：`worktreeHistory(sessionId, cursor = null, signal?)` 的默认参数被 typert gateway 的 SRC 兜底发现拒绝（`gateway/signature-invalid: must use unique identifier parameters without destructuring, defaults, or rest`），端点因此不可用。现改为 `worktreeHistory(sessionId, cursor, signal?)`；客户端本来就总是传 `cursor`（可为 `null`），无需改调用。`tests/progress.test.ts` 增加对 `Function.prototype.toString` 参数名的断言，锁住 SRC 兼容性。Host 代码变更仍需重启 DSH 才生效。
+- 检查：`tests/worktrees.test.ts` 30 项（临时 Git 仓库，不碰用户 checkout）、`tests/client-remote.test.ts` 新增真实 typert-registry/api-gateway 的 list/create 转发、`tests/client-dashboard.test.ts` 新增 lane/合并/复用单元测试、`tests/client-worktrees.test.ts` 更新为轨道图断言；全量 **35 文件 / 448 项测试**、typecheck、build 与 `node --check client.js` 通过。横向轨道图是纯 Client 改动，刷新页面即可；SRC 修复已在上一轮 Host 重启后生效（面板已能读到提交）。
+
+### 成员列表 / 目标看板重设计、中途扩容与启动可发现性
+
+- **成员列表**：顶部是标题与一句汇总（成员数、执行中、等待协作或集成），右侧是“团队规模”卡片：`已用 / 上限`、按名册顺序着色的名额色块（空位为虚线框）和“+ 添加成员”。成员颜色由 `workerColor(index)` 给出，与 Git 轨道图的 worker 轨道使用同一组 alias token，同一个人在两个页签里颜色一致。卡片顶边是成员颜色，头像显示名字缩写；状态胶囊带圆点，只有连接正常且 turn/工具确实在执行时才有脉冲动画（reduced-motion 下关闭）。当前任务放在浅底块里，没有任务时用次要色。
+- **目标看板**：标题区右侧显示“已办结数 / 总数”和三段组成条（办结/办理中/代办）。组成条只表示数量组成，`aria-hidden`，不是进度百分比，遵守既有“不合成百分比”的测试约束。三个池是浅底圆角栏，计数用胶囊；目标卡片左侧色条表示状态（办理中=品牌色、办结=成功色、待下一轮/已转移=警告色），正文最多三行，底部显示验收条数、办结提交短 SHA 和时间；展开后显示全文、验收列表和 ID。愿望输入框改为虚线边框。分池逻辑 `goalColumns` 与提交流程未改。
+- **中途扩容**：`swarm_manage` 新增 `add_workers` 动作（`count` 1–4，默认 1），顺序调用既有 `runtime.addWorker`，每次都是独立的原子预留。第一次就失败时直接抛错；之后的失败返回 `{added, error}`，如实报告部分成功，不重试。只读 sandbox 与子会话在调用前拒绝。成员上限仍由 runtime 的 `workerCountMax`（4）保证。
+- **启动可发现性**：`SWARM_MANAGE_DESCRIPTION` 改为开宗明义“启动和控制 Swarm 的唯一入口”，并内嵌 start 的 inline spec 结构；`OWNER_POLICY` 增加直接调用 `action "start"` 的完整 JSON 模板，要求先读项目配置选真实验证命令，不去找 CLI/脚本；无 run 时的 owner state 也指向 `action=start`。owner state 新增 `workerLimit` 与 `canAddWorkers`，并在策略里说明扩容用 `add_workers`，不要停止重启。
+
+### 协作流页签
+
+- Host：`toProgressSnapshot` 新增 additive v2 字段 `interactions`（`PROGRESS_LIMITS.interactions = 80`，最新在后）。投影 message/finding/task/proposal/head 事件，只含 `seq/kind/status/actorWorkerId/peerWorkerId/objectId/taskId/createdAt`。私信只给出发送者与接收者，finding 只给出类型；两者的 `objectId` 置空，不暴露正文或 ID。`peerWorkerId` 对 task 是 owner，对 proposal/head 是提案作者（从 `detail.proposals` 查）。run/goal 事件已由 Dashboard 和目标看板展示，这里显式跳过；switch 穷尽检查。
+- Client：`FlowSection` / `flowLayout` / `messagePairs`。泳道顺序为 Host → 名册顺序 → 未知 id，颜色与成员列表和 Git 轨道一致（`workerColor`）。task/proposal 事件放在 owner/作者泳道（Host 执行的集成状态变更也归给作者），message 画成到接收者泳道的弧线，head 放在 Host 泳道并用虚线连回作者。旧 Host 不发 `interactions` 时显示“重启 DSH 后可用”，不伪造空数据。帧校验对该字段做 additive 校验，v1 Host 时清空。
+- 测试：`tests/client-flow.test.ts`（泳道、路由、筛选、私信对、双语键）；`tests/progress.test.ts` 增加私密性与顺序断言；tabs 测试改为五个页签。
+
+### Dashboard 重设计与成员配色
+
+- **成员配色**：DSH 的 `--dsw-alias-brand-primary` 与 `state-idle-primary` 实际映射到中性黑/白/灰，会和 Host 主线（`label-primary`）或“空闲”混淆。`TRACK_COLORS`（成员列表、协作流、Git 轨道、Dashboard 共用）改为只用有彩色的 token：`state-business-primary`（DeepSeek 蓝）、`success`、`warn`，以及它们与 `error` 的 `color-mix` 混色；`error` 红放最后。黑/白/灰只留给 Host/结果主线。我新加的成员列表、目标看板、Dashboard 样式中的强调色也从 `brand-primary` 换成 `state-business-primary`。
+- **Dashboard**：目标卡片左侧有品牌色竖条；四阶段流程改为带连接线的步进条（完成=绿色对勾，进行中=蓝色脉冲点，等待=序号）；三张 KPI 卡片中，“已完成任务”带按状态组成的分段条和图例（宽度按数量，`aria-hidden`，不是百分比），验证失败时显示红色标记；“当前交付”旁新增“团队现状”卡片（`TeamCard`：头像色、当前任务、工作状态胶囊）；任务板和最近公开活动放进卡片，活动时间线的圆点用作者的成员颜色，Host 事件用主线色。`deriveWorkflow`、`deliveryState`、筛选逻辑未改。
+
+### 成员对话与发现（owner 可观测性）
+
+- 与此前“面板不显示私信/finding 正文”的约束相比，这是一次有意的边界调整：run owner 需要看到 worker 实际说了什么。进度流（`watch`/`snapshot`/`interactions`）仍只含元数据；正文只走单独的、按需调用的 `swarmProgress/conversation(sessionId, beforeSeq)`。
+- [conversation-log](<src/conversation-log.ts>)：与 worktree history 相同的双重 owner 校验（runtime status 与持久化 run 的 `ownerSessionId` 都必须等于调用会话）；非 owner 抛 `SWARM_FORBIDDEN`，映射为 `swarm-progress/forbidden`。按 seq 倒序合并 messages 与 findings，每页 40 条，`beforeSeq` 为排他游标；正文上限 8000 字符并标 `truncated`，scope/evidence 各最多 16 条、每条 300 字符。worker 的可见性规则（`isEventVisible`）不变，这个接口不给 worker 使用。
+- Client：`ConversationSection` 放在“协作流”页签下方，在 unknown-codec 边界用 `readConversationPage` 校验，按 seq 用 `mergeConversation` 去重合并；`interactions` 中出现新的 message/finding seq 时自动重新读取首页，并保留已加载的更早内容与游标。卡片左边框与头像使用成员颜色，失败报告带红色描边。
+- 测试：`tests/conversation-log.test.ts`（排序、分页无重复、截断、非 owner/坏游标/无 run）、`tests/client-conversation.test.ts`（校验、合并、双语键）、`tests/progress.test.ts` 增加 `conversation` 的 Remote 标记与 SRC 裸参数断言。
+
+### 泳道节点悬停卡片
+
+- `FlowPanel` 用 `useConversation` 持有一份 owner 对话状态，泳道和下方阅读器共用，同一条正文只读一次。悬停 message/finding 节点时，如果已加载的页里没有这条，`loadAround(seq)` 用 `beforeSeq = seq + 1` 读取以它结尾的那一页并合并，不移动阅读器的分页游标；失败时卡片退回元数据，错误仍由阅读器报告。
+- 每个节点是 `tabIndex=0` 的 `role=button`，带 14px 透明命中圈；mouseenter/focus 显示 `role=tooltip` 卡片，click/Enter/Space 固定为带关闭按钮的 `role=dialog`，Esc 或滚动关闭。`flowHoverPosition` 是纯函数：卡片默认在节点右侧，靠右边缘时翻到左侧，处于下半区时向上展开。
+- 测试：`tests/client-flow.test.ts` 增加定位翻转、所有节点可聚焦且卡片显示正文、正文未到时的加载态与固定后的 dialog/关闭按钮。

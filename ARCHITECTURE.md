@@ -607,7 +607,8 @@ v0.1 的交付包括 bundle manifest、Cordis patch、Host 模块、worker prese
 
 - 整体展示目标、run 阶段、任务状态计数、集成/验证流程、结果 ref/SHA；工作流中的协作与验证可并行，不伪造单一线性完成百分比。
 - 每个 worker 展示当前有效任务、原生状态、等待协作或等待集成，以及从原生 Session 事件派生的有界工具调用状态。inactive 不是完成；调用返回也不是整个任务完成。done/cancelled 的历史任务不能标为当前工作。
-- 工具活动由宿主 sessionProjections 增量派生；只展示名称、状态和时间，不转发工具参数/结果、命令正文、推理或私信。任务板和最近公开状态事件有固定条数上限，显示截断信息。
+- 工具活动由宿主 sessionProjections 增量派生；只展示名称、状态和时间，不转发工具参数/结果、命令正文或推理。任务板和最近公开状态事件有固定条数上限，显示截断信息。
+- 进度流（snapshot/watch，含 `interactions`）只带私信与 finding 的元数据（谁、对谁、何时、类型）。正文只通过单独的按需接口 `swarmProgress/conversation(sessionId, beforeSeq)` 提供给 run owner：Host 双重校验调用会话就是 run 的 `ownerSessionId`，分页、有界并标注截断。worker 之间的可见性规则不变，worker 不能通过这个接口读别人的私信。
 - 看板订阅以 owner 会话为生命周期，run 终态之后仍可接收同 owner 的下一次 run。旧的单 run watch 语义可保留；新增持续订阅必须在面板卸载、会话切换、取消或插件卸载时清理，不驱动模型。
 - 底层只监听持久状态和相关 worker 投影变化，不轮询 Agent。预算倒计时在 Client 本地更新；没有新帧不等于断线，流结束或错误则明确显示非实时、保留最后快照并提供重新连接。
 - 旧 Host 不具备新能力时明确标示并保留可用摘要，不把权限拒绝或网络错误吞为降级成功。部署生效与单测分开验收，新 Host 模块要求重启时如实报告。

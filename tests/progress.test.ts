@@ -14,6 +14,7 @@ import type { SwarmEvent } from '../src/types.ts';
 import {
   PROGRESS_LIMITS,
   ProgressFeed,
+  ProgressService,
   progressRemoteMethods,
   toProgressSnapshot,
   type ProgressChange,
@@ -452,10 +453,29 @@ describe('Remote markers', () => {
   it('exports snapshot as unary and watch as a stream on the swarmProgress namespace', () => {
     expect(progressRemoteMethods()).toEqual([
       { method: 'worktreeHistory' },
+      { method: 'conversation' },
       { method: 'snapshot' },
       { method: 'watch', mode: 'stream' },
       { method: 'watchSession', mode: 'stream' },
     ]);
+  });
+
+  it('keeps the conversation SRC parameters bare for gateway discovery', () => {
+    const source = Function.prototype.toString.call(ProgressService.prototype.conversation);
+    const open = source.indexOf('(');
+    const close = source.indexOf(')', open + 1);
+    expect(source.slice(open + 1, close).split(',').map((part) => part.trim())).toEqual(['sessionId', 'beforeSeq']);
+  });
+
+  it('keeps the worktreeHistory SRC parameters bare for gateway discovery', () => {
+    const source = Function.prototype.toString.call(ProgressService.prototype.worktreeHistory);
+    const open = source.indexOf('(');
+    const close = source.indexOf(')', open + 1);
+    const body = source.slice(open + 1, close).trim();
+    const parts = body === '' ? [] : body.split(',').map((part) => part.trim());
+    expect(parts).toEqual(['sessionId', 'cursor', 'signal']);
+    // The gateway rejects defaults, destructuring and rest in SRC methods.
+    expect(parts.every((part) => /^[$A-Z_a-z][$\w]*$/u.test(part))).toBe(true);
   });
 });
 describe('progress v2 public facts', () => {
@@ -518,6 +538,14 @@ describe('progress v2 public facts', () => {
     expect(snapshot.recentEvents.slice(-3).map((event) => event.kind)).toEqual(['proposal', 'head', 'run']);
     expect(snapshot.recentEvents.map((event) => event.seq)).toEqual([...snapshot.recentEvents.map((event) => event.seq)].sort((a, b) => a - b));
     expect(JSON.stringify(snapshot.recentEvents)).not.toMatch(/PRIVATE|finding|message|reason/);
+    // Interactions carry message/finding metadata, never bodies or private text.
+    expect(snapshot.interactions.length).toBeLessThanOrEqual(PROGRESS_LIMITS.interactions);
+    expect(snapshot.interactions.filter((item) => item.kind === 'message')).toEqual([
+      { seq: 32, kind: 'message', status: 'sent', actorWorkerId: 'w1', peerWorkerId: 'w1', objectId: '', taskId: null, createdAt: 32 }]);
+    expect(snapshot.interactions.find((item) => item.kind === 'head')).toMatchObject({ status: 'accepted', objectId: 'abcd' });
+    expect(snapshot.interactions.map((item) => item.kind as string)).not.toContain('run');
+    expect(JSON.stringify(snapshot.interactions)).not.toMatch(/PRIVATE|body|reason/);
+    expect(snapshot.interactions.map((item) => item.seq)).toEqual([...snapshot.interactions.map((item) => item.seq)].sort((a, b) => a - b));
   });
 
   it('checks owner before reading full detail or worker activity', () => {
@@ -1042,6 +1070,9 @@ describe('client.js progress panel rendering', () => {
     expect(text).toContain('对话');
     expect(text).toContain('整理目标');
     expect(text).not.toContain('swarm_manage');
+    // The worktree tab stays reachable without a run; only its transport is absent here.
+    expect(text).toContain(plugin.locale.zh['tabs.worktrees']);
+    expect(text).toContain(plugin.locale.zh['wt.create.title']);
   });
 
   it('reports the Host interface as unavailable when the Remote mount fails', async () => {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Context } from '@deepseek-ai/cordis';
 import { Session, SessionId, type SessionHeader } from '@deepseek-ai/dsh-session';
 import type { PromptContext, PromptSection } from '@deepseek-ai/dsh-system-prompt';
-import { isFrontDeskOwner, ownerState, registerOwnerContext } from '../src/owner-context.ts';
+import { isFrontDeskOwner, OWNER_POLICY, ownerState, registerOwnerContext } from '../src/owner-context.ts';
 import { SwarmError } from '../src/errors.ts';
 import { createRun } from '../src/types.ts';
 
@@ -32,6 +32,18 @@ describe('owner front desk', () => {
     expect(ownerState({ runForOwner: () => { throw new SwarmError('SWARM_NOT_FOUND', 'none'); } }, 'owner')).toContain('no run');
     expect(ownerState({ runForOwner: () => { throw new Error('internal secret'); } }, 'owner')).toContain('could not be read');
     expect(ownerState({ runForOwner: () => run() }, 'other')).not.toContain('Build the application');
+  });
+
+  it('points owners straight at swarm_manage start and reports scale-up headroom', () => {
+    expect(OWNER_POLICY).toContain('action "start"');
+    expect(OWNER_POLICY).toContain('"verification"');
+    expect(OWNER_POLICY).toContain('add_workers');
+    expect(ownerState({ runForOwner: () => { throw new SwarmError('SWARM_NOT_FOUND', 'none'); } }, 'owner')).toContain('action=start');
+    const current = run();
+    current.phase = 'running';
+    expect(ownerState({ runForOwner: () => current }, 'owner')).toContain('"canAddWorkers":true');
+    current.phase = 'completed';
+    expect(ownerState({ runForOwner: () => current }, 'owner')).toContain('"canAddWorkers":false');
   });
 
   it('refreshes bounded facts without mutating the run or exposing acceptance bodies', () => {

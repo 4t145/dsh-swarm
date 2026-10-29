@@ -36,10 +36,17 @@ export interface WorktreeHistoryItem extends Omit<WorktreeGitCommit, 'sourceHead
   readonly branch: string;
   readonly worktreePath: string | null;
 }
+/** A commit a worker submitted as a proposal; a factual track seed, unlike `--source`. */
+export interface WorktreeHistoryTip {
+  readonly sha: string;
+  readonly workerId: string;
+}
 export interface WorktreeHistoryPage {
   readonly runId: string;
   readonly items: readonly WorktreeHistoryItem[];
   readonly worktrees: readonly WorktreeHistoryLane[];
+  /** Proposal source commits, newest first, so older worker commits keep their track after HEAD moves. */
+  readonly tips: readonly WorktreeHistoryTip[];
   readonly nextCursor: string | null;
 }
 export interface WorktreeHistoryGitPort {
@@ -101,7 +108,7 @@ export class WorktreeHistory {
         };
       });
       return {
-        runId: run.id, items, worktrees: snapshot.worktrees,
+        runId: run.id, items, worktrees: snapshot.worktrees, tips: proposalTips(run),
         nextCursor: commits.length > WORKTREE_HISTORY_PAGE_SIZE ? this.encode({ ...snapshot, offset: snapshot.offset + items.length }) : null,
       };
     } finally {
@@ -159,4 +166,17 @@ export class WorktreeHistory {
     }
     return parsed.data;
   }
+}
+
+/** Bounded, deduplicated proposal tips; first submission of a SHA wins. */
+function proposalTips(run: Run): WorktreeHistoryTip[] {
+  const seen = new Set<string>();
+  const tips: WorktreeHistoryTip[] = [];
+  for (const proposal of Object.values(run.proposals).sort((a, b) => b.createdAt - a.createdAt)) {
+    if (seen.has(proposal.sourceCommit) || !(proposal.authorWorkerId in run.workers)) continue;
+    seen.add(proposal.sourceCommit);
+    tips.push({ sha: proposal.sourceCommit, workerId: proposal.authorWorkerId });
+    if (tips.length >= 200) break;
+  }
+  return tips;
 }

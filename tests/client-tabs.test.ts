@@ -59,12 +59,12 @@ function text(node: Element): string { return node.children.map((value) => typeo
 const progress = () => ({ runId: 'run', phase: 'running', goal: 'Initial objective', workers: [{ id: 'w1', displayName: 'Quiet Otter' }], workerControls: { canAdd: true, maxWorkers: 4 }, goalBoard: { items: [], counts: { active: 0, deferred: 0, completed: 0, continued: 0 }, truncated: false } });
 
 describe('independent collaboration tabs', () => {
-  it('exposes four linked panels with only the selected panel visible', () => {
+  it('exposes five linked panels with only the selected panel visible', () => {
     const ui = harness();
     const props = { state: { progress: progress(), status: 'live' }, sessionId: 'owner', now: 1000 };
     let tree = ui.render(ui.client.RunBody, props);
     const tabs = nodes(tree, (node) => node.props.role === 'tab');
-    expect(tabs.map(text)).toEqual(['Dashboard', 'Members', 'Goal board', 'Git worktrees']);
+    expect(tabs.map(text)).toEqual(['Dashboard', 'Members', 'Collaboration flow', 'Goal board', 'Git worktrees']);
     expect(nodes(tree, (node) => node.props.role === 'tabpanel' && !node.props.hidden)).toHaveLength(1);
     const members = tabs[1]!;
     (members.props.onClick as () => void)();

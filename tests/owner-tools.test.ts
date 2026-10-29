@@ -30,7 +30,7 @@ import {
   type SwarmOwnerRuntimePort,
   type SwarmOwnerToolContext,
 } from '../src/owner-tools.ts';
-import type { AppendGoalInput, AppendGoalReceipt, RunPhase, RunSpec } from '../src/types.ts';
+import type { AddWorkerReceipt, AppendGoalInput, AppendGoalReceipt, RunPhase, RunSpec } from '../src/types.ts';
 import { SwarmError } from '../src/errors.ts';
 
 /** The real Host services must satisfy the narrow owner-tool context. */
@@ -189,6 +189,16 @@ class FakeRuntime implements SwarmOwnerRuntimePort {
   readonly appendCalls: Array<{ ownerSessionId: string; input: AppendGoalInput; callId: string }> = [];
   readonly continueCalls: string[] = [];
   disposition: AppendGoalReceipt['disposition'] = 'executing';
+  readonly addCalls: string[] = [];
+  /** Fail the Nth addWorker call (1-based) with this error. */
+  addFailure: { at: number; error: unknown } | undefined;
+
+  async addWorker(ownerSessionId: string): Promise<AddWorkerReceipt> {
+    this.addCalls.push(ownerSessionId);
+    const n = this.addCalls.length;
+    if (this.addFailure && n >= this.addFailure.at) throw this.addFailure.error;
+    return { runId: 'run-1', workerId: 'w' + (n + 2), displayName: 'Worker ' + (n + 2), phase: 'running', disposition: 'started' };
+  }
 
   async appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt> {
     this.appendCalls.push({ ownerSessionId, input, callId });
@@ -260,7 +270,7 @@ async function call(
 
 describe('parseManageInput', () => {
   it('accepts every action and rejects unknown actions or extra fields', () => {
-    for (const action of ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue'] as const) {
+    for (const action of ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers'] as const) {
       expect(parseManageInput({ action }).action).toBe(action);
     }
     expect(parseManageInput({ action: 'resume', budget_minutes: 5 }).budget_minutes).toBe(5);
@@ -286,7 +296,10 @@ describe('registerOwnerTools', () => {
       additionalProperties: false,
     });
     const action = (definition?.parameters.properties as Record<string, { enum?: string[] }>)['action'];
-    expect(action?.enum).toEqual(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue']);
+    expect(action?.enum).toEqual(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers']);
+    // Agents should find the start path from the tool description alone.
+    expect(definition?.description).toContain('action=start');
+    expect(definition?.description).toContain('only way to start');
     // The Host accepts only its documented JSON Schema subset.
     expect(() => {
       if (definition !== undefined) assertObjectJsonSchema(definition.parameters);
@@ -518,5 +531,42 @@ describe('handleSwarmManage status and controls', () => {
     const runtime = new FakeRuntime();
     await call(ctx, runtime, { action: 'resume' });
     expect(runtime.resumeCalls).toEqual([{ ownerSessionId: 'owner-1', budgetMinutes: undefined }]);
+  });
+});
+
+describe('swarm_manage add_workers', () => {
+  it('adds the requested members sequentially under the real owner identity', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    const result = await call(ctx, runtime, { action: 'add_workers', count: 2 }, OWNER_AGENT);
+    expect(runtime.addCalls).toEqual([OWNER_AGENT.id, OWNER_AGENT.id]);
+    expect(result).toMatchObject({ action: 'add_workers', requested: 2, error: null });
+    expect((result as { added: unknown[] }).added).toHaveLength(2);
+  });
+
+  it('defaults to one member and rejects out-of-range counts', () => {
+    expect(parseManageInput({ action: 'add_workers' }).count).toBeUndefined();
+    expect(() => parseManageInput({ action: 'add_workers', count: 0 })).toThrow();
+    expect(() => parseManageInput({ action: 'add_workers', count: 5 })).toThrow();
+  });
+
+  it('reports partial success instead of hiding the limit error', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    runtime.addFailure = { at: 2, error: new SwarmError('SWARM_INVALID_STATE', 'a run supports at most 4 workers') };
+    const result = await call(ctx, runtime, { action: 'add_workers', count: 3 }, OWNER_AGENT);
+    expect(runtime.addCalls).toHaveLength(2);
+    expect(result).toMatchObject({ requested: 3, error: { code: 'SWARM_INVALID_STATE' } });
+    expect((result as { added: unknown[] }).added).toHaveLength(1);
+  });
+
+  it('throws when the first addition fails and refuses subagents before any call', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    runtime.addFailure = { at: 1, error: new SwarmError('SWARM_NOT_RUNNING', 'cannot add a worker while run is completed') };
+    await expect(call(ctx, runtime, { action: 'add_workers' }, OWNER_AGENT)).rejects.toThrow('cannot add');
+    const fresh = new FakeRuntime();
+    await expect(call(ctx, fresh, { action: 'add_workers' }, SUBAGENT_AGENT)).rejects.toThrow();
+    expect(fresh.addCalls).toEqual([]);
   });
 });
