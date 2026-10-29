@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { publicEventSchema, publicStateShape } from './public-schema.ts';
+import { publicEventSchema, publicStateShape, publicReferenceIssues } from './public-schema.ts';
 import { defaultPublicState } from './public-types.ts';
 import { SwarmError, type SwarmErrorCode } from './errors.ts';
 import type { CommandSpec, Run, SwarmRuntimeConfig, VerificationConfig } from './types.ts';
@@ -395,6 +395,7 @@ const runShape = z.strictObject({
  * 每个 map 的键等于实体自身 id；事件 seq 严格递增且 nextSeq 大于最大 seq。
  */
 export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
+  for (const issue of publicReferenceIssues(run)) ctx.addIssue({ code: 'custom', ...issue });
   const checkKeys = (field: string, entries: [string, { id: string }][]): void => {
     for (const [key, value] of entries) {
       if (key !== value.id) {
