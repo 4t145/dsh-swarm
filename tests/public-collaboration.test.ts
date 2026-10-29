@@ -215,6 +215,19 @@ describe('persistent public collaboration', () => {
     expect((await api.query('s-c', { view: 'messages', query: 'late' })).total).toBe(1);
   });
 
+  it('pages newest first with order=desc for chat-style "load older" readers', async () => {
+    const { post, api, thread } = await setup();
+    for (let i = 0; i < 5; i++) await post('a', `message ${i}`);
+    const first = await api.query('s-c', { view: 'messages', threadId: thread.id, limit: 2, order: 'desc' });
+    await post('a', 'late append');
+    const second = await api.query('s-c', { view: 'messages', threadId: thread.id, limit: 2, order: 'desc', cursor: first.nextCursor! });
+    const third = await api.query('s-c', { view: 'messages', threadId: thread.id, limit: 2, order: 'desc', cursor: second.nextCursor! });
+    const bodies = [...first.items, ...second.items, ...third.items].map((item) => item.kind === 'message' ? item.message.body : '');
+    expect(bodies).toEqual(['message 4', 'message 3', 'message 2', 'message 1', 'message 0']);
+    expect(third.hasMore).toBe(false);
+    await expect(api.query('s-c', { view: 'messages', threadId: thread.id, limit: 2, cursor: first.nextCursor! })).rejects.toMatchObject({ code: 'SWARM_INVALID_CURSOR' });
+  });
+
   it('is idempotent across pause, rejects new mutations, and does not broadcast read/ACK/subscription bookkeeping', async () => {
     const { call, post, api, store, thread } = await setup();
     const input = { action: 'post', threadId: thread.id, body: 'once' } as const;
