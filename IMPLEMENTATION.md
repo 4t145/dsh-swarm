@@ -373,3 +373,12 @@ Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19
 - `swarm_read` 查询覆盖 goal、task、finding（summary、可选 details、scope、evidence，含已过期 claim）与调用者自己的私信；第三方私信仍不可见。`kind:` 可取记录类型（goal/task/finding/message）或子类型（code/research、observed/fact/fail/patch_summary/claim）；`author:` 匹配 worker id 或显示名（task 同时匹配创建者和 owner）；`task:` 匹配 task id 或 finding 关联 task。结果原有 total/hasMore/truncated 语义不变。
 - 公开查询（`swarm_public_read`、owner GUI）在原有 channel/thread/task 过滤之后用同一表达式；`kind:` 为该 view 的记录类型（message/thread/request/agreement/channel），`author:` 为作者/创建者（thread 含参与者），`task:` 为关联 task。表达式参与游标 filter 绑定，换查询必须重新翻页。
 - GUI 会话搜索框把输入原样作为 query 发送，并在输入框下显示简短中英文语法提示（`public.searchHint`，`aria-describedby` 关联）。
+
+## CLAIM Finding、summary 限长与 details（Agensh 风格协作，2026-10-30）
+
+- 新增 Finding kind `claim`：worker 开始某范围时用 `swarm_publish kind=claim` 简短公告，可带 `task_id`/`scope`。它只是公告，不是锁；Task CAS 仍决定 owner（[测试](<tests/claims.test.ts>) 验证他人 claim 后仍可认领该 task）。
+- 实时视图规则在纯模块 [claims](<src/claims.ts>)：claim 创建满 `claimTtlMs` 后不再出现在 `swarm_sync` 的 `claims` 列表、sync/wait 事件页和被动推送通知；同作者、同 task 的更新 claim 使旧 claim 退出实时视图（无 task 的 claim 互不替换）。存储、`swarm_read` 按 id 与搜索保留全部历史。被跳过的 claim 事件仍推进游标，不会反复出现。
+- `claimTtlMs` 为 Host 配置项（Schemastery 与 `runtimeConfigSchema` 双重校验，范围 1 分钟–7 天，默认 3_600_000）。过期按 Collaboration 注入时钟在读取时判定，不写回记录。
+- summary 上限仅在发布时强制：observed/fact/fail/claim 100 字符，patch_summary 300 字符（`FINDING_SUMMARY_LIMITS`，工具参数描述写明）；超限返回 `SWARM_INVALID_INPUT`，`details` 含 kind/limit/length。持久 schema 不复检长度，旧的长 summary 与无 `details` 的记录照常加载。Host 内部生成的最终验证失败 fail Finding 不经过发布路径。
+- 可选 `details`（≤4000 字符）随记录存储；sync 事件中的 finding 投影去掉 `details` 并给出 `hasDetails`，被动通知也只带 `hasDetails: true`；`swarm_read` 按 id 返回完整记录。owner GUI 会话视图把 details 放在可折叠的“详情/Details”中，GUI 标签 `flow.finding.claim` 为“认领声明/claim”。
+- WORKER_POLICY 要求认领 task 后发布 claim、summary 保持简短 gist、细节放入 details/evidence_refs 并按需 `swarm_read` 展开。
