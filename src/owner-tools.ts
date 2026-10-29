@@ -26,13 +26,13 @@ import type { JsonSchemaNode, ToolDefinition } from '@deepseek-ai/dsh-tools';
 
 import type {
   SwarmCommandContext,
-  SwarmFsTarget,
   SwarmRunStatusView,
   SwarmRunView,
   SwarmRuntimePort,
 } from './commands.ts';
 import { SwarmError, normalizeError } from './errors.ts';
 import { parseRunSpec, runSpecSchema } from './spec.ts';
+import { loadRunSpecFile } from './spec-file.ts';
 import type { AddWorkerReceipt, AppendGoalReceipt, RunSpec } from './types.ts';
 
 /** Runtime calls the owner tool needs; the real `SwarmRuntime` satisfies this. */
@@ -153,41 +153,6 @@ function assertOwnerSession(agent: SwarmOwnerAgent): void {
 }
 
 /**
- * Read and parse one spec file through the Host fs/sandbox adapters.
- *
- * @throws SwarmError `SWARM_INVALID_INPUT` when the file cannot be read,
- *   `SWARM_INVALID_SPEC` when it is not JSON or fails schema validation.
- */
-async function loadSpecFile(
-  ctx: SwarmOwnerToolContext,
-  cwd: string,
-  specPath: string,
-  signal: AbortSignal,
-): Promise<RunSpec> {
-  const absolute = path.resolve(cwd, specPath);
-  let text: string;
-  try {
-    const target: SwarmFsTarget = await ctx.fs.resolve(specPath, { cwd, signal });
-    text = await ctx.fs.readText(target, signal);
-  } catch (error) {
-    throw new SwarmError('SWARM_INVALID_INPUT', `failed to read swarm spec ${absolute}`, {
-      details: { specPath: absolute },
-      cause: error,
-    });
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new SwarmError('SWARM_INVALID_SPEC', `swarm spec ${absolute} is not valid JSON`, {
-      details: { specPath: absolute },
-      cause: error,
-    });
-  }
-  return parseRunSpec(parsed, absolute);
-}
-
-/**
  * Resolve the requested spec to a `RunSpec`.
  *
  * Inline specs are validated by the same schema as the file format; their
@@ -206,7 +171,7 @@ async function resolveSpec(
     throw new SwarmError('SWARM_INVALID_INPUT', 'provide either spec_path or spec, not both');
   }
   if (specPath !== undefined) {
-    return loadSpecFile(ctx, cwd, specPath, signal);
+    return loadRunSpecFile(ctx.fs, cwd, specPath, signal, 'summary');
   }
   if (spec === undefined) {
     throw new SwarmError('SWARM_INVALID_INPUT', 'action=start requires spec_path or spec');

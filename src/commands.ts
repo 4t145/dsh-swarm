@@ -8,7 +8,6 @@
  * never invents a worker identity supplied by the caller.
  */
 
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
@@ -16,7 +15,7 @@ import type { CommandResult } from '@deepseek-ai/dsh-commands';
 import type { Session } from '@deepseek-ai/dsh-session';
 
 import { SwarmError, normalizeError } from './errors.ts';
-import { parseRunSpec } from './spec.ts';
+import { loadRunSpecFile } from './spec-file.ts';
 import type { AddWorkerReceipt, AppendGoalInput, AppendGoalReceipt, GoalRecord, Run, RunSpec } from './types.ts';
 
 /** Fixed usage line repeated by parse diagnostics. */
@@ -512,31 +511,7 @@ async function startRun(
     );
   }
 
-  const absoluteSpecPath = path.resolve(cwd, specPath);
-  let text: string;
-  try {
-    const target = await ctx.fs.resolve(specPath, { cwd, signal: invocation.signal });
-    text = await ctx.fs.readText(target, invocation.signal);
-  } catch (error) {
-    throw new SwarmError(
-      'SWARM_INVALID_INPUT',
-      `failed to read swarm spec ${absoluteSpecPath}: ${messageOf(error)}`,
-      { details: { specPath: absoluteSpecPath }, cause: error },
-    );
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new SwarmError(
-      'SWARM_INVALID_SPEC',
-      `swarm spec ${absoluteSpecPath} is not valid JSON: ${messageOf(error)}`,
-      { details: { specPath: absoluteSpecPath }, cause: error },
-    );
-  }
-
-  const spec = parseRunSpec(parsed, absoluteSpecPath);
+  const spec = await loadRunSpecFile(ctx.fs, cwd, specPath, invocation.signal, 'detail');
   const run = await runtime.start(ownerSessionId, spec);
   return { kind: 'success', text: formatStartReceipt(run) };
 }
@@ -857,10 +832,6 @@ function limitText(text: string): string {
     return text;
   }
   return `${text.slice(0, MAX_RESULT_TEXT)}\n... (truncated)`;
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function invalidInput(message: string): SwarmError {
