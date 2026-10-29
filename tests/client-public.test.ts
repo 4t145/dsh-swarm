@@ -7,12 +7,19 @@ type Props = Record<string, unknown>;
 interface Element { type: string | ((props: Props) => Element); props: Props; children: unknown[] }
 interface PageState { sessionId: string; runId: string; queryKey: string; page: PublicPage | null; cursor: string | null; history: (string | null)[]; loading: boolean; error: { code: string; message: string } | null }
 interface Pager { reset(query: PublicQuery): Promise<void>; next(): Promise<void>; previous(): Promise<void>; refresh(): void; dispose(): void }
+interface Stream { items: PublicItem[]; next: string | null; cursors: string[] }
+interface FeedState { streams: Record<'messages' | 'requests' | 'agreements' | 'threads', Stream>; loading: boolean; error: { code: string; message: string } | null; snapshotSeq: number | null; capped: boolean }
+interface FeedPager { reset(scope: Props): Promise<void>; older(): Promise<void> | undefined; refresh(): Promise<void> | undefined; dispose(): void }
 interface Client {
   publicQueryInput(query: unknown): PublicQuery;
   readPublicPage(page: unknown, runId: string): PublicPage;
   createPublicPager(options: { sessionId: string; runId: string; loadPublic: (sessionId: string, runId: string, query: PublicQuery, signal: AbortSignal) => Promise<unknown>; onChange: (state: PageState) => void }): Pager;
-  PublicRecord(props: Props): Element;
   PublicSection(props: Props): Element;
+  ChannelSection(props: Props): Element;
+  DmSection(props: Props): Element;
+  nextConversation(ids: string[], current: string, key: string): string | null;
+  createChannelFeed(options: { sessionId: string; runId: string; loadPublic: (sessionId: string, runId: string, query: PublicQuery, signal: AbortSignal) => Promise<unknown>; onChange: (state: FeedState) => void }): FeedPager;
+  channelTimeline(progress: Props, streams?: FeedState['streams'], options?: { showEvents?: boolean }): { key: string; seq: number; kind: string; side: string }[];
   dictionaries: { en: Record<string, string>; zh: Record<string, string> };
 }
 function load() {
@@ -48,7 +55,7 @@ function hookHarness() {
   };
   const client = loadClient<{ progressClient: Client }>(react).progressClient;
   const t = (key: string, vars: Props = {}) => (client.dictionaries.en[key] ?? key).replace(/\{(\w+)\}/gu, (_, name: string) => String(vars[name]));
-  return { client, render(props: Props) { cursor = 0; const tree = client.PublicSection({ t, ...props }); const queued = pending; pending = []; queued.forEach((effect) => effect()); return tree; },
+  return { client, render(props: Props, component: (props: Props) => Element = client.PublicSection) { cursor = 0; const tree = component({ t, ...props }); const queued = pending; pending = []; queued.forEach((effect) => effect()); return tree; },
     idle() { return loading.size ? new Promise<void>((resolve) => idleWaiters.push(resolve)) : Promise.resolve(); },
     dispose() { for (const effect of effects.values()) effect.cleanup?.(); effects.clear(); } };
 }
@@ -130,90 +137,156 @@ describe('public client validation and bounded pagination', () => {
   });
 });
 
-describe('live public pane lifecycle', () => {
-  it('preserves a deep page on metadata updates, advertises refresh and replaces only on explicit action', async () => {
+const channel = { id: 'r:general', name: 'general', purpose: 'Run-wide', createdByWorkerId: null, status: 'active', revision: 1, createdAt: 1, updatedAt: 1 };
+const thread = (id: string, title: string) => ({ id, channelId: 'r:general', title, createdByWorkerId: 'a', participantWorkerIds: ['a'], taskIds: [], status: 'open', conclusionMessageId: null, findingIds: [], revision: 1, seq: 1, updatedSeq: 1, createdAt: 1, updatedAt: 1 });
+const request = { id: 'q', seq: 4, channelId: 'r:general', threadId: 't', messageId: 'm', taskIds: [], requestedByWorkerId: 'a', targetWorkerId: 'b', status: 'pending', responseMessageId: null, revision: 1, createdAt: 4, updatedAt: 4 };
+const agreement = { id: 'ag', seq: 6, channelId: 'r:general', threadId: 't', title: 'Interface', createdByWorkerId: 'a', version: 2, versionCount: 2, content: 'Contract v2', sourceMessageIds: ['m'], taskIds: [], stakeholderWorkerIds: ['a', 'b'], createdAt: 6, confirmations: [{ workerId: 'a', version: 2, confirmedAt: 7 }] };
+const imProgress = { ...progress, phase: 'running', publicActivity: { protocolVersion: 1, latestSeq: 10 },
+  workers: progress.workers.map((worker) => ({ ...worker, initializationState: 'ready' })),
+  interactions: [
+    { seq: 1, kind: 'message', status: 'sent', actorWorkerId: 'a', peerWorkerId: 'b', objectId: '', taskId: null, createdAt: 1 },
+    { seq: 3, kind: 'finding', status: 'fact', actorWorkerId: 'a', peerWorkerId: null, objectId: '', taskId: null, createdAt: 3 },
+    { seq: 5, kind: 'head', status: 'accepted', actorWorkerId: null, peerWorkerId: 'b', objectId: 'abcdef1234', taskId: null, createdAt: 5 },
+  ] };
+function publicHost(pages: Partial<Record<string, (query: PublicQuery) => PublicPage>> = {}) {
+  return vi.fn(async (_session: string, runId: string, query: PublicQuery) => {
+    const custom = pages[query.view];
+    if (custom) return { ...custom(query), runId };
+    switch (query.view) {
+      case 'channels': return page([{ kind: 'channel', channel } as PublicItem]);
+      case 'threads': return page([{ kind: 'thread', thread: thread('t', 'API shape') } as PublicItem]);
+      case 'messages': return page([{ kind: 'message', message: message({ id: 'parent', seq: 2, body: 'Original idea', replyToMessageId: null }) }, { kind: 'message', message: message({ seq: 7, authorWorkerId: 'b', body: 'Agreed, ship it' }) }]);
+      case 'requests': return page([{ kind: 'request', request } as PublicItem]);
+      case 'agreements': return page([{ kind: 'agreement', agreement } as PublicItem]);
+      default: return page([]);
+    }
+  });
+}
+
+describe('IM conversation sidebar', () => {
+  it('renders a vertical tablist with one entry per channel plus Direct messages and roving keyboard focus', async () => {
     const ui = hookHarness();
-    let snapshotSeq = 10;
-    const loadPublic = vi.fn(async (_session: string, runId: string, query: PublicQuery) => query.view === 'threads'
-      ? page([{ kind: 'thread', thread: { id: query.cursor ? 'second' : 'first', channelId: 'r:general', title: 'Thread', createdByWorkerId: 'a', participantWorkerIds: ['a'], taskIds: [], status: 'open', conclusionMessageId: null, findingIds: [], revision: 1, seq: 1, updatedSeq: 1, createdAt: 1, updatedAt: 1 } }],
-        { runId, snapshotSeq, total: 2, hasMore: !query.cursor, truncated: !query.cursor, nextCursor: query.cursor ? null : 'page2' })
-      : page([], { runId, snapshotSeq }));
-    const props = { progress: { ...progress, publicActivity: { protocolVersion: 1, latestSeq: 10 } }, sessionId: 'owner', loadPublic };
-    const mainReader = (tree: Element) => elements(tree).filter((node) => typeof node.type === 'function' && node.type.name === 'PublicPagination').at(-1)!.props.reader as { state: PageState; pager: { current: Pager | null } };
+    const loadPublic = publicHost();
+    const props = { progress: imProgress, sessionId: 'owner', loadPublic };
     try {
-      ui.render(props);
-      await ui.idle();
+      ui.render(props); await ui.idle();
       let tree = ui.render(props);
-      expect(mainReader(tree).state.error).toBeNull();
-      expect(mainReader(tree).state.page).toMatchObject({ hasMore: true, nextCursor: 'page2' });
-      await mainReader(tree).pager.current!.next();
+      const list = elements(tree).find((node) => node.props.role === 'tablist')!;
+      expect(list.props['aria-orientation']).toBe('vertical');
+      let tabs = elements(list).filter((node) => node.props.role === 'tab');
+      expect(tabs.map((tab) => tab.props['data-conversation'])).toEqual(['c:r:general', 'dm']);
+      expect(text(tabs[0]!)).toContain('# general'); expect(text(tabs[1]!)).toContain('Direct messages');
+      expect(tabs.map((tab) => [tab.props['aria-selected'], tab.props.tabIndex])).toEqual([[true, 0], [false, -1]]);
+      const panel = elements(tree).find((node) => node.props.role === 'tabpanel')!;
+      expect(panel.props['aria-labelledby']).toBe(tabs[0]!.props.id);
+      const focus = vi.fn(); const preventDefault = vi.fn();
+      (tabs[0]!.props.onKeyDown as (event: Props) => void)({ key: 'ArrowDown', preventDefault, currentTarget: { parentElement: { querySelector: () => ({ focus }) } } });
+      expect(preventDefault).toHaveBeenCalled(); expect(focus).toHaveBeenCalled();
       tree = ui.render(props);
-      expect(mainReader(tree).state.history).toEqual([null]);
-      expect(mainReader(tree).state.page?.items[0]).toMatchObject({ thread: { id: 'second' } });
-      const callsBeforeMetadata = loadPublic.mock.calls.length;
-      const updated = { ...props, progress: { ...props.progress, publicActivity: { protocolVersion: 1, latestSeq: 11 } } };
-      tree = ui.render(updated);
-      expect(loadPublic).toHaveBeenCalledTimes(callsBeforeMetadata);
-      expect(mainReader(tree).state.history).toEqual([null]);
-      expect(text(tree)).toContain('New public activity is available');
-      snapshotSeq = 11;
-      const refresh = elements(tree).find((node) => node.type === 'button' && text(node) === 'Refresh this scope')!;
-      (refresh.props.onClick as () => void)();
-      await ui.idle();
-      tree = ui.render(updated);
-      expect(mainReader(tree).state.history).toEqual([]);
-      expect(mainReader(tree).state.page?.items[0]).toMatchObject({ thread: { id: 'first' } });
-      expect(text(tree)).not.toContain('New public activity is available');
-      const previous = mainReader(tree);
-      const switched = ui.render({ ...updated, sessionId: 'other-owner', progress: { ...updated.progress, runId: 'other-run' } });
-      expect(mainReader(switched).state.page).toBeNull();
-      expect(loadPublic.mock.calls.at(-1)?.slice(0, 2)).toEqual(['other-owner', 'other-run']);
-      ui.dispose();
-      expect(previous.pager.current).toBeNull();
+      tabs = elements(tree).filter((node) => node.props.role === 'tab');
+      expect(tabs.map((tab) => tab.props['aria-selected'])).toEqual([false, true]);
+      expect(elements(tree).some((node) => node.type === ui.client.DmSection)).toBe(true);
+      expect(ui.client.nextConversation(['a', 'b', 'c'], 'a', 'ArrowUp')).toBe('c');
+      expect(ui.client.nextConversation(['a', 'b', 'c'], 'b', 'End')).toBe('c');
+      expect(ui.client.nextConversation(['a', 'b', 'c'], 'b', 'Tab')).toBeNull();
+    } finally { ui.dispose(); }
+  });
+
+  it('keeps the legacy channel and Direct messages entries when the Host lacks the public protocol', () => {
+    const { client, t } = load();
+    const tree = client.PublicSection({ t, progress, sessionId: 'owner', loadPublic: vi.fn() });
+    expect(text(tree)).toContain('This Host does not provide the public channel protocol');
+    expect(elements(tree).filter((node) => node.props.role === 'tab').map(text).join('|')).toContain('Direct messages');
+  });
+});
+
+describe('channel group chat', () => {
+  it('merges public messages, requests, agreements and collaboration events in seq order with Host on the right', async () => {
+    const ui = hookHarness();
+    const loadPublic = publicHost();
+    const props = { progress: imProgress, sessionId: 'owner', loadPublic, available: true, channel, conversation: { available: false, bodies: new Map(), state: { items: [] } } };
+    try {
+      ui.render(props, ui.client.ChannelSection); await ui.idle();
+      const tree = ui.render(props, ui.client.ChannelSection);
+      const rows = elements(tree).filter((node) => node.props.className === 'dshSwarm_chatRow');
+      expect(rows.map((row) => row.props['data-kind'])).toEqual(['message', 'event', 'request', 'event', 'agreement', 'message']);
+      expect(rows.map((row) => row.props['data-side'])).toEqual(['left', 'left', 'left', 'right', 'left', 'left']);
+      expect(text(rows[0]!)).toContain('Quiet Otter'); expect(text(rows[3]!)).toContain('Host');
+      expect(rows.every((row) => elements(row).some((node) => node.type === 'time'))).toBe(true);
+      expect(text(rows[2]!)).toContain('Quiet Otter asks Bright Finch to respond');
+      expect(text(rows[4]!)).toContain('Agreement v2 · Interface'); expect(text(rows[4]!)).toContain('Awaiting confirmation: Bright Finch');
+      const reply = elements(rows[5]!).find((node) => node.type === 'blockquote')!;
+      expect(text(reply)).toContain('Original idea');
+      expect(text(rows[5]!)).toContain('# API shape');
+      expect(elements(tree).every((node) => node.props.dangerouslySetInnerHTML === undefined && node.props.type !== 'submit')).toBe(true);
+      // Every query is a read view, newest first, bounded.
+      for (const [, , query] of loadPublic.mock.calls) {
+        expect(['messages', 'requests', 'agreements', 'threads']).toContain(query.view);
+        expect(query).toMatchObject({ channelId: 'r:general', order: 'desc', limit: 20 });
+      }
+      // Clicking a thread label filters the conversation to that thread.
+      const chip = elements(rows[5]!).find((node) => node.props.className === 'dshSwarm_threadChip')!;
+      (chip.props.onClick as () => void)();
+      ui.render(props, ui.client.ChannelSection); await ui.idle();
+      const filtered = loadPublic.mock.calls.filter(([, , query]) => query.threadId === 't').map(([, , query]) => query.view).sort();
+      expect(filtered).toEqual(['agreements', 'messages', 'requests']);
+      const after = ui.render(props, ui.client.ChannelSection);
+      expect(elements(after).filter((node) => node.props['data-kind'] === 'event')).toHaveLength(0);
+    } finally { ui.dispose(); }
+  });
+
+  it('loads older pages gap-free, one stream at a time, and stays bounded', async () => {
+    const { client } = load();
+    const states: FeedState[] = [];
+    const messagesPage = (query: PublicQuery) => query.cursor
+      ? page([{ kind: 'message', message: message({ id: 'old', seq: 3 }) }])
+      : page([{ kind: 'message', message: message({ id: 'new', seq: 9 }) }], { total: 2, hasMore: true, truncated: true, nextCursor: 'm2' });
+    const loadPublic = publicHost({ messages: messagesPage, requests: () => page([{ kind: 'request', request } as PublicItem]), agreements: () => page([]) });
+    const feed = client.createChannelFeed({ sessionId: 'owner', runId: 'r', loadPublic, onChange: (state) => states.push(state) });
+    await feed.reset({ channelId: 'r:general' });
+    let state = states.at(-1)!;
+    // The request at seq 4 is older than the loaded message window (seq 9) and stays hidden until it catches up.
+    expect(client.channelTimeline({ ...imProgress, interactions: [] }, state.streams).map((entry) => entry.key)).toEqual(['mnew']);
+    const calls = loadPublic.mock.calls.length;
+    await feed.older();
+    expect(loadPublic.mock.calls.slice(calls).map(([, , query]) => [query.view, query.cursor])).toEqual([['messages', 'm2']]);
+    state = states.at(-1)!;
+    expect(client.channelTimeline({ ...imProgress, interactions: [] }, state.streams).map((entry) => entry.key)).toEqual(['mold', 'rq', 'mnew']);
+    expect(feed.older()).toBeUndefined();
+    feed.dispose();
+  });
+});
+
+describe('direct message picker', () => {
+  const dm = (seq: number, from: string, to: string, body: string) => ({ kind: 'message', id: 'd' + seq, seq, authorWorkerId: from, targetWorkerId: to, body, truncated: false, createdAt: seq });
+  it('opens the matrix, closes it on a cell choice to show the pair chat, and reopens to switch pairs', () => {
+    const ui = hookHarness();
+    const items = [dm(1, 'a', 'b', 'Hi'), dm(4, 'b', 'a', 'Hello back')];
+    const props = { progress: imProgress, conversation: { available: true, bodies: new Map(), state: { items, next: null, loading: false, error: null }, load: vi.fn() } };
+    try {
+      let tree = ui.render(props, ui.client.DmSection);
+      expect(elements(tree).some((node) => node.props.role === 'dialog')).toBe(true);
+      const cells = elements(tree).filter((node) => node.props.className === 'dshSwarm_dmCell');
+      expect(cells.map((cell) => cell.children.join(''))).toEqual(['—', '1', '0', '—']);
+      (cells[1]!.props.onClick as () => void)();
+      tree = ui.render(props, ui.client.DmSection);
+      expect(elements(tree).some((node) => node.props.role === 'dialog')).toBe(false);
+      const rows = elements(tree).filter((node) => node.props.className === 'dshSwarm_chatRow');
+      expect(rows.map((row) => [row.props['data-side'], text(row).includes('Hello back')])).toEqual([['left', false], ['right', true]]);
+      const reopen = elements(tree).find((node) => node.type === 'button' && text(node) === 'Switch pair')!;
+      (reopen.props.onClick as () => void)();
+      tree = ui.render(props, ui.client.DmSection);
+      expect(elements(tree).some((node) => node.props.role === 'dialog')).toBe(true);
     } finally { ui.dispose(); }
   });
 });
 
-describe('public record rendering and compatibility', () => {
-  it('renders reply context, mentions, tasks/findings/proposals and revision/source navigation as plain text', () => {
-    const { client, t } = load(); const navigate = vi.fn();
-    const tree = client.PublicRecord({ t, progress, navigate, item: { kind: 'message', message: message({ body: '<script>untrusted text</script>' }) } });
-    const content = text(tree);
-    expect(content).toContain('Quiet Otter'); expect(content).toContain('@Bright Finch');
-    expect(content).toContain('Reply source'); expect(content).toContain('Revision history');
-    expect(content).toContain('Tasks'); expect(content).toContain('Findings'); expect(content).toContain('Proposals');
-    expect(content).toContain('<script>untrusted text</script>');
-    expect(elements(tree).every((node) => node.props.dangerouslySetInnerHTML === undefined)).toBe(true);
-    const history = elements(tree).find((node) => node.type === 'button' && text(node) === 'Revision history')!;
-    (history.props.onClick as () => void)(); expect(navigate).toHaveBeenCalledWith({ view: 'message_revisions', messageId: 'm' });
-    const reply = elements(tree).find((node) => node.type === 'button' && text(node).includes('Reply source'))!;
-    (reply.props.onClick as () => void)(); expect(navigate).toHaveBeenCalledWith({ view: 'messages', messageId: 'parent' });
-  });
-
-  it('separates exact-version consent, pending responders, and delivered/acknowledged notification labels', () => {
-    const { client, t } = load(); const navigate = vi.fn();
-    const agreement = { kind: 'agreement', agreement: { id: 'agreement', version: 2, versionCount: 2, title: 'Interface', content: 'Current contract', sourceMessageIds: ['m'], taskIds: [], stakeholderWorkerIds: ['a', 'b'], confirmations: [{ workerId: 'a', version: 1, confirmedAt: 1 }, { workerId: 'b', version: 2, confirmedAt: 2 }] } };
-    const contract = text(client.PublicRecord({ t, progress, navigate, item: agreement }));
-    expect(contract).toContain('Version 2'); expect(contract).toContain('Explicitly confirmed this version :  Bright Finch');
-    expect(contract).toContain('Not confirmed for this version :  Quiet Otter');
-    const request = text(client.PublicRecord({ t, progress, navigate, item: { kind: 'request', request: { id: 'request', status: 'pending', requestedByWorkerId: 'a', targetWorkerId: 'b', messageId: 'm', responseMessageId: null, taskIds: [] } } }));
-    expect(request).toContain('Awaiting response'); expect(request).toContain('Response requested from :  Bright Finch');
-    const notice = text(client.PublicRecord({ t, progress, navigate, item: { kind: 'notification', notification: { workerId: 'b', reasons: ['response_request'], deliveredAt: 1, acknowledgedAt: null, messageId: 'm', threadId: null, agreementId: null } } }));
-    expect(notice).toContain('Explicit response request'); expect(notice).toContain('Inbox accepted notification'); expect(notice).toContain('No notification display receipt yet');
-    const shown = text(client.PublicRecord({ t, progress, navigate, item: { kind: 'notification', notification: { workerId: 'b', reasons: ['mention'], deliveredAt: null, acknowledgedAt: 2, messageId: 'm', threadId: null, agreementId: null } } }));
-    expect(shown).toContain('No inbox delivery recorded');
-    expect(shown).toContain('Technical receipt recorded (not response/consent)');
-    expect(shown).not.toContain('Explicitly confirmed this version');
-  });
-
-  it('keeps legacy Host capability messaging and complete bilingual public labels without implicit owner submission', () => {
-    const { client, t } = load();
-    const tree = client.PublicSection({ t, progress, sessionId: 'owner', loadPublic: vi.fn() });
-    expect(text(tree)).toContain('This Host does not provide the public channel protocol');
-    expect(text(tree)).toContain('does not add owner requirements');
-    const en = Object.keys(client.dictionaries.en).filter((key) => key.startsWith('public.'));
-    expect(en.length).toBeGreaterThan(40);
-    expect(en.every((key) => Boolean(client.dictionaries.zh[key]))).toBe(true);
-    expect(elements(tree).some((node) => node.props.type === 'submit')).toBe(false);
+describe('public locale', () => {
+  it('keeps public.* and dm.* keys in sync between zh and en', () => {
+    const { client } = load();
+    for (const prefix of ['public.', 'dm.', 'chat.']) {
+      const keys = (lang: 'en' | 'zh') => Object.keys(client.dictionaries[lang]).filter((key) => key.startsWith(prefix)).sort();
+      expect(keys('zh')).toEqual(keys('en'));
+    }
   });
 });
