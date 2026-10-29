@@ -6,6 +6,8 @@
  */
 
 import { z } from 'zod';
+import { publicEventSchema, publicStateShape } from './public-schema.ts';
+import { defaultPublicState } from './public-types.ts';
 import { SwarmError, type SwarmErrorCode } from './errors.ts';
 import type { CommandSpec, Run, SwarmRuntimeConfig, VerificationConfig } from './types.ts';
 
@@ -319,6 +321,7 @@ const goalEventSchema = z.strictObject({
 });
 
 export const swarmEventSchema = z.discriminatedUnion('kind', [
+  publicEventSchema,
   goalEventSchema,
   taskEventSchema,
   findingEventSchema,
@@ -340,6 +343,7 @@ export const mutationReceiptSchema = z.strictObject({
 /* --------------------------- run 聚合 --------------------------- */
 
 const runShape = z.strictObject({
+  ...publicStateShape,
   id: idSchema,
   ownerSessionId: z.string().min(1),
   repositoryRoot: z.string().min(1),
@@ -403,6 +407,8 @@ export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
     }
   };
 
+  for (const field of ['channels', 'threads', 'publicMessages', 'notifications', 'subscriptions',
+    'channelReads', 'responseRequests', 'agreements'] as const) checkKeys(field, Object.entries(run[field]));
   checkKeys('goals', Object.entries(run.goals));
   checkKeys('workers', Object.entries(run.workers));
   checkKeys('tasks', Object.entries(run.tasks));
@@ -441,6 +447,9 @@ export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
       path: ['nextSeq'],
     });
   }
+}).transform((run) => {
+  if (Object.keys(run.channels).length === 0) run.channels = defaultPublicState(run.id, run.createdAt).channels;
+  return run;
 });
 
 /**
