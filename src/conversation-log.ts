@@ -36,6 +36,8 @@ export type ConversationItem =
     readonly scope: readonly string[];
     readonly evidenceRefs: readonly string[];
     readonly supersedesId: string | null;
+    /** Owner-only expansion of the Finding's optional details; absent when none were published. */
+    readonly details?: string;
     readonly createdAt: number;
   };
 
@@ -97,7 +99,9 @@ export class ConversationLog {
       const body = clip(finding.summary, CONVERSATION_LIMITS.bodyChars);
       all.push({ kind: 'finding', id: finding.id, seq: finding.seq, authorWorkerId: finding.authorWorkerId, findingKind: finding.kind,
         taskId: finding.taskId, body: body.text, truncated: body.truncated, scope: refs(finding.scope),
-        evidenceRefs: refs(finding.evidenceRefs), supersedesId: finding.supersedesId, createdAt: finding.createdAt });
+        evidenceRefs: refs(finding.evidenceRefs), supersedesId: finding.supersedesId,
+        ...(finding.details === undefined ? {} : { details: clip(finding.details, CONVERSATION_LIMITS.bodyChars).text }),
+        createdAt: finding.createdAt });
     }
     all.sort((a, b) => b.seq - a.seq);
     const items = all.slice(0, CONVERSATION_PAGE_SIZE);

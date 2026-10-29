@@ -7,10 +7,17 @@ import { isSwarmError } from './errors.ts';
 import { isEventVisible, notificationReference, pendingNotifications, shownEventSeq } from './events.ts';
 import { receiptContext } from './notification-receipts.ts';
 import type { Run, SwarmEvent } from './types.ts';
+import { isLiveFinding } from './claims.ts';
 
 export interface WorkerContextConfig {
   peerNoticeItems: number;
   peerNoticeChars: number;
+}
+
+/** Claim live-view rules for notices; omitted means every claim is live (pure-projection tests). */
+export interface NoticeClaimView {
+  now: number;
+  ttlMs: number;
 }
 
 function short(text: string, chars: number): string {
@@ -28,8 +35,11 @@ function notice(run: Run, event: SwarmEvent, chars: number): object | null {
     }
     case 'finding': {
       const finding = run.findings[event.findingId];
+      // `details` is never pushed; `hasDetails` tells the reader to expand it via swarm_read by id.
       return finding ? { ...base, id: finding.id, type: finding.kind, taskId: finding.taskId,
-        summary: short(finding.summary, chars), evidence: finding.evidenceRefs.slice(0, 2).map((ref) => short(ref, chars)) } : null;
+        summary: short(finding.summary, chars), evidence: finding.evidenceRefs.slice(0, 2).map((ref) => short(ref, chars)),
+        ...(finding.kind === 'claim' ? { scope: finding.scope.slice(0, 3).map((path) => short(path, chars)) } : {}),
+        ...(finding.details !== undefined ? { hasDetails: true } : {}) } : null;
     }
     case 'task': {
       const task = run.tasks[event.taskId];
@@ -56,7 +66,7 @@ function notice(run: Run, event: SwarmEvent, chars: number): object | null {
 }
 
 /** Bounded passive projection. Its scanned cursor is memory-only, never an offered/read cursor. */
-export function collectWorkerNotices(run: Run, workerId: string, after: number, config: WorkerContextConfig) {
+export function collectWorkerNotices(run: Run, workerId: string, after: number, config: WorkerContextConfig, claims?: NoticeClaimView) {
   const updates: object[] = [];
   const groups = new Map<string, { kind: 'public'; channelId: string; threadId: string | null;
     title: string; latestEventSeq: number; activityCount: number }>();
@@ -64,7 +74,10 @@ export function collectWorkerNotices(run: Run, workerId: string, after: number, 
   let hasMore = false;
   for (const event of run.events) {
     if (event.seq <= after) continue;
-    if (event.authorWorkerId === workerId || !isEventVisible(event, workerId) || event.kind === 'run') {
+    const staleClaim = claims !== undefined && event.kind === 'finding' && event.findingKind === 'claim'
+      && run.findings[event.findingId] !== undefined
+      && !isLiveFinding(run, run.findings[event.findingId]!, claims.now, claims.ttlMs);
+    if (event.authorWorkerId === workerId || !isEventVisible(event, workerId) || event.kind === 'run' || staleClaim) {
       scanned = event.seq;
       continue;
     }
@@ -119,7 +132,8 @@ export function registerWorkerContext(ctx: Context, collaboration: Collaboration
     // Sync has its own exact tool-result receipt; never confirm its prepared result here.
     if (exec.name === 'swarm_sync') return decision;
     const after = shownEventSeq(worker);
-    const page = collectWorkerNotices(run, worker.id, after, config);
+    const page = collectWorkerNotices(run, worker.id, after, config,
+      { now: collaboration.currentTime(), ttlMs: collaboration.claimLiveTtlMs });
     if ((!page.updates.length && !page.attention.length) || exec.signal.aborted) return decision;
     const receipt = { runId: run.id, ranges: [{ from: after, through: page.scanned }],
       notifications: pendingNotifications(run, worker.id).slice(0, config.peerNoticeItems).map(({ id, seq }) => ({ id, seq })), messages: [] };
