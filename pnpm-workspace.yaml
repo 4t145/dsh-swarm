@@ -1,0 +1,6 @@
+# Harness packages are deliberately linked from the installed host after install.
+# pnpm 11 must not silently reinstall (and replace Cordis) before each script.
+verifyDepsBeforeRun: false
+# Only esbuild's platform-binary setup is approved; other dependency scripts are not.
+allowBuilds:
+  esbuild: true

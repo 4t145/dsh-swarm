@@ -1,4 +1,5 @@
 /** Host-independent effect ports shared by the Swarm control modules. */
+import type { NotificationRecord } from './public-types.ts';
 import type { CommandSpec, CommitSha, IntegrationAttempt, ProposalRecord, Run, RunSpec, VerificationConfig, WorkerRecord } from './types.ts';
 
 /** Actual outcome of one permission-checked, managed command. */
@@ -66,7 +67,9 @@ export interface WorkerStartRequest {
 /** Minimal native lifecycle adapter; no model loop is implemented here. */
 export interface WorkerHost {
   start(request: WorkerStartRequest): Promise<void>;
-  notify(run: Run, worker: WorkerRecord, throughSeq: number, signal: AbortSignal): Promise<void>;
+  /** Optional public notification references are a bounded delivered batch, never a read ACK. */
+  notify(run: Run, worker: WorkerRecord, throughSeq: number, signal: AbortSignal,
+    notifications?: readonly NotificationRecord[]): Promise<void>;
   stop(run: Run): Promise<void>;
   isOwnerLive(ownerSessionId: string): boolean;
   isWorkerBusy(sessionId: string): boolean;

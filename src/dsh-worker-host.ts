@@ -22,7 +22,9 @@ import type { SubagentActivation, SubagentRunEndInfo } from '@deepseek-ai/dsh-su
 import type { CreatedWorktree, CreateWorktreeRequest } from '@deepseek-ai/dsh-experimental-worktree';
 
 import { SwarmError, normalizeError } from './errors.ts';
+import { notificationReference } from './events.ts';
 import type { WorkerHost, WorkerStartRequest } from './ports.ts';
+import type { NotificationRecord } from './public-types.ts';
 import { KeyedSerialQueue } from './serial.ts';
 import type { StateStore } from './store.ts';
 import type { Run, RunId, WorkerId, WorkerRecord } from './types.ts';
@@ -263,7 +265,8 @@ export class DshWorkerHost implements WorkerHost {
    *
    * @throws SwarmError owner 离线或消息未被 inbox 接受。
    */
-  async notify(run: Run, worker: WorkerRecord, throughSeq: number, signal: AbortSignal): Promise<void> {
+  async notify(run: Run, worker: WorkerRecord, throughSeq: number, signal: AbortSignal,
+    notifications: readonly NotificationRecord[] = []): Promise<void> {
     this.assertActive('notify');
     const owner = this.requireOwner(run.ownerSessionId);
     const content: ContentBlock[] = [
@@ -274,6 +277,11 @@ export class DshWorkerHost implements WorkerHost {
         + 'If all original criteria have evidence, propose swarm_finish. If truly blocked on peers, '
         + 'use swarm_wait with a cursor returned by swarm_sync; do not just end with a completion report.' },
     ];
+    const attention = notifications.filter((item) => item.workerId === worker.id).slice(0, 20);
+    if (attention.length) content.push({ type: 'text', text: '[Swarm public attention]\n'
+      + JSON.stringify(attention.map(notificationReference))
+      + '\nRead priority attention and pending response requests, then fetch source messages as needed. '
+      + 'These references are not full-message reads, response/consent confirmations, or global ACK cursors.' });
     try {
       await this.requireService('subagents').sendMessage(owner, SessionId(worker.sessionId), content, { signal });
     } catch (error) {

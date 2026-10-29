@@ -416,6 +416,8 @@ function interactions(detail: ProgressRunDetail | undefined): ProgressInteractio
         result.push({ ...base, kind: 'head', status: 'accepted', peerWorkerId: author, objectId: event.acceptedHead, taskId: null });
         break;
       }
+      case 'public':
+        break; // Public discussion bodies are queried on demand, not copied into progress.
       case 'run':
       case 'goal':
         break; // Control and goal changes are shown by the dashboard and goal board.
