@@ -79,6 +79,17 @@ describe('claim findings', () => {
     expect(byId.items[0]?.finding?.id).toBe(claim.id);
     const search = await h.collaboration.read('s2', { query: 'src/foo.ts' });
     expect(search.items.some((item) => item.finding?.id === claim.id)).toBe(true);
+    const byKind = await h.collaboration.read('s2', { query: `kind:claim task:${h.task.id} author:w1` });
+    expect(byKind.items.map((item) => item.finding?.id)).toEqual([claim.id]);
+  });
+
+  it('full-history search matches text that only appears in details', async () => {
+    const h = await harness();
+    const finding = await h.collaboration.publish('s1',
+      { kind: 'fact', summary: 'short gist', details: 'root cause is the zebra-cache eviction' }, h.callId());
+    const page = await h.collaboration.read('s2', { query: '"zebra-cache eviction" kind:fact' });
+    expect(page.items.map((item) => item.finding?.id)).toEqual([finding.id]);
+    expect(page).toMatchObject({ total: 1, truncated: false });
   });
 
   it('a newer claim by the same author on the same task replaces the older one in live views', async () => {
