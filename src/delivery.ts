@@ -12,6 +12,8 @@
  */
 
 import { isSwarmError, SwarmError } from './errors.ts';
+import { pendingNotifications } from './events.ts';
+import type { NotificationRecord } from './public-types.ts';
 import type { WorkerHost } from './ports.ts';
 import { SerialQueue } from './serial.ts';
 import type { StateStore } from './store.ts';
@@ -51,6 +53,8 @@ interface WorkerState {
   generation: number;
   /** 最近一次被接受的通知发生在哪一代。 */
   notifiedGeneration: number;
+  /** Notification id/version pairs delivered in this activation; never a read/response ACK. */
+  publicNotified: Map<string, number>;
   /** 最近一次被接受的通知上界（仅诊断用，权威值是 notifiedSeq）。 */
   lastNotifiedSeq: EventSeq | null;
   /** 上一次 settled 时的业务进度标记，用于检测连续空转。 */
@@ -65,6 +69,11 @@ interface WorkerState {
 }
 
 type WorkerStatus = 'running' | 'inactive' | 'unavailable';
+const NOTIFICATION_BATCH_SIZE = 20;
+interface DeliveryTarget {
+  throughSeq: EventSeq;
+  notifications: NotificationRecord[];
+}
 
 /**
  * 把持久 pending 转成 Host 投递动作。
@@ -140,7 +149,14 @@ export class Delivery {
       const permit = await this.options.admitWorkerOperation(runId, workerId, 'notify');
       try {
         permit.signal.throwIfAborted();
-        await this.host.notify(run, worker, Math.max(worker.observedSeq, run.nextSeq - 1), permit.signal);
+        const through = Math.max(worker.observedSeq, run.nextSeq - 1);
+        const notifications = pendingNotifications(run, worker.id).slice(0, NOTIFICATION_BATCH_SIZE);
+        await this.host.notify(run, worker, through, permit.signal, notifications);
+        state.notifiedGeneration = state.generation;
+        state.lastNotifiedSeq = through;
+        state.publicNotified.clear();
+        for (const item of notifications) state.publicNotified.set(item.id, item.seq);
+        await this.recordNotified(runId, workerId, through, notifications);
         state.waitGateClosed = true;
         state.settledMarker = null;
         state.settledWithoutProgress = 0;
@@ -211,7 +227,8 @@ export class Delivery {
     }
     for (const worker of Object.values(run.workers)) {
       this.sessionIndex.set(worker.sessionId, { runId: run.id, workerId: worker.id });
-      if (worker.wakeTargetSeq > worker.observedSeq || latestUnreadMessageSeq(run, worker) !== null) {
+      if (worker.wakeTargetSeq > worker.observedSeq || latestUnreadMessageSeq(run, worker) !== null
+        || pendingNotifications(run, worker.id).length > 0) {
         this.scheduleKick(run.id, worker.id);
       }
     }
@@ -297,7 +314,7 @@ export class Delivery {
         if (permit.signal.aborted) {
           return;
         }
-        await this.host.notify(run, worker, target, permit.signal);
+        await this.host.notify(run, worker, target.throughSeq, permit.signal, target.notifications);
       } finally {
         permit.release();
       }
@@ -312,10 +329,11 @@ export class Delivery {
     }
 
     state.notifiedGeneration = state.generation;
-    state.lastNotifiedSeq = target;
+    state.lastNotifiedSeq = target.throughSeq;
+    for (const item of target.notifications) state.publicNotified.set(item.id, item.seq);
     state.waitGateClosed = true;
     try {
-      await this.recordNotified(runId, workerId, target);
+      await this.recordNotified(runId, workerId, target.throughSeq, target.notifications);
     } catch (error) {
       // 已通知但没记上界：允许 at-least-once 重投，但必须让上层知道。
       this.report(runId, error);
@@ -336,7 +354,7 @@ export class Delivery {
     worker: WorkerRecord,
     status: WorkerStatus,
     state: WorkerState,
-  ): EventSeq | null {
+  ): DeliveryTarget | null {
     if (status === 'unavailable') {
       return null;
     }
@@ -351,27 +369,20 @@ export class Delivery {
     // 刚刚 settled、但 wait 登记还没被业务代码清掉：整批 pending 都可以发。
     const afterSettle = waiting && !state.waitGateClosed;
 
-    let target: EventSeq | null;
-    if (status === 'running' && !afterSettle) {
-      if (unreadMessage === null) {
-        // 无 wait 的活跃 activation 只能被最新未确认直接消息 steer；finding 留待 sync。
-        return null;
-      }
-      target = unreadMessage;
-    } else {
-      target = pendingWake !== null && unreadMessage !== null
-        ? Math.max(pendingWake, unreadMessage)
-        : (pendingWake ?? unreadMessage);
+    const active = status === 'running' && !afterSettle;
+    const pending = pendingNotifications(run, worker.id);
+    const pendingIds = new Set(pending.map((item) => item.id));
+    for (const id of state.publicNotified.keys()) {
+      if (!pendingIds.has(id)) state.publicNotified.delete(id);
     }
+    const notifications = pending.filter((item) => (!active || item.priority === 'immediate')
+      && state.publicNotified.get(item.id) !== item.seq).slice(0, NOTIFICATION_BATCH_SIZE);
 
-    if (target === null) {
-      return null;
-    }
-    if (target <= worker.notifiedSeq && state.notifiedGeneration === state.generation) {
-      // 本 activation 内已经通知过这个上界：不重复唤醒。
-      return null;
-    }
-    return target;
+    // Ordinary public updates coalesce until an idle/settled boundary; explicit requests steer.
+    let legacy = active ? unreadMessage : maxSeq(pendingWake, unreadMessage);
+    if (legacy !== null && legacy <= worker.notifiedSeq && state.notifiedGeneration === state.generation) legacy = null;
+    const throughSeq = maxSeq(legacy, notifications.length ? Math.max(...notifications.map((item) => item.seq)) : null);
+    return throughSeq === null ? null : { throughSeq, notifications };
   }
 
   /** settled 之后：推进代际、检测连续空转，然后重新尝试投递。 */
@@ -386,6 +397,7 @@ export class Delivery {
     }
     const state = this.workerState(runId, workerId);
     state.generation += 1;
+    state.publicNotified.clear();
     // 该 activation 已结束：允许一次“即便还有 wait 登记也要发”的投递。
     state.waitGateClosed = false;
 
@@ -453,7 +465,8 @@ export class Delivery {
     if (worker === undefined) {
       return false;
     }
-    const marker = `${worker.observedSeq}:${run.nextSeq}`;
+    const attention = pendingNotifications(run, workerId).map((item) => `${item.id}:${item.seq}`).join(',');
+    const marker = `${worker.observedSeq}:${run.nextSeq}:${attention}`;
     if (state.settledMarker !== null && marker === state.settledMarker) {
       state.settledWithoutProgress += 1;
     } else {
@@ -481,18 +494,24 @@ export class Delivery {
   /* ---------------------------------------------------------------- */
 
   /** 记录通知已被 inbox 接受的上界；不改 offered/observed。 */
-  private async recordNotified(runId: RunId, workerId: WorkerId, throughSeq: EventSeq): Promise<void> {
+  private async recordNotified(runId: RunId, workerId: WorkerId, throughSeq: EventSeq,
+    delivered: readonly NotificationRecord[] = []): Promise<void> {
     await this.store.update(runId, (run) => {
       const worker = run.workers[workerId];
-      if (worker === undefined || worker.notifiedSeq >= throughSeq) {
-        return run;
+      if (worker === undefined) return run;
+      let changed = worker.notifiedSeq < throughSeq;
+      const notifications = { ...run.notifications };
+      const now = Date.now();
+      for (const sent of delivered) {
+        const current = notifications[sent.id];
+        // A concurrent coalescing update must not be marked delivered by an older receipt.
+        if (current?.workerId !== workerId || current.seq !== sent.seq || current.deliveredAt !== null) continue;
+        notifications[sent.id] = { ...current, deliveredAt: now };
+        changed = true;
       }
-      return {
-        ...run,
-        revision: run.revision + 1,
-        updatedAt: Math.max(run.updatedAt, Date.now()),
-        workers: { ...run.workers, [workerId]: { ...worker, notifiedSeq: throughSeq } },
-      };
+      if (!changed) return run;
+      return { ...run, notifications, revision: run.revision + 1, updatedAt: Math.max(run.updatedAt, now),
+        workers: { ...run.workers, [workerId]: { ...worker, notifiedSeq: Math.max(worker.notifiedSeq, throughSeq) } } };
     });
   }
 
@@ -524,7 +543,8 @@ export class Delivery {
         requested: false,
         loop: null,
         generation: 0,
-        notifiedGeneration: 0,
+        notifiedGeneration: -1,
+        publicNotified: new Map(),
         lastNotifiedSeq: null,
         settledMarker: null,
         settledWithoutProgress: 0,
@@ -603,6 +623,10 @@ function latestUnreadMessageSeq(run: Run, worker: WorkerRecord): EventSeq | null
     }
   }
   return latest;
+}
+
+function maxSeq(a: EventSeq | null, b: EventSeq | null): EventSeq | null {
+  return a === null ? b : b === null ? a : Math.max(a, b);
 }
 
 function isExpectedRejection(error: unknown): boolean {
