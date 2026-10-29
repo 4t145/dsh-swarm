@@ -329,7 +329,7 @@ const INLINE_SPEC_PROPERTIES: Record<string, JsonSchemaNode> = {
   baseRef: { type: 'string', description: 'Git ref or commit the run starts from.' },
   goal: { type: 'string', description: 'Goal statement shared with every worker.' },
   acceptanceCriteria: { type: 'array', items: { type: 'string' }, description: 'Checkable requirements.' },
-  workers: { type: 'integer', description: 'Worker count, 2–4.' },
+  workers: { type: 'integer', description: 'Initial worker count (minimum 2, default 2). Host validates against the current effective team limit; see status for its value and source.' },
   budgetMinutes: { type: 'integer', description: 'Optional explicit time limit in minutes. Omit or use 0 for no deadline; do not choose a limit unless the user asks.' },
   allowDirtyBaseline: { type: 'boolean', description: 'Allow an uncommitted source worktree.' },
   verification: {
@@ -351,7 +351,7 @@ const MANAGE_PROPERTIES: Record<string, JsonSchemaNode> = {
   },
   count: {
     type: 'integer',
-    description: `For add_workers: members to add (1–${MAX_ADD_WORKERS}, default 1). Stops at the run member limit and reports what was added.`,
+    description: `For add_workers: members to add in this call (1–${MAX_ADD_WORKERS}, default 1); this batch bound is not the team limit. Host enforces the current effective team limit and native capacity; reports actual additions.`,
   },
   goal: { type: 'string', description: 'For append: concrete additional goal; existing goals and acceptance history stay unchanged.' },
   acceptance_criteria: {

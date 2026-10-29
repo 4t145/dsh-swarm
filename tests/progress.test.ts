@@ -97,9 +97,9 @@ function detail(): ProgressRunDetail {
 describe('toProgressSnapshot', () => {
   it('projects readable member names and authoritative addition capability', () => {
     const snapshot = toProgressSnapshot(status({ workers: [worker({ displayName: 'Sunny Otter' })],
-      workerControls: { canAdd: true, maxWorkers: 4 } }), detail(), 4_500);
+      workerControls: { canAdd: true, maxWorkers: 12, source: 'host', diagnostic: null } }), detail(), 4_500);
     expect(snapshot.workers[0]?.displayName).toBe('Sunny Otter');
-    expect(snapshot.workerControls).toEqual({ canAdd: true, maxWorkers: 4 });
+    expect(snapshot.workerControls).toEqual({ canAdd: true, maxWorkers: 12, source: 'host', diagnostic: null });
     const legacy = toProgressSnapshot(status({ workers: [worker()] }), detail(), 4_500);
     expect(legacy.workers[0]?.displayName).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/u);
     expect(legacy.workerControls).toBeNull();
@@ -214,11 +214,18 @@ describe('toProgressSnapshot', () => {
     expect(snapshot).not.toHaveProperty('messages');
   });
 
-  it('caps the worker list even if a broken runtime returns more', () => {
-    const workers = Array.from({ length: PROGRESS_LIMITS.workers + 4 }, (_, index) =>
-      worker({ id: `w${index}` }));
+  it('preserves every admitted member above eight instead of imposing a display cap', () => {
+    const workers = Array.from({ length: 12 }, (_, index) => worker({ id: `w${index}` }));
     const snapshot = toProgressSnapshot(status({ workers }), undefined, 1);
-    expect(snapshot.workers).toHaveLength(PROGRESS_LIMITS.workers);
+    expect(snapshot.workers.map((member) => member.id)).toEqual(workers.map((member) => member.id));
+    for (const workerControls of [
+      { canAdd: false, maxWorkers: 3, source: 'override' as const, diagnostic: null },
+      { canAdd: false, maxWorkers: null, source: null, diagnostic: 'Native config unavailable' },
+    ]) {
+      const changed = toProgressSnapshot(status({ workers, workerControls }), undefined, 2);
+      expect(changed.workers).toHaveLength(12);
+      expect(changed.workerControls).toEqual(workerControls);
+    }
   });
 });
 

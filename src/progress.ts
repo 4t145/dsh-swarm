@@ -59,7 +59,6 @@ export const PROGRESS_LIMITS = Object.freeze({
   diagnosticChars: 200,
   reasonChars: 200,
   refChars: 200,
-  workers: 8,
   goalChars: 16000,
   goalBoard: 40,
   goalCriteria: 32,
@@ -214,7 +213,7 @@ export interface ProgressSnapshot {
   readonly remainingMs: number | null;
   readonly tasks: ProgressTaskCounts;
   readonly workers: readonly ProgressWorker[];
-  readonly workerControls: { readonly canAdd: boolean; readonly maxWorkers: number } | null;
+  readonly workerControls: NonNullable<RunStatus['workerControls']> | null;
   readonly proposals: ProgressProposalCounts;
   readonly verifications: ProgressVerificationCounts;
   readonly finishRequest: RunStatus['finishRequest'];
@@ -520,8 +519,10 @@ export function toProgressSnapshot(
     now,
     remainingMs: status.deadline === null ? null : Math.max(0, status.deadline - now),
     tasks: countTasks(status.tasks),
-    workerControls: status.workerControls ?? null,
-    workers: status.workers.slice(0, PROGRESS_LIMITS.workers).map((worker) => ({
+    workerControls: status.workerControls ? { ...status.workerControls,
+      diagnostic: bounded(status.workerControls.diagnostic, PROGRESS_LIMITS.diagnosticChars) } : null,
+    // The Host owns team admission; never hide admitted members behind a UI cap.
+    workers: status.workers.map((worker) => ({
       id: worker.id,
       displayName: workerDisplayName(worker),
       nativeStatus: worker.nativeStatus,

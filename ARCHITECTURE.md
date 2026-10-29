@@ -1,6 +1,6 @@
 # DSH Swarm v0.1：单机对等 Agent 协作插件实施方案
 
-文档修订：R6 · 2026-10-29（完整公共频道协作协议）
+文档修订：R7 · 2026-10-29（继承宿主的团队人数上限；保留 R6 公共协作协议）
 
 状态：实现协议与历史设计依据。§1–13 保留初版生命周期/Git/私信设计及 R5 owner 追加目标；其中“首版/拟实现”等为历史时态。公共频道、线程、通知、请求与约定以 **§14** 为当前规范，不能用旧“Finding + 私信”替代公共讨论。实际执行的检查与部署边界见 [实现记录](<IMPLEMENTATION.md>)。
 
@@ -65,7 +65,7 @@
 
 ### 1.2 v0.1 固定选择
 
-- 一台机器、一个 DSH Host 进程；默认 2 个 worker，允许配置 2–4 个。owner 可在成员页签或 `/swarm worker add` 动态追加至 4 个；running 立即走原生初始化，paused 仅预约并在显式 resume 后启动。准备/收尾/终态不接受新增成员。每个成员保存随机、可读且轮内不重复的名字，身份、Session ID 和 Git 分支仍使用稳定 ID。
+- 一台机器、一个 DSH Host 进程；默认 2 个 worker，启动最低 2 个，总数上限按 §1.4 继承宿主当前配置或使用显式覆盖，不另设固定人数上限。owner 可在成员页签或 `/swarm worker add` 动态追加至当前有效上限；running 立即走原生初始化，paused 仅预约并在显式 resume 后启动。准备/收尾/终态不接受新增成员。每个成员保存随机、可读且轮内不重复的名字，身份、Session ID 和 Git 分支仍使用稳定 ID。
 - 使用 DSH 原生、本地、可续跑的子会话。首版不支持外部 CLI worker。
 - 每个 worker 一个私有 worktree；另有一个插件专用集成 worktree。
 - 一个 run 只有一个 result 分支；以 gitCommonDir 标识仓库，同一仓库同时只允许一个非终态 run，paused 也占用此名额，必须 stop 后才能启动新的 run。
@@ -82,6 +82,16 @@
 不部署 Gitea、Mattermost、MySQL、Redis；不做多机、跨进程锁、worker 自主扩容、递归子 Agent、向量检索、自动全量聊天总结、自动更新用户主分支、自动删除 worktree。
 
 worktree 不是安全沙箱。worker 仍遵守 DSH 的权限与工具策略。首版是可信本地协作，不宣称能阻止恶意 worker 通过 Bash 改写其他分支或访问已有权限范围内的文件。
+
+### 1.4 团队配置上限与原生容量（R7）
+
+- Swarm Host Config 的 `workerCountMax` 是可选正安全整数覆盖值，没有隐式数值默认。未设置时读取本 Host 实际注入的 `subagents` provider 的当前有效 `maxActiveSubagents`，不是 schema 声明默认值、复制常量或即时剩余槽位。显式值优先；删除字段恢复继承。无效类型、0、负数、小数、NaN/Infinity 必须拒绝，不能静默 clamp/fallback。
+- 真实 DSH rc.4 的读取路径已经核验：Cordis `Context[Context.isolate].subagents` 定位 `ctx.reflect.store` 的 provider，使用公开 `Impl.fiber.config`（已校验配置）与 `maxActiveSubagents.get()`（Volatile 当前值）。使用与原生 worker 启动相同的 Host 注入作用域，owner 身份与原生父子会话容量归属仍由 Host 校验。不得访问 SubagentRuntime 私有 config、读取可能无效的 Loader 原始编辑值、猜测 API 或改写 DSH/用户全局配置。
+- start、continue（新 run）、addWorker 和 status 使用同一解析器，每次操作解析当前值；并发扩容在现有门禁内检查并预约，不能通过多个入口越过人数上限。`swarm_manage add_workers count=1–4` 只是一调用批次大小，不是团队总上限。工具、slash、headless、GUI 最终都由 Host 验证。
+- 原生并发容量/权限与团队配置上限独立。显式覆盖大于宿主容量不自动取 min，也不会绕过原生 admission；容量不足保留原生拒绝诊断，不把预留、部分成功或初始化失败冒充全部运行。
+- status 的 `workerControls` 输出 `{canAdd,maxWorkers,source,diagnostic}`，来源为 `host` / `override`；解析失败为 `maxWorkers=null,source=null,canAdd=false` 并保留明确诊断与成员名册。owner 上下文与 progress/UI 消费该事实，不再读取静态默认。GUI 展示完整已加入成员，降低上限后显示例如 `12 / 3`，不会把分母悄悄改成 12。
+- 上限不写入 Run 历史。旧数据加载不补写旧常量、不删除已有成员；恢复现有 paused run 不因上限降低缩编，后续新增仍受当前上限约束。显式 continue 创建新 run，必须按当前有效配置验证旧轮沿用的人数；超限时拒绝而不是静默减员。终态仍不可复活。
+- 进度流沿用持久化/原生活动事件推送；没有虚构通用 Volatile 变更订阅，也不新增轮询。配置修改后直接 status、下一 Host 事件或手动重新连接取得新快照；即使浏览器尚显示旧帧，实际 add 仍重新解析并拒绝超限。无法解析配置时不假装继承任何数值。
 
 ## 2. 参考项目如何映射到 DSH
 
@@ -205,7 +215,7 @@ finish 调用携带 goal_revision（省略仅代表旧协议的 revision=0），
 
 - goal：完整目标；acceptanceCriteria：可检查的交付要求。
 - repository：本地仓库；baseCommit：明确的本地 commit SHA。
-- workers：2–4；budgetMinutes：可选，默认 0（不限时），正整数仅用于用户明确要求的限时运行。
+- workers：最低 2，总数不得超过启动时解析的有效上限（§1.4）；前台默认选择 2。budgetMinutes：可选，默认 0（不限时），正整数仅用于用户明确要求的限时运行。
 - verificationConfig：用户或项目配置提供的 setup 与 test 命令及超时。
 
 验证命令不是从 worker 消息中随意挑选执行。setup 用于在独立 checkout 安装依赖，test 用于决定候选是否能发布。所有命令沿用 DSH 的权限与 sandbox，不保证任意依赖都自动存在。

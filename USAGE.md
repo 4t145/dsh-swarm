@@ -2,7 +2,7 @@
 
 单机、对等 worker、独立 worktree、验证后集成到一个结果分支。架构见 [ARCHITECTURE.md](<ARCHITECTURE.md>)，开发规则见 [AGENTS.md](<AGENTS.md>)。
 
-> **R6 公共频道是本次结果分支的代码功能，不代表当前 GUI 已部署。** 本轮未安装插件、重启 Host 或启动替代服务器；由 owner 将结果应用到实际插件 checkout 后，按管理器要求加载新版。历史安装和模型验收不能当作这次公共协议的真实运行验收。
+> **R7 可继承/覆盖的团队上限是本次结果分支的代码功能，不代表当前 GUI 已部署。** 保留 R6 公共频道和 Host 自动技术回执。本轮未安装插件、修改用户全局并发配置、重启 Host 或启动替代服务器；由 owner 授权后应用结果并按管理器要求加载新版。历史安装和模型验收不能当作本轮的真实运行验收。
 
 ## 环境与当前安装
 
@@ -50,13 +50,37 @@ owner Agent 的系统提示和 `swarm_manage` 工具描述都直接写明：启�
 运行中途可以随时扩容，不需要停止或重启 run。三种入口：
 
 - 对 owner Agent 说“再加两个人”：Agent 调用 `swarm_manage {action:"add_workers", count:2}`，按顺序逐个预留成员；达到上限或中途失败时，回执列出已经加上的成员和停止原因，不会把部分成功报告成全部成功。
-- 在“成员列表”顶部的团队规模卡片点击“+ 添加成员”；卡片用色块显示已占用与剩余名额。
+- 在“成员列表”顶部的团队规模卡片点击“+ 添加成员”；卡片显示 `已有成员 / 当前团队上限`、上限来源和已加入成员色块，不把空位画成已保证可用的原生并发容量。
 - 直接输入 `/swarm worker add`，需要机器可读回执时用 `/swarm worker add --json`。
 
 - 每位新成员获得持久化、随机且本轮不重复的可读名字；名字显示在成员筛选、任务归属与活动中。稳定 worker ID、Session 和分支身份不变，旧记录仍有兼容显示名。
-- 仅 `running` 或 `paused` 可添加，总数上限仍为 **4**。运行中立即准备独立 worktree 并开始协作；暂停时只预留成员，恢复后启动。新 worktree 以当时已接受的结果版本为基线。
+- 仅 `running` 或 `paused` 可添加，总数由**当前有效团队上限**验证（下节），不再固定为 4。工具 `count` 的 1–4 只是一次调用的批次大小，默认 1；可以多次调用，不能绕过 Host 总数检查。运行中立即准备独立 worktree 并开始协作；暂停时只预留成员，恢复后启动。新 worktree 以当时已接受的结果版本为基线。
 - 连接中断、收尾、终态或达到上限时按钮禁用。提交失败或结果未确认时先检查成员列表，再决定是否重试。初始化失败保留诊断，不伪装为已经运行。
 - 这是 owner 控制入口，不给 worker 递归创建成员或扩大权限的能力；不会停止、替换已有成员。
+
+## 团队上限：继承、覆盖与取消覆盖
+
+配置项位于 **Swarm Host 插件**的 Config，不是启动 spec，也不是 worker preset：`workerCountMax?: number`。不设置时没有 Swarm 数值默认；每次启动、扩容、查询状态都读取实际注入的 DSH `subagents` 当前有效 `maxActiveSubagents`。例如宿主有效值为 8 就继承 8，宿主更新为 12 就继承 12；不是固定抄写宿主 schema 的默认值，更不是剩余可用槽位。
+
+在插件管理器中配置 Swarm Host 时，可参考以下 config 片段（省略的其他既有字段保持原样；这里不自动修改你的 profile）：
+
+```yaml
+# 继承：没有 workerCountMax 字段
+config:
+  eventPageSize: 20
+
+# 覆盖示例：团队上限为 12，不和宿主值偷偷取 min
+config:
+  eventPageSize: 20
+  workerCountMax: 12
+```
+
+**取消覆盖**：删除 `workerCountMax` 字段后保存，恢复读取宿主当前有效值。不要用 `0`、负数、字符串、null、小数、NaN 或 Infinity 表示“继承”；它们是错误配置，明确拒绝。正安全整数 1 是有效上限，但因启动最低仍为 2，会拒绝新 run；不会自动把 1 改成 2。
+
+- `/swarm status` / `swarm_manage status` 返回 `workerControls.maxWorkers`、`source`（`host` 继承或 `override` 显式覆盖）、`canAdd` 与 `diagnostic`；owner 上下文和 GUI 使用同一事实。配置解析不可用时上限为 null、不能新增，保留名册并显示诊断，不假装继承 8。
+- **团队上限 ≠ 宿主并发容量**。设置更大的 Swarm 上限不会修改 DSH 全局设置，也不绕过原生容量/权限；已有其他原生子会话占用容量时，实际创建/唤醒仍可能被拒绝。检查真实诊断与已添加成员，不能把预约或部分成功当作全部已运行。
+- 降低上限不终止或删除已有成员。已有 12 人而新上限为 3 时，GUI 显示 `12 / 3`，保留全部 12 人，拒绝进一步超限扩容。旧 run 冷加载不写入历史默认上限；paused 的 resume 保留已有成员，仍受原生容量/权限验证。continue 是新 run，沿用旧轮人数时按当前上限重新验证，超限会明确拒绝，不静默缩编。
+- 变更按宿主 Loader 的实际生效时序读取。状态查询、实际扩容总是重新解析；进度流仍只由现有 Host 业务/成员活动事件推送，安静 run 可手动重新连接面板取新快照，无额外轮询。不因旧浏览器快照绕过 Host 检查。插件代码更新仍须按管理器要求加载/重启，源码修改不等于当前 GUI 已生效。
 
 ## 随时追加目标
 
@@ -139,7 +163,7 @@ overlay 禁用 `headless-startup`/`headless-runner`、挂载 Agent preset regist
 /swarm status --details
 ```
 
-`--spec` 路径相对 owner 的当前 cwd 解析；JSON 内 `repository` 相对 spec 所在目录解析。`baseRef` 在启动时固定为一次 SHA。workers 为 2–4，setup 可以为空数组，test 必须非空。
+`--spec` 路径相对 owner 的当前 cwd 解析；JSON 内 `repository` 相对 spec 所在目录解析。`baseRef` 在启动时固定为一次 SHA。workers 最低为 2，由 Host 按当前有效团队上限验证；未指定人数的自然语言请求默认选择 2。setup 可以为空数组，test 必须非空。
 
 **工程任务默认不限时**：省略 `budgetMinutes` 或设为 `0`，不会因墙钟时间到期被停止。面板显示运行时长而非倒计时。只有你明确要求限时，才填写正整数分钟数；Agent 不应自行选择 20/30 分钟截止。单条命令的 `timeoutMs` 仍用于避免卡死，和整个 run 的时限是两件事。
 

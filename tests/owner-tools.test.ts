@@ -300,6 +300,10 @@ describe('registerOwnerTools', () => {
     // Agents should find the start path from the tool description alone.
     expect(definition?.description).toContain('action=start');
     expect(definition?.description).toContain('only way to start');
+    const schemaText = JSON.stringify(definition?.parameters);
+    expect(schemaText).not.toContain('2–4');
+    expect(schemaText).toContain('current effective team limit');
+    expect(schemaText).toContain('batch bound is not the team limit');
     // The Host accepts only its documented JSON Schema subset.
     expect(() => {
       if (definition !== undefined) assertObjectJsonSchema(definition.parameters);
@@ -389,6 +393,17 @@ describe('handleSwarmManage start', () => {
     expect(result).not.toHaveProperty('messages');
   });
 
+  it('passes team counts above four to the authoritative Host for inline and file specs', async () => {
+    for (const workers of [5, 8, 12]) {
+      const ctx = new FakeContext();
+      ctx.specText = JSON.stringify({ ...SPEC_INPUT, workers });
+      const runtime = new FakeRuntime();
+      await call(ctx, runtime, { action: 'start', spec: { ...SPEC_INPUT, workers } });
+      await call(ctx, runtime, { action: 'start', spec_path: 'swarm.json' });
+      expect(runtime.startCalls.map((entry) => entry.spec.workers)).toEqual([workers, workers]);
+    }
+  });
+
   it('requires exactly one spec source', async () => {
     const ctx = new FakeContext();
     const runtime = new FakeRuntime();
@@ -414,7 +429,7 @@ describe('handleSwarmManage start', () => {
 
   it('rejects an invalid configured spec without starting a run', async () => {
     const ctx = new FakeContext();
-    ctx.specText = JSON.stringify({ ...SPEC_INPUT, workers: 9 });
+    ctx.specText = JSON.stringify({ ...SPEC_INPUT, workers: 1 });
     const runtime = new FakeRuntime();
     await expect(
       call(ctx, runtime, { action: 'start', spec_path: 'swarm.json' }),
