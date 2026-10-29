@@ -366,12 +366,13 @@ export class PublicCollaboration {
         return thread;
       }
       case 'ack_notifications': {
-        for (const id of distinct(input.notificationIds)) {
-          const notice = publicRecord(run.notifications, id, 'notification');
+        for (const reference of input.notifications) {
+          const notice = publicRecord(run.notifications, reference.id, 'notification');
           assert(notice.workerId === worker.id, 'SWARM_FORBIDDEN', 'Cannot acknowledge another worker notification');
+          assert(notice.seq === reference.seq, 'SWARM_STALE_REVISION', 'Notification changed since it was offered; read attention again');
           notice.acknowledgedAt ??= now;
         }
-        return { acknowledgedIds: distinct(input.notificationIds) };
+        return { acknowledgedIds: distinct(input.notifications.map((reference) => reference.id)) };
       }
       case 'mark_read': {
         publicRecord(run.channels, input.channelId, 'channel');

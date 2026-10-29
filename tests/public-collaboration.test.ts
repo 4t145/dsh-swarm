@@ -93,7 +93,7 @@ describe('persistent public collaboration', () => {
     await api.query('s-b', { view: 'messages', messageId: message.id });
     await call('b', { action: 'mark_read', channelId: message.channelId, messages: [{ messageId: message.id, revision: 1 }] });
     expect(store.get('r').notifications[notice.id]?.acknowledgedAt).toBeNull();
-    await call('b', { action: 'ack_notifications', notificationIds: [notice.id] });
+    await call('b', { action: 'ack_notifications', notifications: [{ id: notice.id, seq: notice.seq }] });
     expect(store.get('r').responseRequests[request.id]?.status).toBe('pending');
     expect((await api.query('s-b', { view: 'attention' })).items[0]).toMatchObject({ kind: 'request', request: { id: request.id } });
   });
@@ -109,6 +109,19 @@ describe('persistent public collaboration', () => {
     expect((await api.query('s-b', { view: 'attention', limit: 1 })).items[0]?.kind).toBe('request');
     const run = store.get('r');
     expect(run.workers.b?.observedSeq).toBe(0);
+  });
+
+  it('does not let a stale notification ACK consume a concurrently coalesced update', async () => {
+    const { post, call, store, thread } = await setup();
+    await call('b', { action: 'subscribe', channelId: thread.channelId, threadId: thread.id, mode: 'following' });
+    await post('a', 'one');
+    const first = Object.values(store.get('r').notifications)[0]!;
+    await post('a', 'two');
+    await expect(call('b', { action: 'ack_notifications', notifications: [{ id: first.id, seq: first.seq }] })).rejects.toMatchObject({ code: 'SWARM_STALE_REVISION' });
+    expect(store.get('r').notifications[first.id]?.acknowledgedAt).toBeNull();
+    const current = store.get('r').notifications[first.id]!;
+    await expect(call('c', { action: 'ack_notifications', notifications: [{ id: current.id, seq: current.seq }] })).rejects.toMatchObject({ code: 'SWARM_FORBIDDEN' });
+    await call('b', { action: 'ack_notifications', notifications: [{ id: current.id, seq: current.seq }] });
   });
 
   it('notifies reply author, explicit announcement, live task owner and dynamic subscriber only', async () => {

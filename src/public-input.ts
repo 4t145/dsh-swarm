@@ -27,7 +27,7 @@ export const publicCommandSchema = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('revise_agreement'), agreementId: id, expectedVersion: revision, ...agreementFields }),
   z.strictObject({ action: z.literal('confirm_agreement'), agreementId: id, version: revision }),
   z.strictObject({ action: z.literal('link_finding'), threadId: id, findingId: id, messageId: id.optional(), expectedRevision: revision }),
-  z.strictObject({ action: z.literal('ack_notifications'), notificationIds: z.array(id).min(1).max(100) }),
+  z.strictObject({ action: z.literal('ack_notifications'), notifications: z.array(z.strictObject({ id, seq: z.number().int().nonnegative() })).min(1).max(100) }),
   z.strictObject({ action: z.literal('mark_read'), channelId: id,
     messages: z.array(z.strictObject({ messageId: id, revision })).min(1).max(20) }),
 ]);
