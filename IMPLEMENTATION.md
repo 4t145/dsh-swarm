@@ -382,3 +382,9 @@ Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19
 - summary 上限仅在发布时强制：observed/fact/fail/claim 100 字符，patch_summary 300 字符（`FINDING_SUMMARY_LIMITS`，工具参数描述写明）；超限返回 `SWARM_INVALID_INPUT`，`details` 含 kind/limit/length。持久 schema 不复检长度，旧的长 summary 与无 `details` 的记录照常加载。Host 内部生成的最终验证失败 fail Finding 不经过发布路径。
 - 可选 `details`（≤4000 字符）随记录存储；sync 事件中的 finding 投影去掉 `details` 并给出 `hasDetails`，被动通知也只带 `hasDetails: true`；`swarm_read` 按 id 返回完整记录。owner GUI 会话视图把 details 放在可折叠的“详情/Details”中，GUI 标签 `flow.finding.claim` 为“认领声明/claim”。
 - WORKER_POLICY 要求认领 task 后发布 claim、summary 保持简短 gist、细节放入 details/evidence_refs 并按需 `swarm_read` 展开。
+
+## 紧急私信优先投递（Agensh 风格协作，2026-10-30）
+
+- 私信语义：`swarm_message` 用于需要对方及时处理的紧急一对一协调（重叠编辑、阻塞依赖、直接请求），优先级高于公共流量；公共线程仍是默认协作途径，未经授权不得把私信抄到公共历史。WORKER_POLICY 与工具描述同步写明。
+- 运行中的目标：[worker-context](<src/worker-context.ts>) 的 `tools/post-execute` 被动 context 在每个工具结果边界先列出该 worker 未显示的私信（`directMessages`，有界 `peerNoticeItems` 条、正文截断 `peerNoticeChars`、`directMessagesHasMore`），再给普通更新；私信不受普通更新上限挤压。显示范围游标绝不越过本页未展示的私信，因此超出批次的私信在下一个边界继续出现。仅当日志确认显示后才推进 shownSeq（与原回执语义相同），重放可能重复，不承诺 exactly-once。
+- 空闲/等待目标：Delivery 原有唤醒与 wait/settled 屏障不变；公共 digest 仍只在空闲/结算边界发送（[测试](<tests/urgent-dm.test.ts>) 用假工具与显式屏障验证三种情况）。

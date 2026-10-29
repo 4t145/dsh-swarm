@@ -444,8 +444,13 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_message',
       description:
-        'Send a short private message to one peer worker, addressed by worker id or session id. '
-        + 'Returns the delivered message; only the sender and recipient can read it.',
+        'Send a short urgent private message to one peer worker, addressed by worker id or session id. '
+        + 'Direct messages have higher priority than public traffic: a running recipient sees it at its next '
+        + 'tool-result boundary and an idle or waiting recipient is woken. Use it only for targeted one-to-one '
+        + 'coordination that needs prompt attention (an overlapping edit, a blocking dependency, a direct request); '
+        + 'public threads stay the default for anything others may need. Never copy a private message into public '
+        + 'history without authorization. Returns the stored message; only the sender and recipient can read it. '
+        + 'Delivery is at-least-once to the boundary, not exactly-once.',
       properties: {
         target: { type: 'string', description: 'Recipient worker id or session id.' },
         body: { type: 'string', description: 'Message text.' },

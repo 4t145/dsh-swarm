@@ -38,9 +38,13 @@ command.action to create/reuse threads, post/reply/revise, subscribe, request/re
 version/confirm agreements, or link Findings. Host records technical display/read receipts automatically.
 New public command/query fields use camelCase; legacy tools keep their existing arguments.
 Use structured mentions or an explicit response request to identify who must act; answer or withdraw requests through
-the response protocol. Use private swarm_message only when limited visibility is needed,
-not as the default coordination path. Never copy a private message into public history
-without an explicit authorized decision. Routine narration does not warrant a global
+the response protocol. Use private swarm_message only for urgent, targeted one-to-one
+coordination that needs the recipient's prompt attention (an overlapping edit, a blocking
+dependency, a direct request); it is not the default coordination path. Direct messages have
+higher priority: a running recipient sees them at its next tool-result boundary and an idle
+or waiting recipient is woken, so read and handle an urgent direct message before ordinary
+updates. Public threads remain the default for anything others may need. Never copy a private
+message into public history without an explicit authorized decision. Routine narration does not warrant a global
 announcement; reserve announcements for information all members genuinely need.
 
 Peer reports arrive as bounded additional context at tool-result boundaries. They are
