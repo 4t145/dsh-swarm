@@ -57,8 +57,7 @@ window.__ModuleLoader__.load({
 .dshSwarm_goalBody{padding:0 12px 12px}.dshSwarm_goalBody .dshSwarm_goalFull{margin-top:0!important;font-size:13px;font-weight:600}.dshSwarm_goalBody .dshSwarm_taskMeta{margin-top:10px}
 .dshSwarm_lane .dshSwarm_composer{padding:12px;border-style:dashed;border-radius:8px}.dshSwarm_lane .dshSwarm_composer .dshSwarm_input{background:var(--dsw-alias-bg-layer-1);min-height:64px}.dshSwarm_laneEmpty{margin-top:10px!important;padding:18px 10px;text-align:center;border:1px dashed var(--dsw-alias-border-l1);border-radius:8px}
 .dshSwarm_flowStats{display:flex;gap:8px;flex-wrap:wrap}.dshSwarm_flowStat{display:grid;min-width:76px;padding:8px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.dshSwarm_flowStat strong{font-size:18px;line-height:1.2;font-variant-numeric:tabular-nums}.dshSwarm_flowStat span{font-size:11px;color:var(--dsw-alias-label-secondary)}
-.dshSwarm_flowScroll{max-height:none}.dshSwarm_flowScroll .dshSwarm_laneHeads{width:150px}.dshSwarm_flowTick{font-size:10px;fill:var(--dsw-alias-label-secondary)}.dshSwarm_flowMark{cursor:default}.dshSwarm_flowMark:hover{filter:brightness(1.15)}
-.dshSwarm_flowKey{display:inline-block;width:10px;height:10px;border:2px solid var(--dsw-alias-label-secondary);border-radius:50%}.dshSwarm_flowKey[data-k=message]{width:16px;height:4px;border:0;border-radius:2px;background:var(--dsw-alias-label-secondary)}.dshSwarm_flowKey[data-k=finding]{width:9px;height:9px;border-radius:1.5px;transform:rotate(45deg)}.dshSwarm_flowKey[data-k=task]{border-radius:3px}.dshSwarm_flowKey[data-k=proposal]{width:0;height:0;border:0;border-inline:6px solid transparent;border-bottom:10px solid var(--dsw-alias-label-secondary);border-radius:0}.dshSwarm_flowKey[data-k=head]{border-width:3px}
+.dshSwarm_flowScroll{max-height:none}.dshSwarm_flowTick{font-size:10px;fill:var(--dsw-alias-label-secondary)}.dshSwarm_flowMark{cursor:default}.dshSwarm_flowMark:hover{filter:brightness(1.15)}
 .dshSwarm_flowBottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:14px;margin-top:14px}@container(max-width:760px){.dshSwarm_flowBottom{grid-template-columns:1fr}}
 .dshSwarm_flowPanel{padding:14px;border-radius:12px;background:var(--dsw-alias-bg-layer-2);min-width:0}.dshSwarm_flowPanelTitle{font-size:12px;font-weight:650;margin-bottom:10px!important}
 .dshSwarm_pairs{display:grid;gap:9px}.dshSwarm_pair{display:grid;grid-template-columns:minmax(0,1fr) 72px auto;align-items:center;gap:10px;font-size:12px}.dshSwarm_pairNames{display:flex;align-items:center;gap:5px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dshSwarm_pairNames i{flex:none;width:8px;height:8px;border-radius:50%}.dshSwarm_pairArrow{color:var(--dsw-alias-label-secondary)}.dshSwarm_pairBar{height:6px;border-radius:999px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}.dshSwarm_pairBar span{display:block;height:100%;border-radius:999px}.dshSwarm_pairCount{font-variant-numeric:tabular-nums;font-size:11px;color:var(--dsw-alias-label-secondary)}
@@ -128,7 +127,7 @@ window.__ModuleLoader__.load({
 		};
 		const en = {
 			"view.label": "◈ Swarm", "title": "Swarm",
-			"tabs.flow": "Collaboration flow", "flow.title": "What members are doing together", "flow.note": "Each swimlane is a member; the top lane is the Host and accepted result. Events run left to right in order. Hover any point to see what happened, including message and finding bodies; click to pin the card.", "flow.host": "Host · result", "flow.hostNote": "Integration and acceptance", "flow.filter": "Filter by event type", "flow.chart": "Member collaboration timeline", "flow.axis": "← Older · Newest →", "flow.empty": "No collaboration events between members yet", "flow.unavailable": "This Host does not provide collaboration events; restart DSH to enable it", "flow.kind.all": "All", "flow.kind.message": "Messages", "flow.kind.finding": "Findings", "flow.kind.task": "Tasks", "flow.kind.proposal": "Proposals & integration", "flow.legend.head": "Result advanced", "flow.stat.message": "messages", "flow.stat.finding": "findings", "flow.stat.proposal": "proposals", "flow.stat.head": "result advances", "flow.pairs": "Who talks to whom", "flow.noPairs": "No direct messages between members yet", "flow.to": "to", "flow.feed": "Latest activity", "flow.say.message": "{actor} messaged {peer}", "flow.say.finding": "{actor} posted a {kind}", "flow.say.task": "{peer}'s task “{task}” → {status}", "flow.say.proposal": "{actor}'s proposal ({task}) → {status}", "flow.say.head": "{peer}'s result merged at {id}", "flow.say.headHost": "Result advanced to {id}", "flow.finding.observed": "observation", "flow.finding.fact": "fact", "flow.finding.fail": "failure report", "flow.finding.patch_summary": "patch summary", "dash.team": "Team now", "dash.teamNote": "{busy} executing · {waiting} waiting", "dash.noWorkers": "No members yet", "conv.title": "Conversations and findings", "conv.note": "Run owner only: the bodies of members' direct messages and their published facts, observations, failure reports and patch summaries, with scope and evidence. Newest first; refreshes when new ones arrive.", "conv.refresh": "Refresh", "conv.filter": "Filter by type and member", "conv.kind.all": "All", "conv.kind.message": "Messages", "conv.kind.finding": "Findings", "conv.empty": "No messages or findings yet", "conv.noMatch": "Nothing loaded matches this filter", "conv.loading": "Loading…", "conv.more": "Load older", "conv.end": "All {count} loaded", "conv.failed": "Could not load", "conv.invalid": "The Host returned conversation data this panel cannot read", "conv.unavailable": "This Host cannot serve conversations; restart DSH to enable it", "conv.truncated": "Body is long and shown truncated", "conv.task": "Task", "conv.scope": "Scope", "conv.evidence": "Evidence", "conv.supersedes": "Supersedes", "hover.pin": "Click to pin · Esc to close", "hover.close": "Close", "hover.noBody": "This Host does not serve bodies; restart DSH to see the content here", "hover.failed": "Could not load the body; see “Conversations and findings” below", "tabs.label": "Collaboration views", "tabs.dashboard": "Dashboard", "tabs.members": "Members", "tabs.goals": "Goal board", "tabs.worktrees": "Git worktrees",
+			"tabs.flow": "Collaboration flow", "flow.title": "What members are doing together", "flow.note": "Each swimlane is a member; the top lane is the Host and accepted result. Events run left to right in order. Hover any point to see what happened, including message and finding bodies; click to pin the card.", "flow.host": "Host · result", "flow.hostNote": "Integration and acceptance", "flow.filter": "Filter by event type", "flow.chart": "Member collaboration timeline", "flow.axis": "← Older · Newer →", "flow.empty": "No collaboration events between members yet", "flow.unavailable": "This Host does not provide collaboration events; restart DSH to enable it", "flow.kind.all": "All", "flow.kind.message": "Messages", "flow.kind.finding": "Findings", "flow.kind.task": "Tasks", "flow.kind.proposal": "Proposals & integration", "flow.legend.head": "Result advanced", "flow.stat.message": "messages", "flow.stat.finding": "findings", "flow.stat.proposal": "proposals", "flow.stat.head": "result advances", "flow.pairs": "Who talks to whom", "flow.noPairs": "No direct messages between members yet", "flow.to": "to", "flow.feed": "Latest activity", "flow.say.message": "{actor} messaged {peer}", "flow.say.finding": "{actor} posted a {kind}", "flow.say.task": "{peer}'s task “{task}” → {status}", "flow.say.proposal": "{actor}'s proposal ({task}) → {status}", "flow.say.head": "{peer}'s result merged at {id}", "flow.say.headHost": "Result advanced to {id}", "flow.finding.observed": "observation", "flow.finding.fact": "fact", "flow.finding.fail": "failure report", "flow.finding.patch_summary": "patch summary", "dash.team": "Team now", "dash.teamNote": "{busy} executing · {waiting} waiting", "dash.noWorkers": "No members yet", "conv.title": "Conversations and findings", "conv.note": "Run owner only: the bodies of members' direct messages and their published facts, observations, failure reports and patch summaries, with scope and evidence. Newest first; refreshes when new ones arrive.", "conv.refresh": "Refresh", "conv.filter": "Filter by type and member", "conv.kind.all": "All", "conv.kind.message": "Messages", "conv.kind.finding": "Findings", "conv.empty": "No messages or findings yet", "conv.noMatch": "Nothing loaded matches this filter", "conv.loading": "Loading…", "conv.more": "Load older", "conv.end": "All {count} loaded", "conv.failed": "Could not load", "conv.invalid": "The Host returned conversation data this panel cannot read", "conv.unavailable": "This Host cannot serve conversations; restart DSH to enable it", "conv.truncated": "Body is long and shown truncated", "conv.task": "Task", "conv.scope": "Scope", "conv.evidence": "Evidence", "conv.supersedes": "Supersedes", "hover.pin": "Click to pin · Esc to close", "hover.close": "Close", "hover.noBody": "This Host does not serve bodies; restart DSH to see the content here", "hover.failed": "Could not load the body; see “Conversations and findings” below", "tabs.label": "Collaboration views", "tabs.dashboard": "Dashboard", "tabs.members": "Members", "tabs.goals": "Goal board", "tabs.worktrees": "Git worktrees",
 			"goals.todo": "To do", "goals.doing": "In progress", "goals.done": "Done", "goals.wish": "Add a wish", "goals.laneEmpty": "No goals in this pool", "goals.flowNote": "Submitted wishes join this round automatically. Paused goals stay in this round; closing runs save new wishes for the next round. Only Host-verified goals are done.",
 			"workers.add": "Add worker", "workers.adding": "Adding…", "workers.addUnavailable": "Worker limit unavailable; check Host diagnostics", "workers.addLimit": "Maximum of {count} workers reached", "workers.addPhase": "Workers can be added while running or paused", "workers.addPaused": "New workers start after resume", "workers.added.started": "Added {name}", "workers.added.paused": "Added {name} · Starts after resume", "workers.addFailed": "Addition not confirmed; check the member list before retrying", "workers.addReceipt": "Incomplete worker receipt. Check the list before retrying.", "workers.addReady": "Create a private worktree and a random readable name", "workers.capacity": "Team size", "workers.limitHost": "Inherited Host limit", "workers.limitOverride": "Explicit override", "workers.limitUnknown": "Limit source unavailable", "workers.limitNotCapacity": "The configured team limit is not native free capacity. Host still checks native capacity and permissions.", "workers.summary": "{total} members · {busy} executing · {waiting} waiting on collaboration or integration", "goals.criteriaCount": "{count} criteria", "goals.doneCount": "goals done",
 			"git.title": "Git worktrees", "git.note": "Merged history of worker worktrees and accepted results · Each commit appears once. Source branch means reachability, not authorship.", "git.refresh": "Refresh history", "git.loading": "Reading Git history…", "git.more": "Load earlier commits", "git.end": "Beginning of history reached", "git.empty": "No commits to display yet.", "git.unavailable": "This Host does not support worktree history. Update the Host and reconnect.", "git.failed": "Could not read Git history", "git.retry": "Retry", "git.loaded": "Showing {count} commits", "git.worktrees": "Worktrees & revision snapshot", "git.result": "Accepted result", "git.source": "Source branch", "git.merge": "Merge commit", "git.parents": "Parent commits", "git.commit": "Full commit SHA", "git.details": "Commit details", "git.snapshot": "Pages are pinned to the first read. Refresh history to see newer commits.", "git.missingRun": "The run changed or is unavailable. Reconnect to update.", "git.invalid": "Host returned invalid Git history.", "git.worktreeMissing": "Worktree is not ready yet", "git.base": "Run base", "git.legendCommit": "Commit", "git.legendMerge": "Merge (interchange)", "git.legendHead": "Worktree HEAD", "git.axis": "← Newest · Older →",
@@ -1079,7 +1078,9 @@ window.__ModuleLoader__.load({
 		 * results rise from the author's lane to the result lane. Metadata only: the Host
 		 * never sends message bodies or finding text, so neither does this view.
 		 */
-		const FLOW = Object.freeze({ column: 40, lane: 58, pad: 18, axis: 26 });
+		// Same lane height, padding and palette as the Git tracks; columns are narrower
+		// because events are denser than commits and carry no inline labels.
+		const FLOW = Object.freeze({ column: 48, lane: TRACK.lane, pad: TRACK.pad, axis: 26 });
 		const flowKinds = ["all", "message", "finding", "task", "proposal"];
 		const FINDING_KINDS = ["observed", "fact", "fail", "patch_summary"];
 		const interactionValid = (item) => object(item) && count(item.seq) && ["message", "finding", "task", "proposal", "head"].includes(item.kind) && typeof item.status === "string" && textOrNull(item.actorWorkerId) && textOrNull(item.peerWorkerId) && typeof item.objectId === "string" && textOrNull(item.taskId) && validTime(item.createdAt);
@@ -1119,26 +1120,83 @@ window.__ModuleLoader__.load({
 			return [...pairs.values()].sort((a, b) => b.count - a.count || b.last - a.last);
 		}
 
+		/*
+		 * Unified track style shared with the Git graph: every event is a station on its
+		 * member's line (ring with the Git stroke width on the layer background), cross-lane
+		 * links are the same rounded curves as Git branch/merge edges, and a result advance
+		 * is drawn like a merge commit (larger ring, center dot, HEAD halo). Kind is told
+		 * apart by the station outline: ring = message, diamond = finding, rounded square =
+		 * task, triangle = proposal.
+		 */
+		const FLOW_STROKE = 3;
+		const STATION_BG = "var(--dsw-alias-bg-layer-1)";
+		const ERROR_COLOR = "var(--dsw-alias-state-error-primary)";
+		const WARN_COLOR = "var(--dsw-alias-state-warn-primary)";
+		/** One station outline at (x, y); `r` is the Git commit radius (6) or a legend size. */
+		function flowStation(kind, status, x, y, color, r = 6, key = "s") {
+			const filled = (kind === "task" && ["done", "claimed"].includes(status)) || (kind === "proposal" && status === "accepted");
+			const stroke = kind === "finding" && status === "fail" ? ERROR_COLOR : kind === "task" && ["blocked", "cancelled"].includes(status) ? WARN_COLOR : color;
+			const style = { fill: filled ? color : kind === "finding" && status === "fail" ? ERROR_COLOR : STATION_BG, stroke, opacity: kind === "task" && status === "cancelled" ? .5 : 1 };
+			const width = r < 6 ? 2.2 : FLOW_STROKE;
+			switch (kind) {
+				case "finding": return h("rect", { key, x: x - r * .8, y: y - r * .8, width: r * 1.6, height: r * 1.6, rx: 1.5, transform: `rotate(45 ${x} ${y})`, strokeWidth: width, style });
+				case "task": return h("rect", { key, x: x - r, y: y - r, width: r * 2, height: r * 2, rx: r / 2, strokeWidth: width, style });
+				case "proposal": return status === "rejected"
+					? h("path", { key, d: `M ${x - r} ${y - r} L ${x + r} ${y + r} M ${x + r} ${y - r} L ${x - r} ${y + r}`, strokeWidth: width, strokeLinecap: "round", style: { fill: "none", stroke: ERROR_COLOR } })
+					: h("path", { key, d: `M ${x} ${y - r * 1.15} L ${x + r * 1.1} ${y + r * .85} L ${x - r * 1.1} ${y + r * .85} Z`, strokeWidth: width, strokeLinejoin: "round", style });
+				case "head": return h(React.Fragment, { key },
+					h("circle", { cx: x, cy: y, r: r * 2, style: { fill: color, opacity: .16 } }),
+					h("circle", { cx: x, cy: y, r: r * 4 / 3, strokeWidth: width, style: { fill: STATION_BG, stroke: color } }),
+					h("circle", { cx: x, cy: y, r: r * 5 / 12, style: { fill: color } }));
+				default: return h("circle", { key, cx: x, cy: y, r, strokeWidth: width, style: { fill: STATION_BG, stroke: color } });
+			}
+		}
+		/** Git-style cross-lane curve: leave horizontally, bend, arrive horizontally. */
+		function flowCurve(x1, y1, x2, y2) {
+			const half = (x2 - x1) / 2;
+			return `M ${x1} ${y1} C ${x1 + half} ${y1}, ${x2 - half} ${y2}, ${x2} ${y2}`;
+		}
 		function flowGlyph(mark) {
 			const { item, x, y, lane } = mark;
 			const color = lane.color;
-			const bg = "var(--dsw-alias-bg-layer-1)";
+			const link = { fill: "none", strokeWidth: FLOW_STROKE, strokeLinecap: "round", strokeLinejoin: "round" };
 			switch (item.kind) {
-				case "message": return [
-					h("path", { key: "a", d: `M ${x} ${y} C ${x + FLOW.column * .7} ${y}, ${x + FLOW.column * .1} ${mark.targetY}, ${x + FLOW.column * .5} ${mark.targetY}`, fill: "none", strokeWidth: 2, strokeLinecap: "round", style: { stroke: color, opacity: .8 } }),
-					h("circle", { key: "s", cx: x, cy: y, r: 4.5, style: { fill: color } }),
-					h("circle", { key: "t", cx: x + FLOW.column * .5, cy: mark.targetY, r: 3.5, strokeWidth: 2, style: { fill: bg, stroke: color } })];
-				case "finding": return [h("rect", { key: "d", x: x - 5, y: y - 5, width: 10, height: 10, rx: 1.5, transform: `rotate(45 ${x} ${y})`, strokeWidth: 2, style: { fill: item.status === "fail" ? "var(--dsw-alias-state-error-primary)" : bg, stroke: item.status === "fail" ? "var(--dsw-alias-state-error-primary)" : color } })];
-				case "task": return [h("rect", { key: "q", x: x - 5, y: y - 5, width: 10, height: 10, rx: 3, strokeWidth: 2, style: { fill: ["done", "claimed"].includes(item.status) ? color : bg, stroke: ["blocked", "cancelled"].includes(item.status) ? "var(--dsw-alias-state-warn-primary)" : color, opacity: item.status === "cancelled" ? .5 : 1 } })];
-				case "proposal": return item.status === "rejected"
-					? [h("path", { key: "x", d: `M ${x - 5} ${y - 5} L ${x + 5} ${y + 5} M ${x + 5} ${y - 5} L ${x - 5} ${y + 5}`, strokeWidth: 2.5, strokeLinecap: "round", style: { stroke: "var(--dsw-alias-state-error-primary)" } })]
-					: [h("path", { key: "p", d: `M ${x} ${y - 6} L ${x + 6} ${y + 5} L ${x - 6} ${y + 5} Z`, strokeWidth: 2, strokeLinejoin: "round", style: { fill: item.status === "accepted" ? color : bg, stroke: color } })];
+				case "message": {
+					// Sender station, Git branch-style curve, arrival dot on the recipient's line.
+					const arrive = x + FLOW.column * .5;
+					return [
+						h("path", { key: "a", d: flowCurve(x, y, arrive, mark.targetY), ...link, style: { stroke: color, opacity: .85 } }),
+						flowStation("message", item.status, x, y, color),
+						h("circle", { key: "t", cx: arrive, cy: mark.targetY, r: 3.5, strokeWidth: 2.2, style: { fill: STATION_BG, stroke: color } })];
+				}
 				case "head": return [
-					mark.targetY !== null ? h("path", { key: "l", d: `M ${x} ${mark.targetY} L ${x} ${y}`, strokeWidth: 2.5, strokeDasharray: "1 5", strokeLinecap: "round", style: { stroke: mark.targetLane.color } }) : null,
-					h("circle", { key: "h", cx: x, cy: y, r: 7, strokeWidth: 3, style: { fill: bg, stroke: TRACK_TRUNK } }),
-					h("circle", { key: "c", cx: x, cy: y, r: 2.5, style: { fill: TRACK_TRUNK } })];
-				default: return [];
+					// Like a Git merge edge: the author's line curves into the result station.
+					mark.targetY !== null ? h("path", { key: "l", d: flowCurve(x - FLOW.column * .5, mark.targetY, x, y), ...link, style: { stroke: mark.targetLane.color, opacity: .85 } }) : null,
+					flowStation("head", item.status, x, y, TRACK_TRUNK)];
+				default: return [flowStation(item.kind, item.status, x, y, color)];
 			}
+		}
+		/** Solid track segments joining consecutive stations on each lane, like Git first-parent edges. */
+		function flowTracks(marks) {
+			const last = new Map();
+			const segments = [];
+			for (const mark of marks) {
+				const previous = last.get(mark.lane);
+				if (previous) segments.push({ key: previous.item.seq + ":" + mark.item.seq, x1: previous.x, x2: mark.x, y: mark.y, color: mark.lane.color });
+				last.set(mark.lane, mark);
+			}
+			return segments;
+		}
+		/** Symbol key built from the same stations as the chart, in the Git legend layout. */
+		function renderFlowLegend(t) {
+			const glyph = (kind, status) => h("svg", { width: 18, height: 18, viewBox: "0 0 18 18", "aria-hidden": true }, flowStation(kind, status, 9, 9, "var(--dsw-alias-label-secondary)", 4.5));
+			return h("div", { className: "dshSwarm_trackLegend" },
+				h("span", {}, glyph("message"), t("flow.kind.message", {})),
+				h("span", {}, glyph("finding"), t("flow.kind.finding", {})),
+				h("span", {}, glyph("task"), t("flow.kind.task", {})),
+				h("span", {}, glyph("proposal"), t("flow.kind.proposal", {})),
+				h("span", {}, glyph("head"), t("flow.legend.head", {})),
+				h("span", { className: "dshSwarm_trackAxis" }, t("flow.axis", {})));
 		}
 
 		/**
@@ -1195,7 +1253,7 @@ window.__ModuleLoader__.load({
 			const show = (mark, pinned) => {
 				const node = scroll.current, box = stage.current;
 				const position = flowHoverPosition(mark, {
-					headWidth: node?.querySelector(".dshSwarm_laneHeads")?.offsetWidth ?? 150, scrollLeft: node?.scrollLeft ?? 0, scrollTop: node?.scrollTop ?? 0,
+					headWidth: node?.querySelector(".dshSwarm_laneHeads")?.offsetWidth ?? 168, scrollLeft: node?.scrollLeft ?? 0, scrollTop: node?.scrollTop ?? 0,
 					top: node ? node.offsetTop : 0, width: box?.clientWidth ?? 1000, height: box?.clientHeight ?? 400,
 				});
 				setHover((value) => value?.pinned && !pinned ? value : { seq: mark.item.seq, pinned, ...position });
@@ -1236,23 +1294,19 @@ window.__ModuleLoader__.load({
 					h("div", { className: "dshSwarm_flowStats" }, stat("message", stats.message), stat("finding", stats.finding), stat("proposal", stats.proposal), stat("head", stats.head))),
 				!supported ? h("p", { className: "dshSwarm_notice", role: "status" }, t("flow.unavailable", {})) : null,
 				supported ? h("div", { className: "dshSwarm_memberFilters", role: "group", "aria-label": t("flow.filter", {}) }, flowKinds.map((id) => h("button", { key: id, type: "button", className: "dshSwarm_button dshSwarm_memberFilter", "aria-pressed": kind === id, onClick: () => setKind(id) }, t("flow.kind." + id, {})))) : null,
-				supported ? h("div", { className: "dshSwarm_trackLegend" },
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "message", "aria-hidden": true }), t("flow.kind.message", {})),
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "finding", "aria-hidden": true }), t("flow.kind.finding", {})),
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "task", "aria-hidden": true }), t("flow.kind.task", {})),
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "proposal", "aria-hidden": true }), t("flow.kind.proposal", {})),
-					h("span", {}, h("i", { className: "dshSwarm_flowKey", "data-k": "head", "aria-hidden": true }), t("flow.legend.head", {})),
-					h("span", { className: "dshSwarm_trackAxis" }, t("flow.axis", {}))) : null,
+				supported ? renderFlowLegend(t) : null,
 				supported && marks.length ? h("div", { className: "dshSwarm_flowStage", ref: stage, onKeyDown: (event) => { if (event.key === "Escape") setHover(null); } },
 				h("div", { className: "dshSwarm_gitScroll dshSwarm_flowScroll", ref: scroll, tabIndex: 0, role: "region", "aria-label": t("flow.chart", {}), onScroll: () => setHover(null) },
 					h("div", { className: "dshSwarm_trackRow" },
 						h("div", { className: "dshSwarm_laneHeads", "aria-hidden": true, style: { paddingTop: FLOW.pad + "px" } }, lanes.map((lane) => h("div", { key: String(lane.key), className: "dshSwarm_laneHead", "data-trunk": !!lane.host, style: { height: FLOW.lane + "px", borderInlineStartColor: lane.color } },
 							h("span", { className: "dshSwarm_laneName" }, h("i", { style: { background: lane.color } }), lane.host ? t("flow.host", {}) : name(lane.key)),
-							h("span", { className: "dshSwarm_laneBranch" }, lane.host ? t("flow.hostNote", {}) : lane.key)))),
+							h("code", { className: "dshSwarm_laneBranch" }, lane.host ? t("flow.hostNote", {}) : lane.key)))),
 						h("div", { className: "dshSwarm_trackCanvas", style: { width: width + "px", height: height + "px" } },
 							h("svg", { className: "dshSwarm_trackEdges", width, height, viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": t("flow.chart", {}) },
 								lanes.map((lane, index) => h("rect", { key: "b" + index, x: 0, y: FLOW.pad + index * FLOW.lane, width, height: FLOW.lane, className: "dshSwarm_trackBand", "data-odd": index % 2 === 1 })),
-								lanes.map((lane, index) => h("line", { key: "r" + index, x1: 0, x2: width, y1: y(index), y2: y(index), strokeWidth: lane.host ? 3 : 2, style: { stroke: lane.color, opacity: lane.host ? .25 : .18 } })),
+								// Same faint wide rail and solid station-to-station track as the Git graph.
+								lanes.map((lane, index) => h("line", { key: "r" + index, className: "dshSwarm_trackRail", x1: TRACK.pad / 2, x2: width - TRACK.pad / 2, y1: y(index), y2: y(index), strokeWidth: 8, strokeLinecap: "round", style: { stroke: lane.color, opacity: 0.08 } })),
+								flowTracks(marks).map((segment) => h("path", { key: "k" + segment.key, d: `M ${segment.x1} ${segment.y} H ${segment.x2}`, fill: "none", strokeWidth: 4, strokeLinecap: "round", style: { stroke: segment.color } })),
 								marks.map((mark) => h("g", {
 									key: mark.item.seq, className: "dshSwarm_flowMark", tabIndex: 0, role: "button", "aria-label": describe(mark.item), "data-active": hover?.seq === mark.item.seq,
 									onMouseEnter: () => show(mark, false), onMouseLeave: hide, onFocus: () => show(mark, false), onBlur: hide,
