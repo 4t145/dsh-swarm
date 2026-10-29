@@ -576,6 +576,24 @@ describe('status', () => {
     expect(result).toMatchObject({ text: expect.stringContaining('saved, not executing') });
   });
 
+  it('reports the authoritative team limit, source and failures independently of native slots', async () => {
+    const runtime = new FakeRuntime();
+    for (const controls of [
+      { canAdd: true, maxWorkers: 12, source: 'host' as const, diagnostic: null },
+      { canAdd: false, maxWorkers: 3, source: 'override' as const, diagnostic: null },
+      { canAdd: false, maxWorkers: null, source: null, diagnostic: 'Native config unavailable' },
+    ]) {
+      runtime.statusView = { ...BASE_STATUS, workerControls: controls };
+      const { result } = await runCommand('status', { runtime });
+      expect(result).toMatchObject({ kind: 'success', text: expect.stringContaining(`team limit: ${controls.maxWorkers ?? 'unavailable'} source=${controls.source ?? 'unavailable'} canAdd=${controls.canAdd}`) });
+      expect(result).toMatchObject({ text: expect.stringContaining('not native free capacity') });
+      if (controls.diagnostic) expect(result).toMatchObject({ text: expect.stringContaining(controls.diagnostic) });
+    }
+    runtime.statusView = { ...BASE_STATUS };
+    expect((await runCommand('status', { runtime })).result).toMatchObject({ text: expect.stringContaining('team limit: unavailable source=unavailable canAdd=false') });
+    expect(runtime.startCalls).toHaveLength(0);
+  });
+
   it('omits details for a plain status request', async () => {
     const { runtime, result } = await runCommand('status');
 
