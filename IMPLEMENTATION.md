@@ -188,3 +188,71 @@
 - `FlowPanel` 用 `useConversation` 持有一份 owner 对话状态，泳道和下方阅读器共用，同一条正文只读一次。悬停 message/finding 节点时，如果已加载的页里没有这条，`loadAround(seq)` 用 `beforeSeq = seq + 1` 读取以它结尾的那一页并合并，不移动阅读器的分页游标；失败时卡片退回元数据，错误仍由阅读器报告。
 - 每个节点是 `tabIndex=0` 的 `role=button`，带 14px 透明命中圈；mouseenter/focus 显示 `role=tooltip` 卡片，click/Enter/Space 固定为带关闭按钮的 `role=dialog`，Esc 或滚动关闭。`flowHoverPosition` 是纯函数：卡片默认在节点右侧，靠右边缘时翻到左侧，处于下半区时向上展开。
 - 测试：`tests/client-flow.test.ts` 增加定位翻转、所有节点可聚焦且卡片显示正文、正文未到时的加载态与固定后的 dialog/关闭按钮。
+
+## 2026-10-29 全仓对等审阅与保持行为去重
+
+### 范围与历史文档冲突
+
+- 基线 `005fdaacf37742109eaaa3460f56bcfb026f94f0`，run `0ad56166-e58c-405a-927e-ebc7ea6eaafc`。四个同权 worker 自选、认领并直接协商范围；最初三人同时发现 Git 重复，协商后分别覆盖核心状态、Git/按需读取、Client/进度、Host/CLI 边界。没有经理模型分派模块。
+- 覆盖全部第一方源码、Client、测试（含 native fixture）、三个脚本、入口/构建/包装配置及必要说明；不把依赖、生成的 lib 或历史工作树计入覆盖。未改 owner checkout、DSH 源码、profile、凭据、依赖清单或 lockfile；不创建 README、不安装插件、不重启 Host、不另起 Web 服务、不自动合入或推送结果。
+- [AGENTS](<AGENTS.md>) 旧 Lead 分工文字与本轮同权方式有历史差异，写范围由 Task/私信约定。[架构](<ARCHITECTURE.md>) 当前为 R5，但顶部“待实现”、§12“尚未实现”是初版时态；本文“基线 R4”“v0.1 无看板/无 Git”等旧段落也是历史记录，不能当作当前事实。
+- [架构 §10.4](<ARCHITECTURE.md#L540>) 普通新 start“不继承旧目标”与 R5 显式 continue 是不同入口，不能据旧文字删除 continuation；[使用说明](<USAGE.md>)、[示例](<examples/swarm-run.json>) 已支持后者和默认不限时。本轮记录冲突，不重写历史规格来掩盖实现问题。
+
+### 按模块审阅覆盖与处理结论
+
+下表说明具体符号、共性与保留理由；“保留”不等于证明无缺陷，高风险另列。
+
+| 模块与符号 | 发现、处理与测试依据 |
+|---|---|
+| [types](<src/types.ts>) createRun/activeAcceptanceCriteria、[schema](<src/schema.ts>) runSchema/parseRun、[spec](<src/spec.ts>) parseRunSpec | JSON 结构/旧记录默认值、spec 路径/冻结、领域初始化各有边界，不合成万能校验。命令/verification schema 已共享；[spec 测试](<tests/spec.test.ts>) 验证完整字段诊断/坏输入/冻结，[goals 测试](<tests/goals.test.ts>) 验证 legacy、goalRevision 与 continuation。 |
+| [store](<src/store.ts>) applyUpdate/runReducer/publish、[serial](<src/serial.ts>) FIFO/key 队列、[ports](<src/ports.ts>) contracts/fingerprint | 保留持久后发布、同步 reducer、错误后队列继续；不把无 IO reducer 搬进异步层。[store 测试](<tests/store.test.ts>) 用持久屏障验证未发布/写失败/业务错误/close，[serial 测试](<tests/serial.test.ts>) 验证 FIFO/独立 key。fake table 的故障注入/复制/屏障不同，未强行统一。 |
+| [collaboration](<src/collaboration.ts>) mutate/updateTask/read/collectEvents/wait、[events](<src/events.ts>) appendEvent/matchesWait | CAS、receipt、私信可见性、扫描前缀/确认与 selected/any 匹配分层保留；worker 读取不并入 owner 正文接口。[collaboration 测试](<tests/collaboration.test.ts>) 检查认领/证据/授权/私信空洞分页，[events 测试](<tests/events.test.ts>) 保留完整匹配表。 |
+| [delivery](<src/delivery.ts>) selectTarget/settlePass/continueAfterSettle、[runtime](<src/runtime.ts>) admission/controlTransition/finishGaps/goalIntake | generation、waitGate、notified 与 observed 不是同一种 cursor，不压成普通消息队列。Runtime 整体拆分会跨短门禁/在途登记/持久状态，未机械搬家。[delivery 测试](<tests/delivery.test.ts>) 验证 pending/settled/重复/失败/暂停；[runtime 测试](<tests/runtime.test.ts>) mock 了 Delivery/Integration，不能充当组合验收。 |
+| [integration](<src/integration.ts>) rejectAttempt/settlePending、[proposal-state](<src/proposal-state.ts>) recordProposalRejection | 两份 proposal 拒绝、proposed task 回 claimed、revision/事件顺序实现确为同一事实，抽成无 IO 专责模块。caller 仍负责 terminal guard、attempt/verification、单次 run revision 与持久化。Runtime findReusableVerification 取首条而 selectPassedVerification 取最新，未为去重改变可见 verificationId。[integration 测试](<tests/integration.test.ts#L560-L626>) 新增四路径和批量边界共5项入口回归，保留两种 gate 顺序、崩溃补记、finish 失败修复断言。 |
+| [workspace](<src/workspace.ts>) GitWorkspace、[worktrees](<src/worktrees.ts>) WorktreeCatalogue、[git-isolation](<src/git-isolation.ts>) | 两处隔离 argv 与 filter driver 四项禁用解析完全重复，抽纯策略；执行器、权限/错误、Workspace 成功探针按 cwd 缓存和 Catalogue 每次扫描保留。[workspace 测试](<tests/workspace.test.ts>) 扩多 driver/含点名字/required/process/真实 checkout 内容与 config 不变；[worktrees 测试](<tests/worktrees.test.ts>) 补真实 create 的 hook/filter 与探针拒绝无分支副作用。只操作临时仓库。 |
+| [conversation-log](<src/conversation-log.ts>)、[worktree-history](<src/worktree-history.ts>) owner 校验/分页 | 双重 owner 检查相似，但无 run、游标、异步取消、错误/payload 契约不同，保留独立类。[conversation 测试](<tests/conversation-log.test.ts>) 从“唯一条数”升级为混合 message/finding 全序列、seq 空洞、读间插入、双重 owner、存储失败与 refs 截断；[history 测试](<tests/worktree-history.test.ts>) 保留真实 Git pinned traversal/new commit 分页。 |
+| [progress](<src/progress.ts>) snapshot/watch/watchSession/conversation/worktreeHistory、[remote-marker](<src/remote-marker.ts>) | 只合并两个按需端点相同的 SwarmError→RemoteError 映射；bounded DTO、metadata-only interactions、订阅去重/取消不混进 helper。裸参数与 Remote marker 不变。[progress 测试](<tests/progress.test.ts>) 新增真实 service/reader 的成功、坏游标、owner、存储/原异常入口；[Remote 测试](<tests/client-remote.test.ts>) 仍经真实 gateway/registry。 |
+| [worker-activity](<src/worker-activity.ts>) projection reducer/registry | 截断时保守 executing 与 native liveness 覆盖是观察语义，不与任务状态混合；[activity 测试](<tests/worker-activity.test.ts>) 保留真实 ProjectionRegistry、溢出/生命周期断言。 |
+| [client](<client.js>)、[client-fixture](<tests/client-fixture.ts>) | 正式单资源 ModuleLoader 工厂、CSS/双语/strict codecs、stream owner/legacy fallback/clock、五页签、trackLayout 和旧 computeGraph 导出均保留。10套测试复制读文件→VM→capture→factory，部分任意 require 或污染全局 window；抽独立 VM 正式入口 fixture，只允许 React。fakeReact 补 effect 清理；3个 tab 焦点/roving、goal 草稿/断线源码断言换真实 handler 行为，未删除有效断言。 |
+| Client 测试信号 | [tabs](<tests/client-tabs.test.ts>)、[goals](<tests/client-goals.test.ts>)、[workers](<tests/client-workers.test.ts>)、[overview](<tests/client-overview.test.ts>)、[dashboard](<tests/client-dashboard.test.ts>)、[flow](<tests/client-flow.test.ts>)、[worktrees](<tests/client-worktrees.test.ts>)、[conversation](<tests/client-conversation.test.ts>) 均经正式工厂。主题/双语/资源包装/SRC 签名断言有协议价值，保留；几何/DTO 测试不冒充浏览器视觉/DOM/网络生命周期验收。 |
+| [commands](<src/commands.ts>) startRun、[owner-tools](<src/owner-tools.ts>) 文件启动、[spec-file](<src/spec-file.ts>) loadRunSpecFile | 重复 resolve/readText→JSON.parse→parseRunSpec 抽取；权限仍由 caller 先检查，命令保留 cause 文本、工具保留摘要。CLI driver 错误契约不同，不并入。除原 [commands](<tests/commands.test.ts>)/[owner-tools](<tests/owner-tools.test.ts>) 测试，新 [入口回归](<tests/spec-file-entrypoints.test.ts>) 16项从已注册 command/真实 ToolRuntime 执行正常、坏 JSON/shape、resolve/read 失败、预取消/只读等边界，不只直接测 helper。 |
+| [tools](<src/tools.ts>)、[owner-context](<src/owner-context.ts>)、[worker-context](<src/worker-context.ts>)、[worker-policy](<src/worker-policy.ts>)、[worker](<src/worker.ts>)、[worker-names](<src/worker-names.ts>) | JSONSchema 描述子集与运行时 Zod 作用不同，不盲目去重；front-desk identity 与 worker 被动事件提示不同，不合并授权。提示不推进 durable ACK，注册随 scope 释放。[tools](<tests/tools.test.ts>)/[owner-context](<tests/owner-context.test.ts>) 保留真实注册边界，[names 测试](<tests/worker-names.test.ts>) 实际耗尽256词对/验证 legacy schema；worker-context 专项测试仍缺。 |
+| [dsh-executor](<src/dsh-executor.ts>)、[dsh-worker-host](<src/dsh-worker-host.ts>)、[errors](<src/errors.ts>) | sandbox/permission、owner→child、worktree 初始化/本 Session 资源停止不与测试执行器合并；错误码/normalizeError 保留。[executor](<tests/dsh-executor.test.ts>)/[host](<tests/dsh-worker-host.test.ts>) 覆盖权限/取消/资源屏障，不代表所有 quiescence/activation 双信号分支都覆盖。 |
+| [headless](<src/headless.ts>)、[args](<src/headless-args.ts>)、[driver](<src/headless-driver.ts>)、[lifetime](<src/headless-lifetime.ts>)、[signals](<src/headless-signals.ts>)、[preset](<src/headless-preset.ts>) | subscribe-before-start、单调 revision、terminal-only、once-stop 与应用信号/生命周期分层合理，不新增框架。[headless](<tests/headless.test.ts>)/[args](<tests/headless-args.test.ts>)/[lifetime](<tests/headless-lifetime.test.ts>)/[signals](<tests/headless-signals.test.ts>)/[preset](<tests/headless-preset.test.ts>) 验证契约，原生隔离脚本另验 SIGINT。 |
+| [index](<src/index.ts>)、[artifacts](<src/artifacts.ts>) | injection、回滚、资源所有权与 run-owned artifact ID/per-record 后端保留；[artifact 测试](<tests/artifacts.test.ts>) 用真实 JsonStorageBackend，不以 Map 测试冒充磁盘。卸载顺序风险另列，未以去重偷改生命周期。 |
+| [e2e](<tests/e2e.test.ts>)、[local-executor](<tests/local-executor.ts>) | 真实 Runtime/Store/Delivery/Integration/GitWorkspace 组合，fake 只替外部效果，订阅状态不用 sleep。中间验证允许0/1支持分步候选，最终独立 git show 断言两文件均1，并检查 resultRef、祖先、失败不推进/重提、owner HEAD/branch/index/status。child_process 只在测试/脚本，不入生产包；FakeWorkerHost 不证明模型或原生 settled 行为。 |
+| 脚本、构建、包装与文档 | [build](<scripts/build.mjs>) 五个 Node ESM 入口/声明、[link](<scripts/link-harness.mjs>) 精确宿主开发 symlink、[native-headless](<scripts/test-native-headless.mjs>) 隔离 DSH_HOME/[blocking adapter](<tests/native-smoke/blocking-model.js>)、[package](<package.json>) exports/files、[tsconfig](<tsconfig.json>)/[build config](<tsconfig.build.json>)/[vitest](<vitest.config.ts>)、[GUI patch](<cordis.patch.yml>)/[headless overlay](<cordis.headless.yml>)、[英文](<locale/en.json>)/[中文](<locale/zh.json>)/[图标](<icon.svg>)、[使用说明](<USAGE.md>)/[示例](<examples/swarm-run.json>)、[npmrc](<.npmrc>)/[忽略规则](<.gitignore>)/[许可证](<LICENSE>) 均核对。preset 重叠但 GUI compaction/headless 绝对 worker URL 不同，不制造 YAML 生成层。历史 [native 入口](<tests/native-smoke/index.js>)/[代际检查](<tests/native-smoke/check-current.js>)/[清单](<tests/native-smoke/package.json>)/[patch](<tests/native-smoke/cordis.patch.yml>) 仅审阅，本轮不安装或调用其模型路径；源码 marker 只证明代际，不替代行为测试。 |
+
+### 明确保留的风险与延期（并非本轮新引入）
+
+本轮是保持行为的结构优化，不偷偷改变权限/生命周期，也不声称消灭全仓缺陷。以下未改动，绿灯不覆盖这些缺口：
+
+1. **恢复 admission**：[Runtime.recover](<src/runtime.ts#L1045-L1095>) 捕获 resultRef/凭据失败后仍写 paused，诊断只在内存；[resume](<src/runtime.ts#L603-L713>) 未再次核对 ref 即开放 admission。[unknown-ref 测试](<tests/integration.test.ts>) 只证明 IntegrationQueue recover 拒绝未知 SHA，不证明随后 Runtime resume 仍阻断；需独立恢复→resume 组合修复。
+2. **卸载与长命令**：[Runtime.dispose](<src/runtime.ts#L1103-L1143>) 只等待 integration.idle，不像正常 stop 主动 interrupt；[入口](<src/index.ts>) closeResources 没有先 stop 全部 run。GUI 卸载可能等待长命令，headless driver 的 abort/stop 特例不能证明 GUI 链路快速静止。
+3. **原生退出确认**：[DshCommandExecutor](<src/dsh-executor.ts#L259-L278>) 取消/超时先返回，可能掩盖 quiescenceFailure；settle 忽略 waitForExit 的 false。[测试](<tests/dsh-executor.test.ts>) 只有 true/阻塞屏障，缺 false/reject+abort，属于停止确认高风险。
+4. **activation 与 jobs**：[DshWorkerHost.start](<src/dsh-worker-host.ts#L244-L251>) 成功 activation.result 未转 onSettled，依赖 subagent/end，与[架构“任一信号足够”](<ARCHITECTURE.md#L347>) 有差异；[host 测试](<tests/dsh-worker-host.test.ts>) 未覆盖双信号去重。[swarm_wait](<src/tools.ts#L456-L469>) 未如 host 过滤 jobs.owner，原生 list 含 unowned 时可能误拒等待，[tools fake](<tests/tools.test.ts>) 未验证。
+5. **Git 配置探针 fail-open**：[Workspace](<src/workspace.ts>) 与 [Catalogue](<src/worktrees.ts>) 对任意非零探针退空 overrides，不区分“无配置”退出1与读取故障；Workspace 成功结果按 cwd 缓存，依赖轮内配置稳定。本轮共享原策略，不把风险包装为已修复。
+6. **特殊 worktree 路径**：[Catalogue.parseWorktreePorcelain](<src/worktrees.ts>) 使用非 -z 行输出并 trim；换行、引号、首尾空格等合法路径未覆盖，不宣称任意文件名兼容。需先确定 NUL 协议与兼容行为。
+7. **Client 请求生命周期**：[CreateWorktreeSection](<client.js#L787-L805>) 只用 render 闭包 pending 防重复，完成不核对 session/unmount，没有 AddWorkerControl 的 ref/abort guard。[useConversation.loadAround](<client.js#L1280-L1310>) 吞失败且 controller 留 Map，同 seq 不能重试、reader 未必报告；保留旧 cursor 以 items.length 推断，hover 插入可能干扰。本文旧“错误仍由阅读器报告”描述不完整，以此事实为准。
+8. **提示/模板**：[worker-context](<src/worker-context.ts>) 无专项 waterfall/additionalContexts 行为回归，core 可见性测试不能替代。[owner 模板](<src/owner-context.ts>)/[工具模板](<src/owner-tools.ts>) 示例缺必需 timeoutMs，[schema](<src/schema.ts#L25-L33>) 拒绝，属于文案缺口，不是放宽校验的理由；[示例文件](<examples/swarm-run.json>) 参数齐全。
+9. **测试设施上界**：[runtime waitFor](<tests/runtime.test.ts#L363-L378>) 是 setImmediate 有界探测，虽无 sleep 仍可改订阅消除调度依赖；[e2e teardown](<tests/e2e.test.ts>) 仅记录 dispose 失败，可能漏报清理故障；[native 脚本](<scripts/test-native-headless.mjs#L52-L64>) 两 stream 后 await exit 无独立关闭超时。通过不豁免这些失败分支。
+10. **大模块仍在**：[runtime](<src/runtime.ts>)、[collaboration](<src/collaboration.ts>)、[integration](<src/integration.ts>) 与 [client](<client.js>) 仍大。只抽实际共性；Client 单资源加载不能直接拆 Node ESM，Runtime 不能绕 publicationGate；后续按控制/协议边界拆并补上述回归，不以行数为依据。
+
+### 增量、交叉复核与最终组合验证
+
+- 四份代码候选：核心 `dd632db`→accepted `9145649`；Git `38e307e`→`630db18`；Client/Remote `292a506`→`b2439f0`；Host/CLI `bb4b10c`→`734b475`。新模块各司其职，未改公开导出/打包清单、Client 本体、Remote 签名或五页签。
+- 审阅 findings：核心 `87a26736`/`01aabb4f`、Git `7989ae15`、Client `a62bd3f9`/`fc6b1457`、Host `78bb4790`/`f4498757`/`252b5ab8`、组合夹具 `eaadf64f`。独立复核 `61a2690d`（proposal）、`df0ca76d`（Git）、`8ee19b3f`（Remote/VM）、`54709298`（spec），不只作者自称通过。
+- 环境：首次 `pnpm install --frozen-lockfile` 已物化锁定依赖，但 pnpm 11 因 ignored esbuild build scripts 退出1。运行既有开发 link 脚本后，后续仅用 `pnpm_config_verify_deps_before_run=false` 防重复自动安装覆盖精确 Cordis link；没有批准脚本、改仓库配置或跳过检查。自动生成未跟踪 workspace 占位经读取核验删除，不把初次 install 说成成功。
+- 在全部代码组合 `734b4752e4af32fb40aad8e0f726c8c55d5832cd` 实际串行执行如下；日志 job `bash-cdb57df8e3d94e1a`，全部退出0。文档追加不改变运行代码，接受后的最终 SHA 以结果 ref 为准。
+
+```sh
+pnpm_config_verify_deps_before_run=false pnpm typecheck
+pnpm_config_verify_deps_before_run=false pnpm build
+pnpm_config_verify_deps_before_run=false pnpm test
+node --check client.js
+pnpm_config_verify_deps_before_run=false pnpm test:native-headless
+git diff --check
+```
+
+- 全量 **39 文件 / 502 项通过**。原生 headless 的内部 build 也通过；隔离 fixture `/tmp/dsh-swarm-native-headless.rBQH5K` 验证缺失路由在 worker 启动前失败、两原生 worker stream 后真实 SIGINT、一个 persisted stopped final/aborted=true/error=null、退出130、原始临时 checkout 不变。模型为明确 blocking fake adapter，没有调用付费模型。
+- 真实 Git 组合/Remote registry/ProjectionRegistry 回归不等于真实模型自主编码或浏览器目视验收；本轮没有部署当前 GUI，也没有安装、重启或替代服务。测试的有效分支与未覆盖高风险均按上节报告。
