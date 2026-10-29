@@ -104,6 +104,7 @@ worktree 不是安全沙箱。worker 仍遵守 DSH 的权限与工具策略。�
 | Issues / 工作声明 | 插件 Task 数据 |
 | 公共频道 / 私信 | 独立 Channel/Thread/PublicMessage 与 Notification；旧 Message 保持私信语义（§14） |
 | 共享 context board | 追加式 Finding + 增量读取 / 搜索 |
+| 上下文搜索（布尔查询） | 单一纯模块 `src/query-expr.ts`：词/短语子串、`&`/空白 AND、`\|` OR、`-`/`!` NOT、括号、`kind:` `author:` `task:`；`swarm_read`、公开查询与 GUI 搜索框共用，覆盖完整历史并返回 total/truncated |
 | 每个 worker 的事件 router | Host 内的 Delivery 模块 |
 | PR 整合 | 本地 Proposal + 串行集成队列 |
 
