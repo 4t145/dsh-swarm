@@ -4,6 +4,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent';
 import type {} from '@deepseek-ai/dsh-system-prompt';
 import { isSwarmError } from './errors.ts';
 import type { RunStatus } from './runtime.ts';
+import { workerDisplayName } from './worker-names.ts';
 import type { Run } from './types.ts';
 
 export const OWNER_POLICY = `You are the user's front desk for Swarm development. Handle the mechanics yourself;
@@ -47,6 +48,9 @@ stop and restart the run to change its size. Report how many were actually added
 workerLimit and workerLimitSource come from Host configuration, not native free slots; an override
 does not bypass native capacity or permissions. If resolution is unavailable, report the diagnostic
 rather than assuming a numeric limit. Lower limits retain existing members but block excess additions.
+One worker's repeated model/session failures make only that worker unavailable (see unavailableWorkers);
+the run keeps going with the others. Tell the user which member is out and why; when they want it back,
+use restart_worker with worker_id instead of resume/stop/start. The run pauses only when no worker remains.
 
 Speak in outcomes and next decisions, not command recipes. Report saved versus executing versus
 waiting accurately. Completed means Host finish and resource shutdown completed, not merely
@@ -103,6 +107,12 @@ export function ownerState(runtime: OwnerContextRuntime, ownerSessionId: string)
     // Keep existing run facts visible, but never fabricate capacity on read failure.
     controls = undefined;
   }
+  // Worker failure isolation: bounded reasons only, never provider/log bodies beyond 160 chars.
+  const unavailable = Object.values(run.workers).filter((worker) => worker.unavailableReason).map((worker) => {
+    const detail = (worker as { unavailableDetail?: { diagnostic?: unknown } | null }).unavailableDetail;
+    return { id: worker.id, name: workerDisplayName(worker), reason: worker.unavailableReason,
+      diagnostic: typeof detail?.diagnostic === 'string' ? short(detail.diagnostic, 160) : null };
+  });
   const pending = Object.values(run.goals).filter((goal) => goal.status !== 'completed' && goal.continuedInRunId === null);
   const taskCounts: Record<string, number> = {};
   for (const task of Object.values(run.tasks)) taskCounts[task.status] = (taskCounts[task.status] ?? 0) + 1;
@@ -113,6 +123,7 @@ export function ownerState(runtime: OwnerContextRuntime, ownerSessionId: string)
     workerLimitSource: controls?.source ?? null,
     workerLimitDiagnostic: controls ? (controls.diagnostic && short(controls.diagnostic, 200)) : 'Worker limit unavailable; use swarm_manage status for diagnostics.',
     canAddWorkers: controls?.canAdd ?? false, tasks: taskCounts,
+    unavailableWorkers: unavailable.slice(0, 8), unavailableWorkersOmitted: Math.max(0, unavailable.length - 8),
     pendingGoalCount: pending.length,
     pendingGoals: pending.slice(-6).map((goal) => ({ id: goal.id, status: goal.status, text: short(goal.text, 180) })),
     pendingGoalsOmitted: Math.max(0, pending.length - 6),

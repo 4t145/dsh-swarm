@@ -112,7 +112,7 @@ window.__ModuleLoader__.load({
 			"workers.title": "成员此刻的工作", "workers.note": "任务归属与原生运行状态分别展示", "worker.name": "成员 {number}", "worker.noTask": "尚未持有任务", "worker.native": "原生状态：{status}", "worker.inactiveNote": "inactive 不代表任务完成",
 			"work.initializing": "准备工作区", "work.failed": "初始化失败", "work.assigned": "持有任务", "work.coordinating": "协作与选取工作", "work.waiting": "等待协作更新", "work.integration": "等待集成结果", "work.integrating": "候选正在集成", "work.unassigned": "没有当前任务",
 			"activity.running": "Turn 执行中", "activity.executing": "工具调用中 · {count} 项", "activity.executingOmitted": "工具调用中 · 部分调用未展示", "activity.idle": "当前无执行中的 turn", "activity.unavailable": "执行活动不可用", "activity.legacy": "Host 未提供执行活动", "activity.stale": "最后记录：{activity}",
-			"workers.filter": "筛选成员", "workers.all": "全部 · {count}", "worker.task": "当前任务", "worker.execution": "执行活动", "worker.snapshot": "最后快照", "work.unavailable": "工作状态不可用", "wait.targets": "{tasks} 个任务 · {proposals} 个提案的更新", "tools.moreActive": "更多调用（{count}）",
+			"workers.filter": "筛选成员", "workers.all": "全部 · {count}", "worker.task": "当前任务", "worker.execution": "执行活动", "worker.snapshot": "最后快照", "work.unavailable": "工作状态不可用", "work.isolated": "已被 Host 隔离", "worker.isolated.activation_failed": "多次激活失败，已停止唤醒", "worker.isolated.no_progress": "连续空转无进展，已停止唤醒", "worker.isolated.initialization_failed": "初始化失败", "worker.isolated.other": "已被标记为不可用：{reason}", "worker.restart": "重新启用", "worker.restarting": "正在重新启用…", "worker.restarted": "已重新启用；协作阶段不变", "worker.restartFailed": "重新启用失败", "wait.targets": "{tasks} 个任务 · {proposals} 个提案的更新", "tools.moreActive": "更多调用（{count}）",
 			"worker.details": "工具记录与等待详情", "worker.id": "成员 ID", "worker.initialization": "初始化", "worker.turnStep": "Turn {turn} · Step {step}", "worker.wait": "等待条件", "wait.any": "任意匹配的协作更新", "wait.selected": "指定任务 / 提案更新", "wait.after": "已读至事件 {seq}", "worker.proposal": "当前提案", "tools.recent": "最近工具（非执行中）", "tool.executing": "调用中", "tool.completed": "已返回", "tool.failed": "失败", "tool.interrupted": "已中断",
 			"init.pending": "待准备", "init.initializing": "准备中", "init.ready": "就绪", "init.failed": "失败", "task.open": "待认领", "task.claimed": "已认领", "task.proposed": "待集成", "task.done": "已完成", "task.blocked": "阻塞", "task.cancelled": "已取消",
 			"tasks.title": "任务板", "tasks.empty": "尚未创建任务。", "tasks.missing": "当前 Host 未提供任务板。", "tasks.more": "显示 {shown}/{total} 项（优先展示活跃任务）", "tasks.unowned": "未分配", "tasks.details": "更多任务（{count}）",
@@ -142,7 +142,7 @@ window.__ModuleLoader__.load({
 			"workers.title": "What workers are doing", "workers.note": "Task ownership and native execution are separate", "worker.name": "Worker {number}", "worker.noTask": "No task currently held", "worker.native": "Native status: {status}", "worker.inactiveNote": "inactive does not mean the task is done",
 			"work.initializing": "Preparing workspace", "work.failed": "Initialization failed", "work.assigned": "Task held", "work.coordinating": "Coordinating / selecting work", "work.waiting": "Waiting for collaboration", "work.integration": "Waiting for integration", "work.integrating": "Candidate being integrated", "work.unassigned": "No current task",
 			"activity.running": "Turn running", "activity.executing": "Tool calls in progress · {count}", "activity.executingOmitted": "Tool calls in progress · some calls omitted", "activity.idle": "No turn currently executing", "activity.unavailable": "Execution activity unavailable", "activity.legacy": "Host does not expose execution activity", "activity.stale": "Last recorded: {activity}",
-			"workers.filter": "Filter workers", "workers.all": "All · {count}", "worker.task": "Current task", "worker.execution": "Execution", "worker.snapshot": "Last snapshot", "work.unavailable": "Work status unavailable", "wait.targets": "Updates to {tasks} tasks · {proposals} proposals", "tools.moreActive": "More calls ({count})",
+			"workers.filter": "Filter workers", "workers.all": "All · {count}", "worker.task": "Current task", "worker.execution": "Execution", "worker.snapshot": "Last snapshot", "work.unavailable": "Work status unavailable", "work.isolated": "Isolated by Host", "worker.isolated.activation_failed": "Repeated activation failures; no longer woken", "worker.isolated.no_progress": "Settled repeatedly without progress; no longer woken", "worker.isolated.initialization_failed": "Initialization failed", "worker.isolated.other": "Marked unavailable: {reason}", "worker.restart": "Re-enable", "worker.restarting": "Re-enabling…", "worker.restarted": "Re-enabled; run phase unchanged", "worker.restartFailed": "Re-enable failed", "wait.targets": "Updates to {tasks} tasks · {proposals} proposals", "tools.moreActive": "More calls ({count})",
 			"worker.details": "Tool history & wait details", "worker.id": "Worker ID", "worker.initialization": "Initialization", "worker.turnStep": "Turn {turn} · Step {step}", "worker.wait": "Waiting for", "wait.any": "Any matching collaboration update", "wait.selected": "Selected task / proposal updates", "wait.after": "Acknowledged through event {seq}", "worker.proposal": "Current proposal", "tools.recent": "Recent tools (not executing)", "tool.executing": "Call in progress", "tool.completed": "Returned", "tool.failed": "Failed", "tool.interrupted": "Interrupted",
 			"init.pending": "Pending", "init.initializing": "Initializing", "init.ready": "Ready", "init.failed": "Failed", "task.open": "Open", "task.claimed": "Claimed", "task.proposed": "Proposed", "task.done": "Done", "task.blocked": "Blocked", "task.cancelled": "Cancelled",
 			"tasks.title": "Task board", "tasks.empty": "No tasks created yet.", "tasks.missing": "Task board is unavailable from this Host.", "tasks.more": "Showing {shown}/{total} tasks (active first)", "tasks.unowned": "Unassigned", "tasks.details": "More tasks ({count})",
@@ -242,7 +242,7 @@ window.__ModuleLoader__.load({
 				|| !countsValid(p.tasks, ["open", "claimed", "proposed", "done", "blocked", "cancelled", "total"])
 				|| !countsValid(p.proposals, ["queued", "integrating", "accepted", "rejected"])
 				|| !countsValid(p.verifications, ["queued", "running", "passed", "failed", "interrupted"])
-				|| !Array.isArray(p.workers) || !p.workers.every((w) => object(w) && typeof w.id === "string" && typeof w.nativeStatus === "string" && typeof w.initializationState === "string" && textOrNull(w.diagnostic) && (w.currentTask === null || taskValid(w.currentTask)))) {
+				|| !Array.isArray(p.workers) || !p.workers.every((w) => object(w) && typeof w.id === "string" && typeof w.nativeStatus === "string" && typeof w.initializationState === "string" && textOrNull(w.diagnostic) && (w.unavailableReason === undefined || textOrNull(w.unavailableReason)) && (w.currentTask === null || taskValid(w.currentTask)))) {
 				throw new TypeError("Invalid Swarm progress snapshot");
 			}
 			if (p.protocolVersion >= 2 && (!textOrNull(p.goal) || !timeOrNull(p.createdAt)
@@ -348,7 +348,7 @@ window.__ModuleLoader__.load({
 		function deriveWorker(worker) {
 			// Old Hosts may retain a completed task pointer. Never present it as current work.
 			const task = worker.currentTask && !["done", "cancelled"].includes(worker.currentTask.status) ? worker.currentTask : null;
-			const work = worker.initializationState === "failed" ? "failed" : ["pending", "initializing"].includes(worker.initializationState) ? "initializing" : worker.initializationState !== "ready" ? "unavailable"
+			const work = typeof worker.unavailableReason === "string" && worker.unavailableReason && worker.initializationState !== "failed" ? "isolated" : worker.initializationState === "failed" ? "failed" : ["pending", "initializing"].includes(worker.initializationState) ? "initializing" : worker.initializationState !== "ready" ? "unavailable"
 				: worker.currentProposal?.status === "integrating" ? "integrating"
 					: worker.currentProposal || task?.status === "proposed" ? "integration"
 						: worker.wait ? "waiting" : task ? "assigned" : "unassigned";
@@ -414,7 +414,7 @@ window.__ModuleLoader__.load({
 			return (words.length > 1 ? words[0][0] + words[1][0] : String(name).trim().slice(0, 2)).toUpperCase();
 		}
 		/** Status pill tone for one derived work state. */
-		function workTone(work) { return work === "failed" ? "error" : ["waiting", "integration", "unavailable"].includes(work) ? "warn" : work === "integrating" || work === "assigned" ? "active" : work === "initializing" ? "info" : "idle"; }
+		function workTone(work) { return work === "failed" || work === "isolated" ? "error" : ["waiting", "integration", "unavailable"].includes(work) ? "warn" : work === "integrating" || work === "assigned" ? "active" : work === "initializing" ? "info" : "idle"; }
 		function AddWorkerControl({ t, progress, connected, sessionId, executeCommand }) {
 			const [pending, setPending] = React.useState(false);
 			const [receipt, setReceipt] = React.useState(null);
@@ -466,9 +466,37 @@ window.__ModuleLoader__.load({
 						h("p", { className: "dshSwarm_subtle" }, t("workers.summary", { busy, waiting, total: progress.workers.length }))),
 					h(AddWorkerControl, { t, progress, connected: !stale, sessionId, executeCommand })),
 				h("div", { className: "dshSwarm_memberFilters", role: "group", "aria-label": t("workers.filter", {}) }, filter(null, t("workers.all", { count: progress.workers.length })), progress.workers.map((worker, index) => filter(worker.id, workerName(t, worker, index + 1), workerColor(index)))),
-				h("ul", { className: "dshSwarm_workers", "data-focused": !!focused.selectedId }, focused.items.map(({ worker, number }) => h(WorkerCard, { key: worker.id, worker, number, t, stale }))));
+				h("ul", { className: "dshSwarm_workers", "data-focused": !!focused.selectedId }, focused.items.map(({ worker, number }) => h(WorkerCard, { key: worker.id, worker, number, t, stale, sessionId, executeCommand, runId: progress.runId }))));
 		}
-		function WorkerCard({ t, worker, number, stale }) {
+		function RestartWorkerControl({ t, worker, stale, sessionId, executeCommand, runId }) {
+			const [pending, setPending] = React.useState(false);
+			const [receipt, setReceipt] = React.useState(null);
+			const request = React.useRef(null);
+			React.useEffect(() => () => { request.current?.abort(); request.current = null; }, []);
+			// Worker ids are Host-generated; reject anything that could smuggle extra command tokens.
+			const safeId = /^[A-Za-z0-9._:-]+$/u.test(worker.id);
+			const restart = async () => {
+				if (request.current || stale || !safeId || typeof executeCommand !== "function") return;
+				const controller = new AbortController(); request.current = controller; setPending(true); setReceipt(null);
+				try {
+					const text = await executeGoalCommand(executeCommand, sessionId, "/swarm worker restart " + worker.id + " --json", controller.signal);
+					if (controller.signal.aborted) return;
+					const parsed = JSON.parse(text);
+					if (!object(parsed) || parsed.action !== "restart_worker" || parsed.workerId !== worker.id || parsed.runId !== runId) throw new Error("Invalid restart receipt");
+					setReceipt({ ok: true, text: t("worker.restarted", {}) });
+				} catch (error) {
+					if (!controller.signal.aborted) setReceipt({ ok: false, text: error instanceof Error ? error.message : String(error) });
+				} finally {
+					if (request.current === controller) { request.current = null; if (!controller.signal.aborted) setPending(false); }
+				}
+			};
+			const reasonKey = ["activation_failed", "no_progress", "initialization_failed"].includes(worker.unavailableReason) ? "worker.isolated." + worker.unavailableReason : "worker.isolated.other";
+			return h("div", { className: "dshSwarm_isolated", role: "status" },
+				h("p", { className: "dshSwarm_warn" }, t(reasonKey, { reason: worker.unavailableReason })),
+				h("button", { type: "button", className: "dshSwarm_button", disabled: pending || stale || !safeId || typeof executeCommand !== "function", onClick: () => void restart() }, t(pending ? "worker.restarting" : "worker.restart", {})),
+				receipt ? h("p", { className: "dshSwarm_receipt " + (receipt.ok ? "dshSwarm_success" : "dshSwarm_error"), role: receipt.ok ? "status" : "alert" }, receipt.ok ? receipt.text : t("worker.restartFailed", {}) + ": " + receipt.text) : null);
+		}
+		function WorkerCard({ t, worker, number, stale, sessionId, executeCommand, runId }) {
 			const view = deriveWorker(worker);
 			const name = workerName(t, worker, number);
 			const color = workerColor(number - 1);
@@ -493,6 +521,7 @@ window.__ModuleLoader__.load({
 					view.activeTools.length ? tools(view.activeTools.slice(0, 2)) : null,
 					view.activeTools.length > 2 ? h("details", { className: "dshSwarm_details" }, h("summary", {}, t("tools.moreActive", { count: view.activeTools.length - 2 })), tools(view.activeTools.slice(2))) : null),
 				h("div", { className: "dshSwarm_native" }, h("span", { className: worker.nativeStatus === "unavailable" ? "dshSwarm_warn" : "" }, t("worker.native", { status: worker.nativeStatus })), worker.activity?.turn != null ? h("span", {}, t("worker.turnStep", { turn: worker.activity.turn, step: worker.activity.step ?? "—" })) : null),
+				view.work === "isolated" ? h(RestartWorkerControl, { t, worker, stale, sessionId, executeCommand, runId }) : null,
 				diagnostics.map((diagnostic) => h("p", { key: diagnostic, className: "dshSwarm_subtle dshSwarm_warn" }, diagnostic)),
 				h("details", { className: "dshSwarm_details" }, h("summary", {}, t("worker.details", {})),
 					h("dl", { className: "dshSwarm_facts" }, fact(t("worker.id", {}), h("code", {}, worker.id)), fact(t("worker.initialization", {}), label(t, "init", worker.initializationState)),

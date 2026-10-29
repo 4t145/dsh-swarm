@@ -193,6 +193,13 @@ class FakeRuntime implements SwarmOwnerRuntimePort {
   /** Fail the Nth addWorker call (1-based) with this error. */
   addFailure: { at: number; error: unknown } | undefined;
 
+  readonly reenableCalls: Array<{ runId: string; workerId: string }> = [];
+
+  async reenableWorker(runId: string, workerId: string) {
+    this.reenableCalls.push({ runId, workerId });
+    return { id: workerId, displayName: 'Calm Robin', unavailableReason: null };
+  }
+
   async addWorker(ownerSessionId: string): Promise<AddWorkerReceipt> {
     this.addCalls.push(ownerSessionId);
     const n = this.addCalls.length;
@@ -307,7 +314,7 @@ describe('registerOwnerTools', () => {
       additionalProperties: false,
     });
     const action = (definition?.parameters.properties as Record<string, { enum?: string[] }>)['action'];
-    expect(action?.enum).toEqual(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers']);
+    expect(action?.enum).toEqual(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers', 'restart_worker']);
     // Agents should find the start path from the tool description alone.
     expect(definition?.description).toContain('action=start');
     expect(definition?.description).toContain('only way to start');
@@ -594,5 +601,41 @@ describe('swarm_manage add_workers', () => {
     const fresh = new FakeRuntime();
     await expect(call(ctx, fresh, { action: 'add_workers' }, SUBAGENT_AGENT)).rejects.toThrow();
     expect(fresh.addCalls).toEqual([]);
+  });
+});
+
+describe('swarm_manage restart_worker', () => {
+  const unavailable = (runtime: FakeRuntime, reason: string | null) => {
+    runtime.statusView = { ...structuredClone(BASE_STATUS), workers: [{ ...BASE_STATUS.workers[0]!, unavailableReason: reason,
+      unavailableDetail: reason ? { reason, diagnostic: 'MALFORMED_RESPONSE x3', at: 5 } : null }] };
+  };
+
+  it('re-enables one unavailable worker of the owner run without changing the run phase', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    unavailable(runtime, 'activation_failed');
+    const result = await call(ctx, runtime, { action: 'restart_worker', worker_id: 'w1' }, OWNER_AGENT);
+    expect(runtime.reenableCalls).toEqual([{ runId: BASE_STATUS.runId, workerId: 'w1' }]);
+    expect(result).toMatchObject({ action: 'restart_worker', workerId: 'w1', unavailableReason: null, phase: BASE_STATUS.phase });
+    expect(runtime.resumeCalls).toEqual([]);
+    expect(runtime.startCalls).toEqual([]);
+  });
+
+  it('requires worker_id and rejects available, unknown, foreign and read-only targets', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    await expect(call(ctx, runtime, { action: 'restart_worker' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_INVALID_INPUT' });
+    unavailable(runtime, null);
+    await expect(call(ctx, runtime, { action: 'restart_worker', worker_id: 'w1' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_INVALID_STATE' });
+    unavailable(runtime, 'no_progress');
+    await expect(call(ctx, runtime, { action: 'restart_worker', worker_id: 'nobody' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_NOT_FOUND' });
+    runtime.statusView = { ...runtime.statusView, ownerSessionId: 'someone-else' };
+    await expect(call(ctx, runtime, { action: 'restart_worker', worker_id: 'w1' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_FORBIDDEN' });
+    const readOnly = new FakeContext();
+    readOnly.mode = 'read-only';
+    unavailable(runtime, 'no_progress');
+    await expect(call(readOnly, runtime, { action: 'restart_worker', worker_id: 'w1' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_FORBIDDEN' });
+    await expect(call(ctx, runtime, { action: 'restart_worker', worker_id: 'w1' }, SUBAGENT_AGENT)).rejects.toThrow();
+    expect(runtime.reenableCalls).toEqual([]);
   });
 });

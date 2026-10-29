@@ -49,6 +49,20 @@ describe('worker fact hierarchy', () => {
     expect(client.deriveWorker(worker({ initializationState: 'future-state' })).work).toBe('unavailable');
   });
 
+  it('shows a Host-isolated worker as isolated while keeping initialization failure distinct', () => {
+    expect(client.deriveWorker(worker({ unavailableReason: 'activation_failed' })).work).toBe('isolated');
+    expect(client.deriveWorker(worker({ unavailableReason: 'no_progress', wait: { mode: 'any', afterSeq: 1, taskIds: [], proposalIds: [] } })).work).toBe('isolated');
+    expect(client.deriveWorker(worker({ unavailableReason: 'initialization_failed', initializationState: 'failed' })).work).toBe('failed');
+    expect(client.deriveWorker(worker({ unavailableReason: null })).work).toBe('assigned');
+  });
+
+  it('keeps isolation and restart labels in sync across zh/en', () => {
+    const keys = (lang: 'en' | 'zh') => Object.keys(client.dictionaries[lang]).filter((key) => key.startsWith('worker.isolated.') || key.startsWith('worker.restart') || key === 'work.isolated').sort();
+    expect(keys('en')).toHaveLength(9);
+    expect(keys('zh')).toEqual(keys('en'));
+    expect(source).toContain('"/swarm worker restart " + worker.id + " --json"');
+  });
+
   it('removes completed and cancelled task pointers without inventing a replacement', () => {
     for (const status of ['done', 'cancelled']) {
       expect(client.deriveWorker(worker({ currentTask: { id: 'old', status } }))).toMatchObject({ task: null, work: 'unassigned' });
