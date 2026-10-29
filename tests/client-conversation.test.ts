@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { loadClient } from './client-fixture.ts';
 import { describe, expect, it } from 'vitest';
 
 // Boundary validation and merge facts for the owner conversation reader.
@@ -9,12 +8,7 @@ interface Client {
   mergeConversation(current: Item[], incoming: Item[]): Item[];
   dictionaries: Record<'en' | 'zh', Record<string, string>>;
 }
-interface BrowserModule { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
-let captured: BrowserModule | undefined;
-runInNewContext(source, { window: { __ModuleLoader__: { load: (module: BrowserModule) => { captured = module; } } } });
-if (!captured) throw new Error('Client module did not register');
-const client = captured.factory(() => ({})).progressClient;
+const client = loadClient<{ progressClient: Client }>().progressClient;
 
 const message = (seq: number): Item => ({ kind: 'message', id: 'm' + seq, seq, authorWorkerId: 'w1', targetWorkerId: 'w2', body: 'hi', truncated: false, createdAt: seq });
 const finding = (seq: number): Item => ({ kind: 'finding', id: 'f' + seq, seq, authorWorkerId: 'w2', findingKind: 'fact', taskId: null, body: 'fact', truncated: false, scope: ['a'], evidenceRefs: [], supersedesId: null, createdAt: seq });

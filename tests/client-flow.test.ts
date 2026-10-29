@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { loadClient } from './client-fixture.ts';
 import { describe, expect, it } from 'vitest';
 
 // Layout and privacy facts for the collaboration flow; not browser visual acceptance.
@@ -14,12 +13,7 @@ interface Client {
   readFrame(item: unknown): unknown;
   dictionaries: Record<'en' | 'zh', Record<string, string>>;
 }
-interface BrowserModule { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
-let captured: BrowserModule | undefined;
-runInNewContext(source, { window: { __ModuleLoader__: { load: (module: BrowserModule) => { captured = module; } } } });
-if (!captured) throw new Error('Client module did not register');
-const client = captured.factory(() => ({})).progressClient;
+const client = loadClient<{ progressClient: Client }>().progressClient;
 
 /** Render FlowSection with a forced hover state through a minimal hook stub. */
 function renderFlow(hover: unknown, bodies: Map<number, unknown>) {
@@ -32,9 +26,7 @@ function renderFlow(hover: unknown, bodies: Map<number, unknown>) {
     useRef: () => ({ current: null }),
     useEffect: () => undefined,
   };
-  let module: BrowserModule | undefined;
-  runInNewContext(source, { window: { __ModuleLoader__: { load: (value: BrowserModule) => { module = value; } } }, Date });
-  const ui = module!.factory(() => react).progressClient;
+  const ui = loadClient<{ progressClient: Client }>(react).progressClient;
   const t = (key: string, vars: Record<string, unknown> = {}) => key + (Object.keys(vars).length ? JSON.stringify(vars) : '');
   const conversation = { bodies, available: true, state: { error: null }, loadAround: () => undefined };
   const tree = ui.FlowSection({ t, progress, conversation }) as Node;

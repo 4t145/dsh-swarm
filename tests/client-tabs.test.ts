@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { loadClient } from './client-fixture.ts';
 import { describe, expect, it, vi } from 'vitest';
 
 // Component/handler tests with a minimal hook owner, not browser visual acceptance.
@@ -18,8 +17,6 @@ interface Client {
   workerReceipt(text: string, runId: string): Props;
   dictionaries: Record<'en' | 'zh', Record<string, string>>;
 }
-interface Module { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
 function harness() {
   const values: unknown[] = [];
   const cleanups: (() => void)[] = [];
@@ -42,10 +39,7 @@ function harness() {
       if (!(index in values)) { values[index] = true; const cleanup = effect(); if (cleanup) cleanups.push(cleanup); }
     },
   };
-  let module: Module | undefined;
-  runInNewContext(source, { window: { __ModuleLoader__: { load(value: Module) { module = value; } } }, AbortController, Date, Error, TypeError, console });
-  if (!module) throw new Error('Client module not registered');
-  const client = module.factory(() => react).progressClient;
+  const client = loadClient<{ progressClient: Client }>(react).progressClient;
   const t = (key: string, vars: Props = {}) => (client.dictionaries.en[key] ?? key).replace(/\{(\w+)\}/gu, (_, name: string) => String(vars[name]));
   return { client, t, render(component: Component, props: Props) { cursor = 0; return component({ t, ...props }); }, unmount() { cleanups.forEach((cleanup) => cleanup()); } };
 }
@@ -78,14 +72,27 @@ describe('independent collaboration tabs', () => {
     expect((goals.children[0] as Element).type).toBe(ui.client.GoalSection); // Draft owner stays mounted.
   });
 
-  it('supports wrapping arrow navigation and Home/End with roving tabindex', () => {
-    const { client } = harness();
-    expect(client.nextTab('dashboard', 'ArrowLeft')).toBe('worktrees');
-    expect(client.nextTab('worktrees', 'ArrowRight')).toBe('dashboard');
-    expect(client.nextTab('goals', 'Home')).toBe('dashboard');
-    expect(client.nextTab('members', 'End')).toBe('worktrees');
-    expect(client.nextTab('members', 'Tab')).toBeNull();
-    expect(source).toContain('tabIndex: tab === id ? 0 : -1');
+  it('moves keyboard focus and the sole roving tabindex through wrapping arrows and Home/End', () => {
+    const ui = harness();
+    const props = { state: { progress: progress(), status: 'live' }, sessionId: 'owner', now: 1000 };
+    for (const [key, target] of [['ArrowLeft', 'worktrees'], ['ArrowRight', 'dashboard'], ['End', 'worktrees'], ['Home', 'dashboard']]) {
+      const tree = ui.render(ui.client.RunBody, props);
+      const selected = nodes(tree, (node) => node.props.role === 'tab' && node.props['aria-selected'] === true)[0]!;
+      const focus = vi.fn();
+      const querySelector = vi.fn(() => ({ focus }));
+      const preventDefault = vi.fn();
+      (selected.props.onKeyDown as (event: Props) => void)({ key, preventDefault, currentTarget: { parentElement: { querySelector } } });
+      expect(preventDefault).toHaveBeenCalledTimes(1);
+      expect(querySelector).toHaveBeenCalledExactlyOnceWith(`[data-swarm-tab="${target}"]`);
+      expect(focus).toHaveBeenCalledTimes(1);
+      const updated = nodes(ui.render(ui.client.RunBody, props), (node) => node.props.role === 'tab');
+      expect(updated.filter((node) => node.props.tabIndex === 0).map((node) => node.props['data-swarm-tab'])).toEqual([target]);
+      expect(updated.filter((node) => !node.props['aria-selected']).every((node) => node.props.tabIndex === -1)).toBe(true);
+    }
+    const preventDefault = vi.fn();
+    const selected = nodes(ui.render(ui.client.RunBody, props), (node) => node.props.role === 'tab' && node.props['aria-selected'] === true)[0]!;
+    (selected.props.onKeyDown as (event: Props) => void)({ key: 'Tab', preventDefault });
+    expect(preventDefault).not.toHaveBeenCalled();
   });
 });
 
@@ -98,6 +105,30 @@ describe('three-pool goal board', () => {
     expect(ids(client.goalColumns(p))).toEqual({ todo: ['deferred', 'transferred'], doing: ['original', 'active'], done: ['done'] });
     for (const phase of ['stopped', 'failed']) expect(ids(client.goalColumns({ ...p, phase }))).toEqual({ todo: ['original', 'active', 'deferred', 'transferred'], doing: [], done: ['done'] });
     expect(ids(client.goalColumns({ ...p, phase: 'completed' }))).toEqual({ todo: ['active', 'deferred', 'transferred'], doing: [], done: ['original', 'done'] });
+  });
+
+  it('retains drafts and blocks a round switch or publish when the owner view is stale', () => {
+    const ui = harness();
+    const executeCommand = vi.fn();
+    const p = { ...progress(), phase: 'completed', goalBoard: { items: [], counts: { active: 0, deferred: 1, completed: 0, continued: 0 } } };
+    const props = { progress: p, sessionId: 'owner', connected: true, executeCommand };
+    let tree = ui.render(ui.client.GoalSection, props);
+    const draft = nodes(tree, (node) => node.type === 'textarea')[0]!;
+    (draft.props.onChange as (event: Props) => void)({ target: { value: 'Keep this wish until confirmed' } });
+    tree = ui.render(ui.client.GoalSection, props);
+    const nextRound = nodes(tree, (node) => node.type === 'button' && node.props.type === 'button')[0]!;
+    expect(nextRound.props.disabled).toBe(true);
+    expect(text(nextRound)).toContain('Publish or clear the draft first');
+    (nextRound.props.onClick as () => void)(); // Guard the handler too, not only the disabled attribute.
+    expect(executeCommand).not.toHaveBeenCalled();
+    tree = ui.render(ui.client.GoalSection, { ...props, connected: false });
+    expect(nodes(tree, (node) => node.type === 'textarea')[0]?.props.value).toBe('Keep this wish until confirmed');
+    expect(nodes(tree, (node) => node.type === 'button' && node.props.type === 'submit')[0]?.props.disabled).toBe(true);
+    const preventDefault = vi.fn();
+    (nodes(tree, (node) => node.type === 'form')[0]!.props.onSubmit as (event: Props) => void)({ preventDefault });
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(executeCommand).not.toHaveBeenCalled();
+    ui.unmount();
   });
 
   it('puts the wish composer only in To do and keeps explicit empty states', () => {

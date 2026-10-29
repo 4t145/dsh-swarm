@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { loadClient } from './client-fixture.ts';
 import { describe, expect, it, vi } from 'vitest';
 import { Context } from '@deepseek-ai/cordis';
 import * as registry from '@deepseek-ai/dsh-typert-registry/client';
@@ -22,21 +21,8 @@ interface Registration {
   order: number;
   inject: () => ViewProps;
 }
-interface Captured {
-  factory: (require: (name: string) => unknown) => { apply: (ctx: Context) => void; inject: string[] };
-}
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
 function load() {
-  let captured: Captured | undefined;
-  runInNewContext(source, {
-    window: { __ModuleLoader__: { load: (module: Captured) => { captured = module; } } },
-    console, AbortController, Error,
-  });
-  if (!captured) throw new Error('client.js did not register');
-  return captured.factory((name) => {
-    if (name === 'react') return {}; // Slot registration only; not visual rendering.
-    throw new Error(`unexpected require ${name}`);
-  });
+  return loadClient<{ apply: (ctx: Context) => void; inject: string[] }>();
 }
 function viewServices(ctx: Context) {
   let registration: Registration | undefined;

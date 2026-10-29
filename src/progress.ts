@@ -740,6 +740,18 @@ export class ProgressFeed {
 /* Host Remote 服务                                                    */
 /* ------------------------------------------------------------------ */
 
+/** Preserve each read endpoint's input path while sharing its stable Remote error contract. */
+function progressReadError(error: unknown, sessionId: string, inputPath: string): unknown {
+  if (!isSwarmError(error)) return error;
+  if (error.code === 'SWARM_FORBIDDEN') {
+    return new RemoteError('swarm-progress/forbidden', error.message, { sessionId, runId: '' });
+  }
+  if (error.code === 'SWARM_INVALID_INPUT') {
+    return new RemoteError('gateway/bad-request', error.message, { issues: [{ path: inputPath, message: error.message }] });
+  }
+  return new RemoteError('gateway/internal', error.message, {});
+}
+
 /**
  * Host 侧只读进度服务；服务键与 Remote 命名空间均为 `swarmProgress`。
  */
@@ -783,18 +795,7 @@ export class ProgressService extends TypertRemoteService<never> {
     assertSessionId(sessionId);
     if (!this.history) throw new RemoteError('gateway/internal', 'Worktree history is unavailable on this Host', {});
     try { return await this.history.page(sessionId, cursor, signal); }
-    catch (error) {
-      if (isSwarmError(error)) {
-        if (error.code === 'SWARM_FORBIDDEN') {
-          throw new RemoteError('swarm-progress/forbidden', error.message, { sessionId, runId: '' });
-        }
-        if (error.code === 'SWARM_INVALID_INPUT') {
-          throw new RemoteError('gateway/bad-request', error.message, { issues: [{ path: 'cursor', message: error.message }] });
-        }
-        throw new RemoteError('gateway/internal', error.message, {});
-      }
-      throw error;
-    }
+    catch (error) { throw progressReadError(error, sessionId, 'cursor'); }
   }
 
   /**
@@ -805,14 +806,7 @@ export class ProgressService extends TypertRemoteService<never> {
     assertSessionId(sessionId);
     if (!this.conversations) throw new RemoteError('gateway/internal', 'Worker conversations are unavailable on this Host', {});
     try { return this.conversations.page(sessionId, beforeSeq); }
-    catch (error) {
-      if (isSwarmError(error)) {
-        if (error.code === 'SWARM_FORBIDDEN') throw new RemoteError('swarm-progress/forbidden', error.message, { sessionId, runId: '' });
-        if (error.code === 'SWARM_INVALID_INPUT') throw new RemoteError('gateway/bad-request', error.message, { issues: [{ path: 'beforeSeq', message: error.message }] });
-        throw new RemoteError('gateway/internal', error.message, {});
-      }
-      throw error;
-    }
+    catch (error) { throw progressReadError(error, sessionId, 'beforeSeq'); }
   }
 
   /** 停止全部 watch 和 Git 读取；由 Host 卸载时调用。 */

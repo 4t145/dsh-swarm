@@ -5,7 +5,12 @@
  * 映射、隐私与体积上界、会话归属、终态结束与取消。
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { Context } from '@deepseek-ai/cordis';
+import { ConversationLog } from '../src/conversation-log.ts';
+import { WorktreeHistory } from '../src/worktree-history.ts';
+import { createRun } from '../src/types.ts';
+import { loadClient } from './client-fixture.ts';
 
 import { isRemoteFailure } from '@deepseek-ai/dsh-api-gateway/client';
 import { SwarmError } from '../src/errors.ts';
@@ -449,6 +454,56 @@ describe('ProgressFeed native agent refresh', () => {
   });
 });
 
+describe('owner on-demand Remote reads', () => {
+  function remoteReads(failure?: unknown) {
+    const ctx = new Context();
+    const run = createRun({ id: RUN, ownerSessionId: OWNER, repositoryRoot: '/repo', gitCommonDir: '/repo/.git',
+      goal: 'goal', acceptanceCriteria: ['works'], verification: { setup: [], test: [{ argv: ['true'], timeoutMs: 1000 }] },
+      baseCommit: 'a'.repeat(40), resultRef: 'refs/heads/result', deadline: null, budgetMinutes: 0 });
+    run.messages['message'] = { id: 'message', seq: 1, authorWorkerId: 'w1', targetWorkerId: 'w2', body: 'owner-visible body', createdAt: 1 };
+    const runtime = { status: () => status() };
+    const options = { status: runtime.status, getRun: () => { if (failure !== undefined) throw failure; return run; } };
+    const service = new ProgressService(ctx, runtime, { subscribe: () => () => undefined },
+      new WorktreeHistory({ ...options, git: { readWorktreeHead: async () => run.acceptedHead, readWorktreeLog: async () => [] } }),
+      new ConversationLog(options));
+    return { service, close: async () => { await service.dispose(); await ctx.fiber.dispose(); } };
+  }
+
+  it('returns actual conversation bodies and a history page through the public methods', async () => {
+    const view = remoteReads();
+    try {
+      await expect(view.service.conversation(OWNER, null)).resolves.toMatchObject({ runId: RUN,
+        items: [{ id: 'message', body: 'owner-visible body' }], nextBeforeSeq: null });
+      await expect(view.service.worktreeHistory(OWNER, null)).resolves.toMatchObject({ runId: RUN, items: [], nextCursor: null });
+    } finally { await view.close(); }
+  });
+
+  it('keeps endpoint-specific bad-input paths and owner denials distinct from infrastructure errors', async () => {
+    const view = remoteReads();
+    try {
+      await expect(view.service.conversation(OWNER, 0)).rejects.toMatchObject({ code: 'gateway/bad-request', details: { issues: [{ path: 'beforeSeq' }] } });
+      await expect(view.service.worktreeHistory(OWNER, 'tampered')).rejects.toMatchObject({ code: 'gateway/bad-request', details: { issues: [{ path: 'cursor' }] } });
+      for (const read of [() => view.service.conversation('worker', null), () => view.service.worktreeHistory('worker', null)]) {
+        await expect(read()).rejects.toMatchObject({ code: 'swarm-progress/forbidden', details: { sessionId: 'worker', runId: '' } });
+      }
+    } finally { await view.close(); }
+    const failed = remoteReads(new SwarmError('SWARM_INVALID_STATE', 'storage unavailable'));
+    try {
+      await expect(failed.service.conversation(OWNER, null)).rejects.toMatchObject({ code: 'gateway/internal', message: 'storage unavailable' });
+      await expect(failed.service.worktreeHistory(OWNER, null)).rejects.toMatchObject({ code: 'gateway/internal', message: 'storage unavailable' });
+    } finally { await failed.close(); }
+  });
+
+  it('does not relabel arbitrary transport exceptions as successful empty reads', async () => {
+    const failure = new Error('transport disconnected');
+    const view = remoteReads(failure);
+    try {
+      await expect(view.service.conversation(OWNER, null)).rejects.toBe(failure);
+      await expect(view.service.worktreeHistory(OWNER, null)).rejects.toBe(failure);
+    } finally { await view.close(); }
+  });
+});
+
 describe('Remote markers', () => {
   it('exports snapshot as unary and watch as a stream on the swarmProgress namespace', () => {
     expect(progressRemoteMethods()).toEqual([
@@ -767,6 +822,9 @@ interface LoadedPlugin {
   render: (sessionId?: string) => { text: string; element: unknown };
   selectTab: (tab: string) => void;
 }
+const clientCleanups: Array<() => void> = [];
+afterEach(() => { for (const cleanup of clientCleanups.splice(0)) cleanup(); });
+
 /** 最小假 React：只为提取注册与渲染文本服务，不模拟真实调度。 */
 function fakeReact(): {
   createElement: (tag: unknown, props: unknown, ...children: unknown[]) => unknown;
@@ -774,8 +832,9 @@ function fakeReact(): {
   useRef: (initial: unknown) => { current: unknown };
   useEffect: (effect: () => unknown, deps?: readonly unknown[]) => void;
   reset: () => void;
+  dispose: () => void;
 } {
-  let slots: Array<{ value?: unknown; deps?: readonly unknown[] }> = [];
+  let slots: Array<{ value?: unknown; deps?: readonly unknown[]; cleanup?: () => void }> = [];
   let cursor = 0;
   const sameDeps = (left?: readonly unknown[], right?: readonly unknown[]): boolean =>
     left !== undefined && right !== undefined && left.length === right.length
@@ -800,12 +859,17 @@ function fakeReact(): {
     useEffect: (effect, deps) => {
       const index = cursor++;
       if (!sameDeps(slots[index]?.deps, deps)) {
-        slots[index] = { deps };
-        effect();
+        slots[index]?.cleanup?.();
+        const cleanup = effect();
+        slots[index] = { deps, ...(typeof cleanup === 'function' ? { cleanup: cleanup as () => void } : {}) };
       }
     },
     reset: () => {
       cursor = 0;
+    },
+    dispose: () => {
+      for (const slot of slots) slot?.cleanup?.();
+      slots = [];
     },
   };
 }
@@ -823,49 +887,19 @@ function flattenText(node: unknown): string {
   return '';
 }
 
-interface ClientModule {
-  id: string;
-  factory: (require: (name: string) => unknown) => LoadedPlugin['exports'];
-}
-
-let clientModule: Promise<ClientModule> | null = null;
-
-/** 只加载一次浏览器 bundle；每次测试用新的 factory 实例隔离状态。 */
-async function clientModuleOnce(): Promise<ClientModule> {
-  if (clientModule !== null) return clientModule;
-  clientModule = (async () => {
-    const captures: ClientModule[] = [];
-    Reflect.set(globalThis, 'window', {
-      __ModuleLoader__: { load: (module: ClientModule) => captures.push(module) },
-    });
-    // @ts-expect-error client.js is an untyped browser bundle that registers through window.
-    await import('../client.js');
-    const loaded = captures[0];
-    if (loaded === undefined) throw new Error('client.js did not register with the module loader');
-    return loaded;
-  })();
-  return clientModule;
-}
-
 interface LoadPluginOptions {
   readonly items?: readonly unknown[];
   readonly mountFails?: boolean;
 }
 
 async function loadPlugin(options: LoadPluginOptions = {}): Promise<LoadedPlugin> {
-  const loaded = await clientModuleOnce();
-  expect(loaded.id).toBe('@local/dsh-swarm');
-
   let locale: LoadedPlugin['locale'] = { zh: {}, en: {} };
   let contribution: LoadedPlugin['contribution'] | undefined;
   let registration: LoadedPlugin['registration'] | undefined;
   const react = fakeReact();
+  clientCleanups.push(() => react.dispose());
 
-  const pluginExports = loaded.factory((name) => {
-    if (name === 'react') return react;
-    if (name === 'zod') return { z: { string: () => 'string', unknown: () => 'unknown' } };
-    throw new Error(`unexpected require(${name})`);
-  });
+  const pluginExports = loadClient<LoadedPlugin['exports']>(react);
 
   const t = (key: string, vars?: Record<string, unknown>): string => {
     const template = locale.zh[key] ?? key;
