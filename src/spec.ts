@@ -12,9 +12,8 @@ import { SwarmError } from './errors.ts';
 import { verificationConfigSchema, zodIssuesToDetails } from './schema.ts';
 import type { CommandSpec, RunSpec, VerificationConfig } from './types.ts';
 
-/** 架构固定：每个 run 2–4 个 worker。 */
+/** Structural minimum; the current upper limit is resolved by Host admission. */
 export const MIN_WORKERS = 2;
-export const MAX_WORKERS = 4;
 
 /**
  * spec 文件结构。budgetMinutes 可省略（默认不限时）；其他顶层字段必填。未知字段拒绝；
@@ -30,8 +29,7 @@ export const runSpecSchema = z.strictObject({
   workers: z
     .number()
     .int()
-    .min(MIN_WORKERS, `workers must be between ${MIN_WORKERS} and ${MAX_WORKERS}`)
-    .max(MAX_WORKERS, `workers must be between ${MIN_WORKERS} and ${MAX_WORKERS}`),
+    .min(MIN_WORKERS, `workers must be at least ${MIN_WORKERS}`),
   budgetMinutes: z.number().int().nonnegative('budgetMinutes must be non-negative').default(0),
   allowDirtyBaseline: z.boolean(),
   verification: verificationConfigSchema,

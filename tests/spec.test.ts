@@ -6,7 +6,7 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isSwarmError, SwarmError } from '../src/errors.ts';
-import { MAX_WORKERS, MIN_WORKERS, parseRunSpec } from '../src/spec.ts';
+import { MIN_WORKERS, parseRunSpec } from '../src/spec.ts';
 
 /* --------------------------- 测试夹具 --------------------------- */
 
@@ -110,8 +110,8 @@ describe('parseRunSpec 正常解析', () => {
     expect(spec.verification.test).toHaveLength(2);
   });
 
-  it(`workers 允许 ${MIN_WORKERS}–${MAX_WORKERS} 的任意整数，allowDirtyBaseline 允许 true`, () => {
-    for (const workers of [2, 3, 4]) {
+  it(`workers structurally accepts integers >= ${MIN_WORKERS}; Host applies current policy`, () => {
+    for (const workers of [2, 3, 4, 8, 12]) {
       expect(parseRunSpec(specWith({ workers }), SPEC_PATH).workers).toBe(workers);
     }
     expect(parseRunSpec(specWith({ allowDirtyBaseline: true }), SPEC_PATH).allowDirtyBaseline).toBe(
@@ -219,8 +219,8 @@ describe('parseRunSpec 字段约束', () => {
     ).toContain('acceptanceCriteria[1]');
   });
 
-  it('workers 必须是 2–4 的整数', () => {
-    for (const workers of [1, 5, 0, 2.5, '2']) {
+  it('workers must be a safe integer >= 2', () => {
+    for (const workers of [1, 0, 2.5, '2', NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
       const error = captureError(() => parseRunSpec(specWith({ workers }), SPEC_PATH));
       expect(error.code).toBe('SWARM_INVALID_SPEC');
       expect(issuePaths(error)).toContain('workers');
@@ -285,7 +285,7 @@ describe('parseRunSpec 字段约束', () => {
   it('一次返回全部字段问题，便于用户一次改完', () => {
     const error = captureError(() =>
       parseRunSpec(
-        specWith({ goal: '', workers: 9, budgetMinutes: -1, acceptanceCriteria: [] }),
+        specWith({ goal: '', workers: 1, budgetMinutes: -1, acceptanceCriteria: [] }),
         SPEC_PATH,
       ),
     );
