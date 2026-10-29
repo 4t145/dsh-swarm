@@ -1183,8 +1183,6 @@ window.__ModuleLoader__.load({
 				head: all.filter((item) => item.kind === "head").length,
 			};
 			const { lanes, marks, width, height, y } = flowLayout(progress, kind);
-			const pairs = messagePairs(progress).slice(0, 6);
-			const peak = pairs[0]?.count ?? 1;
 			let lastTick = -Infinity, lastLabel = "";
 			const ticks = marks.flatMap((mark) => {
 				const text = new Date(mark.item.createdAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -1262,25 +1260,7 @@ window.__ModuleLoader__.load({
 									h("circle", { cx: mark.x, cy: mark.y, r: 14, className: "dshSwarm_flowHit" }),
 									flowGlyph(mark))),
 								ticks)))),
-				hovered ? card(hovered) : null) : supported ? h("p", { className: "dshSwarm_empty" }, t("flow.empty", {})) : null,
-				supported && all.length ? h("div", { className: "dshSwarm_flowBottom" },
-					h("div", { className: "dshSwarm_flowPanel" }, h("h3", { className: "dshSwarm_flowPanelTitle" }, t("flow.pairs", {})),
-						pairs.length ? h("ul", { className: "dshSwarm_pairs" }, pairs.map((pair) => {
-							const fromIndex = progress.workers.findIndex((worker) => worker.id === pair.from);
-							const toIndex = progress.workers.findIndex((worker) => worker.id === pair.to);
-							return h("li", { key: pair.from + pair.to, className: "dshSwarm_pair" },
-								h("span", { className: "dshSwarm_pairNames" }, h("i", { style: { background: workerColor(Math.max(0, fromIndex)) } }), name(pair.from), h("span", { className: "dshSwarm_pairArrow", "aria-label": t("flow.to", {}) }, "→"), h("i", { style: { background: workerColor(Math.max(0, toIndex)) } }), name(pair.to)),
-								h("span", { className: "dshSwarm_pairBar", "aria-hidden": true }, h("span", { style: { width: pair.count / peak * 100 + "%", background: workerColor(Math.max(0, fromIndex)) } })),
-								h("span", { className: "dshSwarm_pairCount" }, "×" + pair.count));
-						})) : h("p", { className: "dshSwarm_laneEmpty" }, t("flow.noPairs", {}))),
-					h("div", { className: "dshSwarm_flowPanel" }, h("h3", { className: "dshSwarm_flowPanelTitle" }, t("flow.feed", {})),
-						h("ol", { className: "dshSwarm_flowFeed" }, [...all].reverse().slice(0, 14).map((item) => {
-							const owner = item.kind === "task" || item.kind === "proposal" || item.kind === "head" ? item.peerWorkerId ?? item.actorWorkerId : item.actorWorkerId;
-							const lane = progress.workers.findIndex((worker) => worker.id === owner);
-							return h("li", { key: item.seq, className: "dshSwarm_flowItem", "data-kind": item.kind },
-								h("i", { "aria-hidden": true, style: { background: lane < 0 ? TRACK_TRUNK : workerColor(lane) } }),
-								h("span", { className: "dshSwarm_flowText" }, describe(item)), timeElement(item.createdAt));
-						})))) : null);
+				hovered ? card(hovered) : null) : supported ? h("p", { className: "dshSwarm_empty" }, t("flow.empty", {})) : null);
 		}
 
 		/** Validate the owner conversation page at the unknown-codec boundary. */
