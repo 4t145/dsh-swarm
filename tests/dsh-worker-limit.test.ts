@@ -1,7 +1,7 @@
 import { Context, type Volatile } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
 import { SubagentRuntime } from '@deepseek-ai/dsh-subagent';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { dshWorkerLimitResolver } from '../src/dsh-worker-limit.ts';
 import { resolveWorkerLimit } from '../src/worker-limit.ts';
 import { SwarmService } from '../src/index.ts';
@@ -90,12 +90,22 @@ describe('effective native worker policy', () => {
     expect(() => resolveWorkerLimit(undefined, () => value)).toThrow(/maxActiveSubagents must/);
   });
 
+  it('rejects explicit null at Host initialization before acquiring storage', async () => {
+    const ctx = new Context();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const service = new SwarmService(ctx, SwarmService.Config({ workerCountMax: null }));
+      await expect(service.ready).rejects.toMatchObject({ code: 'SWARM_CONFIG_UNAVAILABLE' });
+      expect(() => service.observer).toThrow('not initialized');
+    } finally { await ctx.fiber.dispose(); log.mockRestore(); }
+  });
+
   it('Host schema has no numeric override default and rejects invalid values', () => {
     const unset = SwarmService.Config({});
     expect(unset.workerCountMax.get()).toBeUndefined();
     expect(SwarmService.Config({ workerCountMax: 12 }).workerCountMax.get()).toBe(12);
     for (const workerCountMax of [0, -1, 1.5, NaN, Infinity, '8', false]) {
-      expect(() => Schema.resolve({ workerCountMax }, SwarmService.Config)).toThrow();
+      expect(() => Schema.resolve({ workerCountMax }, SwarmService.Config, {})).toThrow();
     }
     // Schemastery's optional nullable value survives parsing, so Swarm validates it explicitly.
     const nullConfig = SwarmService.Config({ workerCountMax: null });
