@@ -6,6 +6,7 @@ import { ToolCallId, type UserMessage } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
 import { ToolRuntime, type ToolExecutionResult } from '@deepseek-ai/dsh-tools';
+import { NativeToolExecutor } from '@deepseek-ai/dsh-tool-executor-native';
 import { Collaboration } from '../src/collaboration.ts';
 import { Delivery } from '../src/delivery.ts';
 import { PublicCollaboration } from '../src/public-collaboration.ts';
@@ -59,7 +60,8 @@ async function harness() {
   const ctx = new Context();
   new SystemPrompt(ctx, { includeHarnessIdentity: false, includeRuntimeContext: false, personaPrefix: '',
     personaSuffix: '', toolOrder: undefined });
-  new ToolRuntime(ctx, { mode: 'native', maxParallelSubCalls: 10 });
+  new ToolRuntime(ctx);
+  ctx.tools.setExecutor(new NativeToolExecutor(ctx));
   const store = new MemoryStateStore(new Table());
   const run = createRun({ id: 'r', ownerSessionId: 'owner', repositoryRoot: '/repo', gitCommonDir: '/repo/.git',
     goal: 'urgent dm', acceptanceCriteria: ['dm steers'], verification: { setup: [], test: [{ argv: ['true'], timeoutMs: 1000 }] },
@@ -87,10 +89,16 @@ async function harness() {
   cleanup.push(async () => { removeContext(); removeTool(); await delivery.dispose(); await store.close(); await ctx.fiber.dispose(); });
   const removeTools = registerWorkerTools(ctx, { collaboration } as never, {} as never);
   cleanup.push(() => removeTools());
-  const exec = (name: string, who: string, args: Record<string, unknown> = {}) => ctx.tools.execute({
-    callId: ToolCallId(`call-${++count}`), name, arguments: JSON.stringify(args),
-    agent: { id: SessionId(`s-${who}`) } as Agent, signal: new AbortController().signal,
-  }) as Promise<ToolExecutionResult>;
+  // DSH 0.2.2 executes batches; contexts may be attached to the call result or the batch.
+  const exec = async (name: string, who: string, args: Record<string, unknown> = {}): Promise<ToolExecutionResult> => {
+    const batch = await ctx.tools.execute({
+      calls: [{ type: 'tool-call', id: ToolCallId(`call-${++count}`), name, arguments: JSON.stringify(args) }],
+      agent: { id: SessionId(`s-${who}`) } as Agent, signal: new AbortController().signal,
+    });
+    const result = batch.results[0]?.result;
+    if (result === undefined) throw new Error(`no result for ${name}`);
+    return { ...result, additionalContexts: [...(result.additionalContexts ?? []), ...batch.additionalContexts] };
+  };
   const hold = () => { const release = barrier(); gate = release.promise; entered = barrier(); return release; };
   const call = (who: string, command: PublicCommand) => api.execute(`s-${who}`, command, `call-${++count}`);
   return { ctx, store, collaboration, api, host, delivery, errors, exec, hold, call, entered: () => entered.promise };
