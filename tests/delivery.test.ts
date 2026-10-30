@@ -379,8 +379,9 @@ describe('wait → pending → settled', () => {
     });
   });
 
-  it('failed activation 走上报通道且不清掉 pending', async () => {
+  it('failed activation 不上报 run 级错误，经退避重试唤醒同一 worker 且不清掉 pending', async () => {
     const h = createHarness('running');
+    const timers = useManualTimers(h);
     addWorker(h, 'w1', { waitRegistration: wait('w1') });
     h.host.statuses.set('session-w1', 'running');
     const seq = await append(h, finding('w2', 'f1'));
@@ -388,8 +389,137 @@ describe('wait → pending → settled', () => {
     h.host.emitSettled('session-w1', 'act-1', true);
     await h.delivery.idle();
     expect(h.host.notifies).toEqual([]);
-    expect(h.errors).toHaveLength(1);
+    expect(h.errors).toEqual([]);
+    expect(timers.pending.map((timer) => timer.delayMs)).toEqual([1000]);
     expect(worker(h.store.get(RUN_ID), 'w1').wakeTargetSeq).toBe(seq);
+
+    // Explicit barrier: the retry fires only when the test releases it.
+    await timers.fireAll();
+    await h.delivery.idle();
+    expect(h.host.notifies.map((n) => n.workerId)).toEqual(['w1']);
+    expect(h.errors).toEqual([]);
+  });
+});
+
+/** Injectable backoff scheduler; tests release retries explicitly instead of sleeping. */
+function useManualTimers(h: Harness) {
+  const pending: { callback: () => void; delayMs: number; cancelled: boolean }[] = [];
+  h.options.schedule = (callback, delayMs) => {
+    const timer = { callback, delayMs, cancelled: false };
+    pending.push(timer);
+    return () => { timer.cancelled = true; };
+  };
+  return {
+    get pending() { return pending.filter((timer) => !timer.cancelled); },
+    async fireAll(): Promise<void> {
+      const due = pending.splice(0).filter((timer) => !timer.cancelled);
+      for (const timer of due) timer.callback();
+      await h.delivery.idle();
+    },
+  };
+}
+
+describe('单 worker 失败隔离', () => {
+  function isolation(h: Harness) {
+    const isolated: { runId: string; workerId: string; reason: string; diagnostic: string }[] = [];
+    h.options.onWorkerUnavailable = (runId, workerId, reason, diagnostic) => {
+      isolated.push({ runId, workerId, reason, diagnostic });
+    };
+    return isolated;
+  }
+
+  it('重试用尽后只隔离该 worker（可配置次数、指数退避），不走 run 级 onError', async () => {
+    const h = createHarness('running');
+    const timers = useManualTimers(h);
+    const isolated = isolation(h);
+    h.options.activationRetries = 2;
+    addWorker(h, 'w1');
+    addWorker(h, 'w2');
+    h.host.statuses.set('session-w1', 'inactive');
+    await h.delivery.idle();
+
+    const delays: number[] = [];
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      h.host.emitSettled('session-w1', `fail-${attempt}`, true);
+      await h.delivery.idle();
+      delays.push(...timers.pending.map((timer) => timer.delayMs));
+      await timers.fireAll();
+    }
+    expect(delays).toEqual([1000, 2000]);
+    expect(isolated).toEqual([{ runId: RUN_ID, workerId: 'w1', reason: 'activation_failed',
+      diagnostic: expect.stringContaining('2 automatic retries exhausted') }]);
+    expect(h.errors).toEqual([]);
+    // Two retries each woke only w1.
+    expect(h.host.notifies.map((n) => n.workerId)).toEqual(['w1', 'w1']);
+  });
+
+  it('成功 settled 清零失败计数', async () => {
+    const h = createHarness('running');
+    const timers = useManualTimers(h);
+    const isolated = isolation(h);
+    h.options.activationRetries = 1;
+    addWorker(h, 'w1');
+    h.host.statuses.set('session-w1', 'inactive');
+    await h.delivery.idle();
+
+    h.host.emitSettled('session-w1', 'a1', true);
+    await h.delivery.idle();
+    await timers.fireAll();
+    h.host.emitSettled('session-w1', 'a2');
+    await h.delivery.idle();
+    h.host.emitSettled('session-w1', 'a3', true);
+    await h.delivery.idle();
+    expect(isolated).toEqual([]);
+    expect(timers.pending).toHaveLength(1);
+  });
+
+  it('连续空转隔离该 worker（no_progress），不再唤醒', async () => {
+    const h = createHarness('running');
+    const isolated = isolation(h);
+    addWorker(h, 'w1', { waitRegistration: wait('w1') });
+    h.host.statuses.set('session-w1', 'running');
+    await append(h, finding('w2', 'f1'));
+    h.host.emitSettled('session-w1', 'act-1');
+    await h.delivery.idle();
+    h.host.emitSettled('session-w1', 'act-2');
+    await h.delivery.idle();
+    expect(isolated.map((item) => [item.workerId, item.reason])).toEqual([['w1', 'no_progress']]);
+    expect(h.errors).toEqual([]);
+    expect(h.host.notifies).toHaveLength(1);
+  });
+
+  it('已隔离的 worker 不再收到投递；resetWorker 取消未触发的重试', async () => {
+    const h = createHarness('running');
+    const timers = useManualTimers(h);
+    addWorker(h, 'w1', { unavailableReason: 'activation_failed',
+      unavailableDetail: { reason: 'activation_failed', diagnostic: 'x', at: 1 } });
+    h.host.statuses.set('session-w1', 'inactive');
+    await append(h, message('w2', 'w1', 'm1'));
+    await h.delivery.kick(RUN_ID, 'w1');
+    await h.delivery.idle();
+    expect(h.host.notifies).toEqual([]);
+
+    addWorker(h, 'w3');
+    h.host.statuses.set('session-w3', 'inactive');
+    await h.delivery.idle();
+    h.host.emitSettled('session-w3', 'f1', true);
+    await h.delivery.idle();
+    expect(timers.pending).toHaveLength(1);
+    h.delivery.resetWorker(RUN_ID, 'w3');
+    expect(timers.pending).toHaveLength(0);
+  });
+
+  it('dispose 取消未触发的退避重试', async () => {
+    const h = createHarness('running');
+    const timers = useManualTimers(h);
+    addWorker(h, 'w1');
+    h.host.statuses.set('session-w1', 'inactive');
+    await h.delivery.idle();
+    h.host.emitSettled('session-w1', 'f1', true);
+    await h.delivery.idle();
+    expect(timers.pending).toHaveLength(1);
+    await h.delivery.dispose();
+    expect(timers.pending).toHaveLength(0);
   });
 });
 

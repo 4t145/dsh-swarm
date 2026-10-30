@@ -84,7 +84,7 @@ export interface ProgressBoardTask extends ProgressTask {
 
 export interface ProgressEvent {
   readonly seq: number;
-  readonly kind: 'task' | 'proposal' | 'head' | 'run';
+  readonly kind: 'task' | 'proposal' | 'head' | 'run' | 'worker';
   readonly objectId: string;
   readonly status: string;
   readonly authorWorkerId: string | null;
@@ -404,6 +404,7 @@ function recentEvents(detail: ProgressRunDetail | undefined, runId: string): Pro
       case 'proposal': objectId = event.proposalId; status = event.status; break;
       case 'head': objectId = event.acceptedHead; status = 'accepted'; break;
       case 'run': objectId = runId; status = event.phase; break;
+      case 'worker': objectId = event.workerId; status = event.status; break;
       default: continue; // Finding/message metadata is not public activity either.
     }
     result.push({ seq: event.seq, kind: event.kind, objectId, status,
@@ -441,7 +442,8 @@ function interactions(detail: ProgressRunDetail | undefined): ProgressInteractio
         break; // Public discussion bodies are queried on demand, not copied into progress.
       case 'run':
       case 'goal':
-        break; // Control and goal changes are shown by the dashboard and goal board.
+      case 'worker':
+        break; // Control, goal and worker isolation changes are shown by the dashboard, goal board and channel.
       default: {
         const unknown: never = event;
         void unknown;

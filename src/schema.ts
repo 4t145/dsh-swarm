@@ -40,6 +40,12 @@ export const verificationConfigSchema = z.strictObject({
 
 /** Claims leave live views/notices after this long by default (1 hour); history keeps them. */
 export const DEFAULT_CLAIM_TTL_MS = 3_600_000;
+/** Automatic re-wakes of one worker after a failed activation before it is isolated. */
+export const DEFAULT_ACTIVATION_RETRIES = 3;
+export const ACTIVATION_RETRIES_MAX = 10;
+/** First backoff delay; doubles per consecutive failure. */
+export const DEFAULT_ACTIVATION_RETRY_BASE_MS = 1_000;
+
 /** Validated bounds for the configurable claim TTL: 1 minute to 7 days. */
 export const CLAIM_TTL_MIN_MS = 60_000;
 export const CLAIM_TTL_MAX_MS = 7 * 24 * 3_600_000;
@@ -60,6 +66,7 @@ export const DEFAULT_RUNTIME_CONFIG: SwarmRuntimeConfig = {
   defaultWorkerCount: 2,
   eventPageSize: 20,
   claimTtlMs: DEFAULT_CLAIM_TTL_MS,
+  activationRetries: DEFAULT_ACTIVATION_RETRIES,
 };
 
 export const runtimeConfigSchema = z.strictObject({
@@ -68,6 +75,7 @@ export const runtimeConfigSchema = z.strictObject({
   defaultWorkerCount: z.number().int().min(1),
   eventPageSize: z.number().int().min(1).max(200),
   claimTtlMs: z.number().int().min(CLAIM_TTL_MIN_MS).max(CLAIM_TTL_MAX_MS).default(DEFAULT_CLAIM_TTL_MS),
+  activationRetries: z.number().int().min(0).max(ACTIVATION_RETRIES_MAX).default(DEFAULT_ACTIVATION_RETRIES),
 });
 
 /* --------------------------- 判别字段 --------------------------- */
@@ -134,6 +142,11 @@ export const workerRecordSchema = z.strictObject({
   initializationState: z.enum(['pending', 'initializing', 'ready', 'failed']),
   initializationError: z.string().nullable(),
   unavailableReason: z.string().nullable(),
+  unavailableDetail: z.strictObject({
+    reason: z.enum(['activation_failed', 'no_progress', 'initialization_failed']),
+    diagnostic: z.string(),
+    at: millisSchema,
+  }).nullable().optional(),
   offeredSeq: seqSchema,
   observedSeq: seqSchema,
   shownSeq: seqSchema.optional(),
@@ -344,8 +357,20 @@ const goalEventSchema = z.strictObject({
   audience: audienceAllSchema,
 });
 
+const workerEventSchema = z.strictObject({
+  kind: z.literal('worker'),
+  seq: seqSchema,
+  createdAt: millisSchema,
+  authorWorkerId: idSchema.nullable(),
+  workerId: idSchema,
+  status: z.enum(['unavailable', 'available']),
+  reason: z.string().nullable(),
+  audience: audienceAllSchema,
+});
+
 export const swarmEventSchema = z.discriminatedUnion('kind', [
   publicEventSchema,
+  workerEventSchema,
   goalEventSchema,
   taskEventSchema,
   findingEventSchema,

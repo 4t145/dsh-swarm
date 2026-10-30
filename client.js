@@ -116,7 +116,7 @@ window.__ModuleLoader__.load({
 			"worker.details": "工具记录与等待详情", "worker.id": "成员 ID", "worker.initialization": "初始化", "worker.turnStep": "Turn {turn} · Step {step}", "worker.wait": "等待条件", "wait.any": "任意匹配的协作更新", "wait.selected": "指定任务 / 提案更新", "wait.after": "已读至事件 {seq}", "worker.proposal": "当前提案", "tools.recent": "最近工具（非执行中）", "tool.executing": "调用中", "tool.completed": "已返回", "tool.failed": "失败", "tool.interrupted": "已中断",
 			"init.pending": "待准备", "init.initializing": "准备中", "init.ready": "就绪", "init.failed": "失败", "task.open": "待认领", "task.claimed": "已认领", "task.proposed": "待集成", "task.done": "已完成", "task.blocked": "阻塞", "task.cancelled": "已取消",
 			"tasks.title": "任务板", "tasks.empty": "尚未创建任务。", "tasks.missing": "当前 Host 未提供任务板。", "tasks.more": "显示 {shown}/{total} 项（优先展示活跃任务）", "tasks.unowned": "未分配", "tasks.details": "更多任务（{count}）",
-			"event.task": "任务", "event.proposal": "提案", "event.head": "结果版本", "event.run": "运行", "event.updated": "已更新", "proposal.queued": "排队中", "proposal.integrating": "集成中", "proposal.accepted": "已接受", "proposal.rejected": "已拒绝",
+			"event.task": "任务", "event.proposal": "提案", "event.head": "结果版本", "event.run": "运行", "event.worker": "成员状态", "chat.workerUnavailable": "{peer} 已被 Host 隔离，其认领的任务已释放", "chat.workerAvailable": "{peer} 已重新启用", "event.updated": "已更新", "proposal.queued": "排队中", "proposal.integrating": "集成中", "proposal.accepted": "已接受", "proposal.rejected": "已拒绝",
 			"result.note": "已接受版本不等于整个目标已验收；仅运行状态为“已完成”时表示交付完成。", "reason": "当前原因：{reason}", "detail.error": "部分详情不可用：{message}",
 			"overview.goal": "本轮目标 · 展开全文", "overview.goalMissing": "Host 未提供目标", "filter.all": "全部", "tasks.flow": "任务认领与推进", "tasks.noMatch": "本快照中没有此状态的任务。", "task.revision": "修订", "task.owner": "当前成员", "task.identity": "任务 ID", "task.proposal": "关联提案", "tasks.snapshot": "Host 仅提供 {shown}/{total} 项；筛选限于当前快照。",
 			"delivery.title": "当前交付", "result.run": "运行 ID", "delivery.baseline": "仍为基线", "delivery.integrated": "已集成 · 待整体验收", "delivery.verifying": "整体验证中", "delivery.closing": "交付收尾中", "delivery.completed": "交付完成", "delivery.stopped": "运行已停止", "delivery.failed": "运行失败", "delivery.errors": "验证失败 {failed} · 中断 {interrupted}", 
@@ -146,7 +146,7 @@ window.__ModuleLoader__.load({
 			"worker.details": "Tool history & wait details", "worker.id": "Worker ID", "worker.initialization": "Initialization", "worker.turnStep": "Turn {turn} · Step {step}", "worker.wait": "Waiting for", "wait.any": "Any matching collaboration update", "wait.selected": "Selected task / proposal updates", "wait.after": "Acknowledged through event {seq}", "worker.proposal": "Current proposal", "tools.recent": "Recent tools (not executing)", "tool.executing": "Call in progress", "tool.completed": "Returned", "tool.failed": "Failed", "tool.interrupted": "Interrupted",
 			"init.pending": "Pending", "init.initializing": "Initializing", "init.ready": "Ready", "init.failed": "Failed", "task.open": "Open", "task.claimed": "Claimed", "task.proposed": "Proposed", "task.done": "Done", "task.blocked": "Blocked", "task.cancelled": "Cancelled",
 			"tasks.title": "Task board", "tasks.empty": "No tasks created yet.", "tasks.missing": "Task board is unavailable from this Host.", "tasks.more": "Showing {shown}/{total} tasks (active first)", "tasks.unowned": "Unassigned", "tasks.details": "More tasks ({count})",
-			"event.task": "Task", "event.proposal": "Proposal", "event.head": "Result revision", "event.run": "Run", "event.updated": "Updated", "proposal.queued": "Queued", "proposal.integrating": "Integrating", "proposal.accepted": "Accepted", "proposal.rejected": "Rejected",
+			"event.task": "Task", "event.proposal": "Proposal", "event.head": "Result revision", "event.run": "Run", "event.worker": "Member status", "chat.workerUnavailable": "{peer} was isolated by the Host; its claimed task was released", "chat.workerAvailable": "{peer} was re-enabled", "event.updated": "Updated", "proposal.queued": "Queued", "proposal.integrating": "Integrating", "proposal.accepted": "Accepted", "proposal.rejected": "Rejected",
 			"result.note": "An accepted revision is not acceptance of the whole goal. Delivery is complete only when the run is Completed.", "reason": "Current reason: {reason}", "detail.error": "Some details are unavailable: {message}",
 			"overview.goal": "Run goal · Expand", "overview.goalMissing": "Goal unavailable from Host", "filter.all": "All", "tasks.flow": "Task ownership & progress", "tasks.noMatch": "No tasks with this status in the snapshot.", "task.revision": "Revision", "task.owner": "Current worker", "task.identity": "Task ID", "task.proposal": "Linked proposal", "tasks.snapshot": "Host provides {shown}/{total} tasks; filters use this snapshot only.",
 			"delivery.title": "Current delivery", "result.run": "Run ID", "delivery.baseline": "Baseline only", "delivery.integrated": "Integrated · Delivery pending", "delivery.verifying": "Verifying delivery", "delivery.closing": "Closing delivery resources", "delivery.completed": "Delivery complete", "delivery.stopped": "Run stopped", "delivery.failed": "Run failed", "delivery.errors": "{failed} failed · {interrupted} interrupted", 
@@ -247,7 +247,7 @@ window.__ModuleLoader__.load({
 			}
 			if (p.protocolVersion >= 2 && (!textOrNull(p.goal) || !timeOrNull(p.createdAt)
 				|| !object(p.taskBoard) || !count(p.taskBoard.total) || !Array.isArray(p.taskBoard.items) || !p.taskBoard.items.every((task) => taskValid(task) && textOrNull(task.ownerWorkerId) && textOrNull(task.proposalId))
-				|| !Array.isArray(p.recentEvents) || !p.recentEvents.every((event) => object(event) && count(event.seq) && ["task", "proposal", "head", "run"].includes(event.kind) && typeof event.objectId === "string" && typeof event.status === "string" && validTime(event.createdAt) && textOrNull(event.authorWorkerId))
+				|| !Array.isArray(p.recentEvents) || !p.recentEvents.every((event) => object(event) && count(event.seq) && ["task", "proposal", "head", "run", "worker"].includes(event.kind) && typeof event.objectId === "string" && typeof event.status === "string" && validTime(event.createdAt) && textOrNull(event.authorWorkerId))
 				|| !p.workers.every((w) => object(w.activity) && ["idle", "running", "executing", "unavailable"].includes(w.activity.status) && textOrNull(w.activity.diagnostic) && countOrNull(w.activity.turn) && countOrNull(w.activity.step) && timeOrNull(w.activity.startedAt) && timeOrNull(w.activity.updatedAt) && Array.isArray(w.activity.activeTools) && w.activity.activeTools.every(toolValid) && Array.isArray(w.activity.recentTools) && w.activity.recentTools.every(toolValid)
 					&& (w.wait === null || (object(w.wait) && ["any", "selected"].includes(w.wait.mode) && count(w.wait.afterSeq) && Array.isArray(w.wait.taskIds) && w.wait.taskIds.every((id) => typeof id === "string") && Array.isArray(w.wait.proposalIds) && w.wait.proposalIds.every((id) => typeof id === "string")))
 					&& (w.currentProposal === null || (object(w.currentProposal) && typeof w.currentProposal.id === "string" && ["queued", "integrating"].includes(w.currentProposal.status)))))) {
@@ -1413,8 +1413,8 @@ window.__ModuleLoader__.load({
 			const add = (item) => { if (item.kind !== "message" && !bySeq.has(item.seq)) bySeq.set(item.seq, { ...item, side: item.actorWorkerId === null ? "right" : "left" }); };
 			if (Array.isArray(progress.interactions)) progress.interactions.forEach(add);
 			for (const event of progress.recentEvents ?? []) {
-				if (Array.isArray(progress.interactions) && event.kind !== "run") continue;
-				add({ seq: event.seq, kind: event.kind, status: event.status, actorWorkerId: event.authorWorkerId ?? null, peerWorkerId: null, objectId: event.objectId ?? "", taskId: event.kind === "task" ? event.objectId ?? null : null, createdAt: event.createdAt });
+				if (Array.isArray(progress.interactions) && event.kind !== "run" && event.kind !== "worker") continue;
+				add({ seq: event.seq, kind: event.kind, status: event.status, actorWorkerId: event.authorWorkerId ?? null, peerWorkerId: event.kind === "worker" ? event.objectId : null, objectId: event.objectId ?? "", taskId: event.kind === "task" ? event.objectId ?? null : null, createdAt: event.createdAt });
 			}
 			return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
 		}
@@ -1544,6 +1544,7 @@ window.__ModuleLoader__.load({
 					case "proposal": return t("flow.say.proposal", { ...vars, actor: name(item.peerWorkerId ?? item.actorWorkerId), status: label(t, "proposal", item.status) });
 					case "head": return t(item.peerWorkerId ? "flow.say.head" : "flow.say.headHost", vars);
 					case "run": return t("chat.run", { phase: label(t, "phase", item.status) });
+					case "worker": return t(item.status === "available" ? "chat.workerAvailable" : "chat.workerUnavailable", { peer: name(item.peerWorkerId) });
 					default: return item.kind;
 				}
 			};
