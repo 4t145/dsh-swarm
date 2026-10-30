@@ -865,8 +865,8 @@ markRemoteMethod(ProgressService.prototype, 'snapshot');
 markRemoteMethod(ProgressService.prototype, 'watch', { mode: 'stream' });
 markRemoteMethod(ProgressService.prototype, 'watchSession', { mode: 'stream' });
 
-/** 构造后即可用的进度服务；调用方负责在卸载时 `dispose()`。 */
-export function registerProgress(
+/** 等待活动投影注册完成后返回进度服务；调用方负责在卸载时 `dispose()`。 */
+export async function registerProgress(
   ctx: Context,
   runtime: ProgressRuntimePort,
   store: {
@@ -874,8 +874,8 @@ export function registerProgress(
     subscribe(listener: (run: Run) => void): () => void;
   },
   options: { now?: () => number; git?: WorktreeHistoryGitPort } = {},
-): ProgressService {
-  const activity = registerWorkerActivity(ctx);
+): Promise<ProgressService> {
+  const activity = await registerWorkerActivity(ctx);
   try {
     return new ProgressService(ctx, runtime, {
       activity,

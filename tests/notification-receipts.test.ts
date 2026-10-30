@@ -61,8 +61,8 @@ async function setup() {
   const post = (body: string, extra: Partial<Extract<PublicCommand, { action: 'post' }>> = {}) =>
     call('a', { action: 'post', threadId: thread.id, body, ...extra }) as Promise<PublicMessageRecord>;
   const registrations: WorkerReceipts[] = [];
-  const register = () => { const receipts = registerWorkerReceipts(ctx, collaboration); registrations.push(receipts); return receipts; };
-  const receipts = register();
+  const register = async () => { const receipts = await registerWorkerReceipts(ctx, collaboration); registrations.push(receipts); return receipts; };
+  const receipts = await register();
   cleanup.push(async () => { for (const registration of registrations) await registration.dispose(); await store.close(); await ctx.fiber.dispose(); });
   const context = () => {
     const run = store.get('r');
@@ -204,7 +204,7 @@ describe('Host technical display receipts', () => {
     expect(pendingNotifications(h.store.get('r'), 'b')).toHaveLength(1);
     await h.receipts.dispose();
     h.table.fail = false;
-    const recovered = h.register(); // new native projection reconstructs from the Session log
+    const recovered = await h.register(); // new native projection reconstructs from the Session log
     await recovered.reconcile(h.session);
     expect(pendingNotifications(h.store.get('r'), 'b')).toEqual([]);
     const before = h.store.get('r');

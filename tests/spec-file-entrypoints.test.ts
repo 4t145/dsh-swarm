@@ -6,6 +6,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
 import { ToolRuntime } from '@deepseek-ai/dsh-tools';
+import { NativeToolExecutor } from '@deepseek-ai/dsh-tool-executor-native';
 import { registerSwarmCommand, type SwarmCommandContext, type SwarmCommandDefinition, type SwarmRunView, type SwarmRuntimePort } from '../src/commands.ts';
 import { registerOwnerTools } from '../src/owner-tools.ts';
 import type { RunSpec } from '../src/types.ts';
@@ -28,7 +29,8 @@ function harness(entry: 'command' | 'tool') {
   const host = new Context();
   disposers.push(() => host.fiber.dispose());
   new SystemPrompt(host, { includeHarnessIdentity: false, includeRuntimeContext: false, personaPrefix: '', personaSuffix: '', toolOrder: undefined });
-  new ToolRuntime(host, { mode: 'native', maxParallelSubCalls: 1 });
+  new ToolRuntime(host);
+  host.tools.setExecutor(new NativeToolExecutor(host));
   const session = Session.create(SessionId('spec-owner'));
   // Only the real identity/session surface is consumed; no model or Agent loop runs.
   const agent = { id: session.id, session } as Agent;
@@ -68,9 +70,12 @@ function harness(entry: 'command' | 'tool') {
         const result = await command.handler({ agent, rawInput: 'start --spec "configs/run spec.json"', signal });
         return { ok: result.kind === 'success', text: result.text ?? '' };
       }
-      const result = await host.tools.execute({
-        callId: ToolCallId('spec-call'), name: 'swarm_manage', arguments: { action: 'start', spec_path: 'configs/run spec.json' }, agent, signal,
+      const batch = await host.tools.execute({
+        calls: [{ type: 'tool-call', id: ToolCallId('spec-call'), name: 'swarm_manage', arguments: JSON.stringify({ action: 'start', spec_path: 'configs/run spec.json' }) }],
+        agent, signal,
       });
+      const result = batch.results[0]?.result;
+      if (result === undefined) throw new Error('no swarm_manage result');
       return { ok: !result.isError, text: result.isError ? result.error.message : JSON.stringify(result.value) };
     },
   };

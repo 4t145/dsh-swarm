@@ -17,6 +17,7 @@ import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
 import { createScope, scopeOf } from '@deepseek-ai/dsh-scope';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
 import { ToolRuntime, type ToolExecutionResult } from '@deepseek-ai/dsh-tools';
+import { NativeToolExecutor } from '@deepseek-ai/dsh-tool-executor-native';
 import { StoredArtifacts, type ArtifactRecord, type ArtifactTable } from '../src/artifacts.ts';
 import {
   verificationFingerprint,
@@ -226,7 +227,8 @@ async function makeHarness(
     personaSuffix: '',
     toolOrder: undefined,
   });
-  new ToolRuntime(ctx, { mode: 'native', maxParallelSubCalls: 10 });
+  new ToolRuntime(ctx);
+  ctx.tools.setExecutor(new NativeToolExecutor(ctx));
 
   const jobs = new FakeJobs();
   ctx.provide('jobs', jobs);
@@ -290,13 +292,14 @@ async function makeHarness(
     dispose,
     async call(toolName, args, agent) {
       calls += 1;
-      return ctx.tools.execute({
-        callId: ToolCallId(`call-${calls}`),
-        name: toolName,
-        arguments: args,
+      const batch = await ctx.tools.execute({
+        calls: [{ type: 'tool-call', id: ToolCallId(`call-${calls}`), name: toolName, arguments: JSON.stringify(args) }],
         ...(agent === undefined ? {} : { agent }),
         signal: new AbortController().signal,
       });
+      const result = batch.results[0]?.result;
+      if (result === undefined) throw new Error(`no result for ${toolName}`);
+      return result;
     },
   };
 }
@@ -477,7 +480,7 @@ describe('worker tools', () => {
     h.ctx.on('session/flush', () => {}); // controlled persistence boundary
     const session = h.ctx.sessions.create(SessionId('s1'));
     const agent = { id: session.id, session } as Agent;
-    const receipts = registerWorkerReceipts(h.ctx, h.runtime.collaboration);
+    const receipts = await registerWorkerReceipts(h.ctx, h.runtime.collaboration);
     try {
       await h.runtime.collaboration.message('s2', { target: 'w1', body: 'interface ready' }, 'peer-message');
       const result = await h.call('swarm_sync', {}, agent);

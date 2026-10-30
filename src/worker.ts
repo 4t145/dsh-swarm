@@ -36,13 +36,11 @@ export const Config = Schema.object({
 export async function apply(ctx: Context, config: WorkerContextConfig = DEFAULT_CONTEXT): Promise<void> {
   const runtime = await ctx.swarm.ready;
 
-  ctx.effect(() => {
-    const receipts = registerWorkerReceipts(ctx, runtime.collaboration);
-    return () => receipts.dispose();
-  });
+  // Projection registration is asynchronous in DSH 0.2.2; await it before tools can consume receipts.
+  const receipts = await registerWorkerReceipts(ctx, runtime.collaboration);
+  ctx.effect(() => () => { void receipts.dispose(); });
   ctx.effect(() => registerWorkerTools(ctx, runtime, ctx.swarm.artifacts));
   ctx.effect(() => registerWorkerContext(ctx, runtime.collaboration, config));
-  ctx.effect(() => ctx.tools.presentAs('native'));
   ctx.effect(() =>
     ctx.systemPrompt.section({
       name: 'swarm:worker-policy',

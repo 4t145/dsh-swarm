@@ -16,17 +16,17 @@ export interface WorkerReceipts {
 }
 
 /** Uses post-commit Session events plus the real flush checkpoint; failed writes remain replayable. */
-export function registerWorkerReceipts(ctx: Context, collaboration: Collaboration): WorkerReceipts {
+export async function registerWorkerReceipts(ctx: Context, collaboration: Collaboration): Promise<WorkerReceipts> {
   const registry = ctx.get('sessionProjections');
   const sessions = ctx.get('sessions');
   if (!registry || !sessions) throw new SwarmError('SWARM_INTERNAL', 'Automatic display receipts require sessions and sessionProjections');
-  const unregister = registry.register(receiptProjection);
+  const handle = await registry.register(receiptProjection);
   const queue = new SerialQueue();
   const saved = new WeakMap<Session, ReceiptProjection>();
   let disposed = false;
   const reconcile = (session: Session): Promise<void> => queue.run(async () => {
-    const state = registry.stateOf(session, RECEIPT_PROJECTION_KEY);
-    if (!state || saved.get(session) === state) return;
+    const state = handle.stateOf(session);
+    if (saved.get(session) === state) return;
     let identity: ReturnType<Collaboration['resolveWorker']>;
     try { identity = collaboration.resolveWorker(session.id); }
     catch (error) {
@@ -67,7 +67,7 @@ export function registerWorkerReceipts(ctx: Context, collaboration: Collaboratio
       disposed = true;
       removeEvent(); removeStep(); removeTool(); removeStop();
       await queue.idle();
-      unregister();
+      await handle.dispose();
     },
   };
 }

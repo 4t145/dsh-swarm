@@ -116,7 +116,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap { 'swarm.displayReceipts': ReceiptProjection }
 }
 /** Pure native projection reconstructs pending receipt evidence after a crash; no custom Session events. */
-export const receiptProjection: ProjectionDefinition<typeof RECEIPT_PROJECTION_KEY> = {
+export const receiptProjection: ProjectionDefinition<typeof RECEIPT_PROJECTION_KEY, ReceiptProjection> = {
   key: RECEIPT_PROJECTION_KEY,
   stateVersion: 1,
   stateSchema: projectionSchema,

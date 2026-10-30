@@ -6,7 +6,8 @@
 
 - 业务规格：[ARCHITECTURE.md](<ARCHITECTURE.md>) R4。
 - 实现由 Lead 组织 `vast-internal/deepseek-v4.1-flash-1017` 分批并行完成；共享接口先固定，再展开独立模块。
-- DSH 目标版本为当前安装版 0.2.1-rc.4。依赖其 experimental worktree API，未承诺其他版本兼容。
+- DSH 目标版本为当前安装版 0.2.2-alpha.2（自 0.2.1-rc.4 迁移）。依赖其 experimental worktree API，未承诺其他版本兼容。
+- 0.2.2 迁移：worker preset 显式挂载 `@deepseek-ai/dsh-tool-executor-native`，取代已移除的 `ctx.tools.presentAs('native')`；`sessionProjections.register` 改为 await 后经返回的 handle 读取与释放，`registerProgress`/`registerWorkerActivity`/`registerWorkerReceipts` 随之变为异步。
 - 保留现有四轮冷读原始报告；已按用户要求删除评审 README，不新增 README。
 
 ## 工程约定

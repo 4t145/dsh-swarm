@@ -157,7 +157,7 @@ export class SwarmService extends Service {
       disposeOwnerTools = registerOwnerTools(this.ctx, runtime);
       disposeOwnerContext = registerOwnerContext(this.ctx, runtime);
       // Read-only progress service used by the browser panel and headless observer.
-      progress = registerProgress(this.ctx, runtime, store, { git: workspace });
+      progress = await registerProgress(this.ctx, runtime, store, { git: workspace });
       // Repository worktree catalogue and creation; independent of any run and
       // never changes the owner session's working directory.
       registerWorktrees(this.ctx, executor);

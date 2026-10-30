@@ -1,6 +1,8 @@
 import { Context, type Volatile } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
 import { SubagentRuntime } from '@deepseek-ai/dsh-subagent';
+import { SessionStore } from '@deepseek-ai/dsh-session';
+import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
 import { describe, expect, it, vi } from 'vitest';
 import { dshWorkerLimitResolver } from '../src/dsh-worker-limit.ts';
 import { resolveWorkerLimit } from '../src/worker-limit.ts';
@@ -10,6 +12,9 @@ import { SwarmService } from '../src/index.ts';
 async function host(value?: number) {
   const ctx = new Context();
   ctx.provide('workingDirectory', {});
+  // DSH 0.2.2 SubagentRuntime also injects sessionProjections.
+  await ctx.plugin(SessionStore);
+  await ctx.plugin(SessionProjectionRegistry);
   const fiber = ctx.plugin(SubagentRuntime, value === undefined ? {} : { maxActiveSubagents: value });
   await fiber.await();
   return { ctx, fiber, close: () => ctx.fiber.dispose() };

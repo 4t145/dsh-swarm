@@ -115,7 +115,7 @@ describe('worker activity native registry adapter', () => {
       requested.push(id);
       return id === 'worker' ? { session } : undefined;
     } });
-    const source = registerWorkerActivity(ctx);
+    const source = await registerWorkerActivity(ctx);
     const changed: string[] = [];
     source.subscribe((id) => changed.push(id));
     expect(source.read('missing')).toBeUndefined();
