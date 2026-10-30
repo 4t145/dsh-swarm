@@ -372,7 +372,7 @@ any 模式允许一次真正的新发现唤醒多个等待者；“无自激广�
 - 同一活跃 activation 内，`wakeTargetSeq <= notifiedSeq` 不重复发送同一通知；更新可以合并成一个“请同步至至少 N”的提示。
 - Host 自动展示回执推进 shownSeq；旧 sync(ack_seq)/wait(after_seq) 仍可推进 observedSeq。wakeTargetSeq 被两者的最大值覆盖后不再触发投递，不要求模型额外确认。
 - waitRegistration 的清除触发点是确定的：成功的 swarm_sync（即主动取消等待/重新决策）、成功的 Task claim、成功的 submit、成功受理 finish，均在本次更新中清除自己的登记；失败调用不清除。单纯 publish/read 不清除。因而无需新增 cancel_wait 工具，主动取消等待就是调用 swarm_sync；清登记不删除未读事件。新的 swarm_wait 会重建登记。
-- 若 activation 结束而对应事件仍未确认，保留 pending；下一次允许的续跑可以重投同一 ID。连续两轮没有任何确认或业务进展则暂停报告，而非无限重投。
+- 若 activation 结束而对应事件仍未确认，保留 pending；下一次允许的续跑可以重投同一 ID。某个 worker 连续两轮没有任何确认或业务进展时，只把该 worker 标为不可用（`no_progress`，见 §10.4），而非无限重投或暂停整个 run。
 - 容量不足或恢复失败保留 pending，不推进 observedSeq；等待已知容量释放事件或明确 resume，不定时调用模型。
 - 重启时丢弃所有内存队列，run 默认 paused。明确 resume 后重新创建队列，以持久 waitRegistration、shownSeq/observedSeq、Session 展示凭据和事件重算 pending；旧 notifiedSeq 不作为重启后已展示的证明。允许重复投递，不重复业务变更。
 
@@ -504,6 +504,7 @@ Git 和验证执行适配器要显式使用当前 DSH sandbox/permission 组合�
 | preparing/running/draining | 用户 pause | 通过控制门禁进入 quiescing，target=paused |
 | preparing/running/draining | 用户 stop 或活动预算到期 | quiescing，target=stopped，记录原因 |
 | preparing/running/draining | 无法继续的基础设施错误 | quiescing，target=failed |
+| running | 最后一个可用 worker 被隔离（§10.4），没有任何 worker 仍可用 | quiescing，target=paused，reason=`no_available_workers`；单个 worker 失败本身不改变 run 状态 |
 | quiescing | 又收到控制请求或预算到期 | 按下述优先级更新 target，不重新启动工作 |
 | quiescing | 资源与 Git 状态核对完毕且已静止 | 进入 target 对应的 paused/stopped/failed/completed |
 | paused | 原 owner 明确 resume，身份/代码/资源核对成功且预算有效 | running；重建队列，恢复未完成任务 |
@@ -537,7 +538,7 @@ Host 可以检查这些结构条件，但验收说明的语义仍由 worker 和�
 
 超时无法确认进程退出时保留工作树，报告 quiescence 未完成，不宣称已完全停止或安全删除。禁止自行创建未受管的持久服务；对超出 DSH 管理范围的任意外部进程不作绝对停止保证。
 
-预算耗尽走 stopped，reason=budget_exhausted，交付当前已接受结果和未完成列表。暂停不释放任务，恢复前核对 owner、Session、worktree、Git refs 与未完成集成尝试。
+预算耗尽走 stopped，reason=budget_exhausted，交付当前已接受结果和未完成列表。暂停与普通空闲不释放任务（只有 §10.4 确认隔离的 worker 释放其 claimed 任务），恢复前核对 owner、Session、worktree、Git refs 与未完成集成尝试。
 
 ### 10.4 故障分类：不让实现者猜重试次数
 
@@ -545,9 +546,12 @@ Host 可以检查这些结构条件，但验收说明的语义仍由 worker 和�
 |---|---|
 | 普通工具返回错误、编译/测试不通过 | 保留为当前 worker 可见的反馈；由它修复，run 不因此 failed |
 | 模型请求瞬态错误 | 仅复用 DSH 已配置的原生请求重试；插件不叠加自己的重试循环 |
-| DSH 最终把 worker activation 结束为 error/拒绝/无法恢复 Session | 暂停整个 run，停止其他工作并保留任务；由用户检查后明确 resume，同一 Session 再试。不自动替换 worker |
-| 普通 turn 无进展结束 | 沿用 §7 的一次提醒/连续无进展暂停规则 |
-| 存储不可写、仓库身份错乱、初始化失败等无法安全继续 | 关闭 admission，停止后 failed；若无法确认停止则保持 quiescing 给诊断 |
+| DSH 最终把某个 worker 的 activation 结束为 error/拒绝/无法恢复 Session（如 MALFORMED_RESPONSE、工具参数 JSON 非法、会话崩溃） | 只影响该 worker：Host 通过它自己的串行队列与 admission，按退避（基数 1s 倍增，可注入、dispose 时取消，不留超出 run 的 timer）重新唤醒同一 Session，最多 `activationRetries` 次（Host Config 校验 0–10，默认 3）；一次成功结算即清零计数。其他 worker 继续工作，run 保持 running。不自动替换 worker |
+| 重试耗尽，或该 worker 触发连续无进展检测 | 仅该 worker 变为不可用：`unavailableReason` 为 `activation_failed` / `no_progress`，`unavailableDetail` 记录原因、诊断与时间；发出全员可见的 `worker` 事件（status=`unavailable`，reason 同上），出现在公共频道时间线与 GUI 成员状态中；每个被释放的 Task 另有一条 task 事件。它 claimed（未 proposed）的 Task 退回 open 供他人接手；queued/integrating 的 Proposal 照常验证与整合。单纯空闲/等待从不释放任务 |
+| 已没有任何可用 worker | 整个 run 进入 paused，reason=`no_available_workers`；用户整体 resume 会同时清除 `activation_failed`/`no_progress` 不可用标记后继续 |
+| owner 重新启用单个 worker | `swarm_manage action=restart_worker`（或对应 `/swarm` 命令）：清除该 worker 的不可用标记与重试计数，发出 `worker` 事件（status=`available`，reason=`owner_reenabled`；整体 resume 清除时 reason=`run_resumed`）并只唤醒它；不 resume/重启整个 run，也不影响其他 worker |
+| 普通 turn 无进展结束 | 沿用 §7 的一次提醒；连续无进展按上行只隔离该 worker |
+| 存储不可写、Git/执行器失败、仓库身份错乱、初始化失败等 Host 基础设施故障，无法安全继续 | 关闭 admission，停止后 failed；若无法确认停止则保持 quiescing 给诊断。单个 worker 的模型错误不属于这一类 |
 
 如果所有 worker 都等待而没有人提出 finish，Host 不从空闲推断成功，也不自动找一个经理模型；可由用户介入，否则到 deadline 按 budget_exhausted 停止。stopped/failed 报告包含原因、当前 acceptedHead/resultRef、可用 diff/验证记录及未完成事项，明确没有通过整体目标验收。
 

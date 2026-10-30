@@ -395,3 +395,11 @@ Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19
 - `swarm_manage action=restart_worker worker_id=<id>` 与 `/swarm worker restart <id> [--json]` 共用 [restartWorker](<src/commands.ts>)：先按 status 校验 owner，再要求该成员存在且带 `unavailableReason`，否则分别报 `SWARM_FORBIDDEN` / `SWARM_NOT_FOUND` / `SWARM_INVALID_STATE`；随后只调用 runtime `reenableWorker(runId, workerId)`，不 resume、不重启 run，回执带当前 phase。宿主缺少该能力时明确报 `SWARM_INVALID_STATE`，不回退为整 run resume。只读 sandbox、已取消调用与子代理会话在调用 runtime 之前被拒绝。
 - `/swarm status` 的成员行显示 `UNAVAILABLE=<reason>` 与有界诊断；owner 前台状态新增 `unavailableWorkers`（id、显示名、原因码、≤160 字诊断，最多 8 项并给出省略数），并提示用 restart_worker 而非 resume/stop/start。
 - 进度 DTO 的成员新增 `unavailableReason`，`diagnostic` 优先显示 `原因: 诊断`。面板把带原因码的就绪成员显示为“已被 Host 隔离 / Isolated by Host”（初始化失败仍是 failed），并提供中英文原因说明与“重新启用”按钮。按钮只对 Host 生成的安全 id 发送 `/swarm worker restart <id> --json`，并校验回执的 runId/workerId。
+
+## 单个 worker 故障隔离（owner 追加目标，2026-10-30）
+
+- 语义变更：单个 worker 的 activation 失败（模型 MALFORMED_RESPONSE、工具参数 JSON 非法、会话崩溃等）或连续无进展，不再把整个 run 暂停为 `worker_activation_failed`。规则见 ARCHITECTURE §10.4。
+- 自动重试：Delivery 为每个 worker 记录内存中的连续失败计数。失败的 settled 或该 worker 的 notify 失败后，经同一串行队列与 admission，按退避（基数 1s 倍增，延迟可注入，dispose 时取消）重新唤醒同一 Session，最多 `activationRetries` 次（Host Config，0–10，默认 3）；成功结算清零。计数不持久化：Host 重启后 run 本来就默认 paused，resume 从零计数。
+- 隔离：重试耗尽或无进展检测触发后，Runtime 只把该 worker 标为不可用（`unavailableReason`: `activation_failed` | `no_progress`，`unavailableDetail` 带诊断与时间），追加全员可见的 `worker` 事件（status `unavailable`，reason 同原因码；公共频道时间线与 GUI 成员状态展示），并把它 claimed 的 Task 退回 open（每个各一条 task 事件）；proposed Task 与 queued/integrating Proposal 不受影响、照常验证。普通空闲仍不释放任务。
+- 整体暂停：仅当没有任何 ready 且可用的 worker 时 run 才 paused（reason `no_available_workers`）；整体 resume 清除上述两类不可用标记。存储/Git/执行器等 Host 基础设施失败仍走 failed。
+- owner 重新启用：`runtime.reenableWorker(runId, workerId)` 清除标记，经 `delivery.resetWorker` 清零重试/空转计数并取消未触发的退避，发 `worker` 事件（status `available`，reason `owner_reenabled`；整体 resume 清除时为 `run_resumed`），再只对该 worker 调用 `delivery.resume`，不 resume/重启 run；owner 入口为 `swarm_manage action=restart_worker`（及 `/swarm` 命令）。status、owner 上下文与 GUI（中英文）展示不可用 worker 及原因。
