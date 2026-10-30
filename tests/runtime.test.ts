@@ -11,6 +11,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveWorkerLimit } from '../src/worker-limit.ts';
+import { buildPublicPage } from '../src/public-query.ts';
+import { publicQuerySchema } from '../src/public-input.ts';
 
 /** 模块 mock 共享状态；vi.hoisted 保证在 import runtime 之前建立。 */
 const harness = vi.hoisted(() => ({
@@ -1411,6 +1413,10 @@ describe('cross-module wiring regressions', () => {
     expect(current.events.some((event) => event.kind === 'worker' && event.workerId === failedId
       && event.status === 'unavailable' && event.audience.kind === 'all')).toBe(true);
     expect(h.runtime.status(OWNER).workers.find((w) => w.id === failedId)?.unavailableDetail?.reason).toBe('activation_failed');
+    // Visible in the public general channel activity for every member, with the released task.
+    const page = buildPublicPage(current, publicQuerySchema.parse({ view: 'activity', channelId: `${run.id}:general` }), otherId!);
+    expect(page.items).toContainEqual(expect.objectContaining({ kind: 'member_status', workerId: failedId,
+      status: 'unavailable', reason: 'activation_failed', releasedTaskIds: ['t1'] }));
     await h.runtime.dispose();
   });
 
