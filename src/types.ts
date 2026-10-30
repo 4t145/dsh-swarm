@@ -86,6 +86,8 @@ export interface SwarmRuntimeConfig {
   eventPageSize: number;
   /** claim Finding 在实时视图/通知中保留的毫秒数，默认 1 小时；历史与搜索不受影响。 */
   claimTtlMs: number;
+  /** 单个 worker 激活失败后自动重唤醒的次数上限，默认 3；用尽后仅隔离该 worker。 */
+  activationRetries: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -143,6 +145,8 @@ export interface WorkerRecord {
   initializationError: string | null;
   /** 插件诊断标签（provider 缺失、Session 缺失、最近恢复失败等），不是原生状态。 */
   unavailableReason: string | null;
+  /** Reason + bounded diagnostic for an isolated worker; absent on legacy records. */
+  unavailableDetail?: WorkerUnavailableDetail | null;
   /** 已连续扫描到的位置：该前缀内对自己可见的事件都已提供。 */
   offeredSeq: EventSeq;
   /** 明确确认已读到的位置。 */
@@ -433,6 +437,24 @@ export interface HeadEvent extends SwarmEventBase {
   audience: { kind: 'all' };
 }
 
+export type WorkerUnavailableReasonCode = 'activation_failed' | 'no_progress' | 'initialization_failed';
+
+/** 被 Host 隔离的 worker 的持久原因；diagnostic 截断，不含日志全文。 */
+export interface WorkerUnavailableDetail {
+  reason: WorkerUnavailableReasonCode;
+  diagnostic: string;
+  at: Millis;
+}
+
+/** 单 worker 被隔离或重新启用：公共可见，但不代替 Task CAS，也不改变 run 相位。 */
+export interface WorkerEvent extends SwarmEventBase {
+  kind: 'worker';
+  workerId: WorkerId;
+  status: 'unavailable' | 'available';
+  reason: string | null;
+  audience: { kind: 'all' };
+}
+
 /** 控制状态变化：只用于审计与状态显示，不用于唤醒模型。 */
 export interface RunEvent extends SwarmEventBase {
   kind: 'run';
@@ -449,7 +471,7 @@ export interface GoalEvent extends SwarmEventBase {
   audience: { kind: 'all' };
 }
 
-export type SwarmEvent = TaskEvent | FindingEvent | MessageEvent | ProposalEvent | HeadEvent | RunEvent | GoalEvent | PublicEvent;
+export type SwarmEvent = TaskEvent | FindingEvent | MessageEvent | ProposalEvent | HeadEvent | RunEvent | GoalEvent | PublicEvent | WorkerEvent;
 
 /**
  * 幂等 mutation 记录，键为 `${workerSessionId}:${toolCallId}`。

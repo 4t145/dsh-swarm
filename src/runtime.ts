@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { Collaboration } from './collaboration.ts';
 import { PublicCollaboration } from './public-collaboration.ts';
 import { Delivery } from './delivery.ts';
+import { isAvailableWorker, isIsolatedWorker } from './worker-availability.ts';
 import { SwarmError, isSwarmError, normalizeError } from './errors.ts';
 import { appendEvent, type EventInput } from './events.ts';
 import { IntegrationQueue } from './integration.ts';
@@ -57,6 +58,7 @@ import {
   type WorkerId,
   type WorkerInitializationState,
   type WorkerRecord,
+  type WorkerUnavailableDetail,
 } from './types.ts';
 
 /* ------------------------------------------------------------------ */
@@ -70,6 +72,10 @@ export interface SwarmRuntimeOptions {
   eventPageSize?: number;
   /** Live-view TTL for claim Findings; default 1 hour. */
   claimTtlMs?: number;
+  /** Automatic re-wakes of one failed worker before it is isolated; default 3. */
+  activationRetries?: number;
+  /** Backoff before retry n (1-based); default 1000·2^(n-1). Tests inject 0. */
+  activationRetryDelayMs?: (attempt: number) => number;
   /** Required for admission; absence is a capability error, never a numeric fallback. */
   workerLimit?: WorkerLimitResolver;
 }
@@ -103,6 +109,8 @@ export interface WorkerStatusSummary {
   currentTaskId: TaskId | null;
   worktreePath: string | null;
   unavailableReason: string | null;
+  /** Host isolation reason + bounded diagnostic; null when the worker is available. */
+  unavailableDetail?: WorkerUnavailableDetail | null;
   initializationError: string | null;
 }
 
@@ -308,13 +316,21 @@ export class SwarmRuntime {
     this.publicCollaboration = new PublicCollaboration(store, { now: () => this.clock.now(), id: this.makeId });
     this.delivery = new Delivery(store, host, {
       admitWorkerOperation: (runId, workerId, kind) => this.admitWorkerOperation(runId, workerId, kind),
+      activationRetries: options.activationRetries ?? DEFAULT_RUNTIME_CONFIG.activationRetries,
+      ...(options.activationRetryDelayMs ? { retryDelayMs: options.activationRetryDelayMs } : {}),
+      onWorkerUnavailable: (runId, workerId, reason, diagnostic) => {
+        this.recordDiagnostic(runId, `worker ${workerId} ${reason}: ${diagnostic}`);
+        this.trackGuarded(this.isolateWorker(runId, workerId, reason, diagnostic), runId, 'worker isolation failed');
+      },
       onError: (runId, error) => {
-        const workerFailure = isSwarmError(error) &&
+        const workerId = isSwarmError(error) ? error.details?.['workerId'] : undefined;
+        const workerFailure = isSwarmError(error) && typeof workerId === 'string' &&
           (error.code === 'SWARM_WORKER_BUSY' || typeof error.details?.['activationId'] === 'string');
         if (workerFailure) {
+          // One worker's model/session failure isolates that worker only; never the whole run.
           this.recordDiagnostic(runId, errorMessage(error));
-          console.error('[swarm] worker activation failed:', errorMessage(error));
-          this.trackGuarded(this.controlTransition(runId, 'paused', 'worker_activation_failed').then(() => undefined), runId, 'worker pause failed');
+          const reason = error.code === 'SWARM_WORKER_BUSY' ? 'no_progress' : 'activation_failed';
+          this.trackGuarded(this.isolateWorker(runId, workerId, reason, errorMessage(error)), runId, 'worker isolation failed');
         } else {
           this.trackGuarded(this.failRun(runId, 'delivery_error', error), runId, 'delivery failure cleanup failed');
         }
@@ -699,9 +715,18 @@ export class SwarmRuntime {
         const pending = Object.values(current.goals).filter((goal) => goal.status === 'deferred' && goal.continuedInRunId === null);
         const goals = { ...current.goals };
         for (const goal of pending) goals[goal.id] = { ...goal, status: 'active' };
+        // An explicit whole-run resume also gives Host-isolated workers a fresh start.
+        const workers = { ...current.workers };
+        const reenabled: EventInput[] = [];
+        for (const worker of Object.values(current.workers)) {
+          if (!isIsolatedWorker(worker)) continue;
+          workers[worker.id] = { ...worker, unavailableReason: null, unavailableDetail: null };
+          reenabled.push({ kind: 'worker', workerId: worker.id, status: 'available', reason: 'run_resumed', authorWorkerId: null, audience: { kind: 'all' } });
+        }
         return this.finalizeChange(
           {
             ...current,
+            workers,
             phase: 'running',
             reason: null,
             quiesceTarget: null,
@@ -711,7 +736,8 @@ export class SwarmRuntime {
             goalRevision: current.goalRevision + pending.length,
           },
           [{ kind: 'run', phase: 'running', target: null, reason: null, authorWorkerId: null, audience: { kind: 'all' } },
-            ...pending.map((goal): EventInput => ({ kind: 'goal', goalId: goal.id, status: 'active', authorWorkerId: null, audience: { kind: 'all' } }))],
+            ...pending.map((goal): EventInput => ({ kind: 'goal', goalId: goal.id, status: 'active', authorWorkerId: null, audience: { kind: 'all' } })),
+            ...reenabled],
           now,
         );
       });
@@ -731,6 +757,7 @@ export class SwarmRuntime {
       if (worker.initializationState === 'pending') {
         this.startWorker(resumed.id, worker.id);
       } else if (worker.initializationState === 'ready') {
+        this.delivery.resetWorker(resumed.id, worker.id);
         this.trackGuarded(this.delivery.resume(resumed.id, worker.id), resumed.id, 'worker resume failed');
       }
     }
@@ -740,6 +767,71 @@ export class SwarmRuntime {
       }),
     );
     return resumed;
+  }
+
+  /**
+   * Owner re-enables one Host-isolated worker: clears its isolation, resets its retry counter and
+   * wakes it. Never resumes, pauses or restarts the run; a paused run wakes it on resume.
+   *
+   * @throws SwarmError SWARM_NOT_FOUND unknown worker; SWARM_INVALID_STATE terminal run or a worker
+   *   that is not isolated (initialization failures need a new run).
+   */
+  async reenableWorker(runId: RunId, workerId: WorkerId): Promise<WorkerRecord> {
+    this.assertUsable('reenableWorker');
+    const updated = await this.publicationGate.run(runId, () => this.store.update(runId, (current) => {
+      if (isTerminalRunPhase(current.phase)) {
+        throw new SwarmError('SWARM_INVALID_STATE', `run is ${current.phase}`, { details: { runId, phase: current.phase } });
+      }
+      const worker = current.workers[workerId];
+      if (!worker) {
+        throw new SwarmError('SWARM_NOT_FOUND', `worker ${workerId} is not a member of run ${runId}`, { details: { runId, workerId } });
+      }
+      if (!isIsolatedWorker(worker)) {
+        throw new SwarmError('SWARM_INVALID_STATE', `worker ${workerId} is not isolated by the Host; nothing to re-enable`, {
+          details: { runId, workerId, unavailableReason: worker.unavailableReason },
+        });
+      }
+      const next = this.finalizeChange(current, [{ kind: 'worker', workerId, status: 'available', reason: 'owner_reenabled',
+        authorWorkerId: null, audience: { kind: 'all' } }], this.clock.now());
+      next.workers[workerId] = { ...worker, unavailableReason: null, unavailableDetail: null };
+      return next;
+    }));
+    this.delivery.resetWorker(runId, workerId);
+    if (updated.phase === 'running') {
+      this.trackGuarded(this.delivery.resume(runId, workerId), runId, 'worker re-enable wake failed');
+    }
+    return { ...updated.workers[workerId]! };
+  }
+
+  /**
+   * Isolate one worker after its retries are exhausted or it stopped making progress. Releases its
+   * claimed (not proposed) task, emits a public worker event, and pauses only when no worker remains.
+   */
+  private async isolateWorker(runId: RunId, workerId: WorkerId, reason: 'activation_failed' | 'no_progress', diagnostic: string): Promise<void> {
+    let noneAvailable = false;
+    await this.publicationGate.run(runId, () => this.store.update(runId, (current) => {
+      const worker = current.workers[workerId];
+      if (!worker || isTerminalRunPhase(current.phase) || isIsolatedWorker(worker)) return current;
+      const now = this.clock.now();
+      const tasks = { ...current.tasks };
+      const events: EventInput[] = [{ kind: 'worker', workerId, status: 'unavailable', reason, authorWorkerId: null, audience: { kind: 'all' } }];
+      for (const task of Object.values(current.tasks)) {
+        // Proposed tasks stay with their proposal, which still verifies normally.
+        if (task.ownerWorkerId !== workerId || task.status !== 'claimed') continue;
+        tasks[task.id] = { ...task, status: 'open', ownerWorkerId: null, revision: task.revision + 1, updatedAt: now };
+        events.push({ kind: 'task', taskId: task.id, status: 'open', ownerWorkerId: null, authorWorkerId: null, audience: { kind: 'all' } });
+      }
+      const next = this.finalizeChange({ ...current, tasks }, events, now);
+      const releasedCurrent = worker.currentTaskId !== null && tasks[worker.currentTaskId]?.status === 'open';
+      next.workers[workerId] = { ...next.workers[workerId]!, unavailableReason: reason,
+        unavailableDetail: { reason, diagnostic: diagnostic.slice(0, 500), at: now },
+        currentTaskId: releasedCurrent ? null : worker.currentTaskId };
+      noneAvailable = !Object.values(next.workers).some(isAvailableWorker);
+      return next;
+    }));
+    if (noneAvailable) {
+      await this.controlTransition(runId, 'paused', 'no_available_workers');
+    }
   }
 
   /**
@@ -1907,6 +1999,7 @@ export class SwarmRuntime {
       currentTaskId: worker.currentTaskId,
       worktreePath: worker.worktreePath,
       unavailableReason: worker.unavailableReason,
+      unavailableDetail: worker.unavailableDetail ?? null,
       initializationError: worker.initializationError,
     };
   }

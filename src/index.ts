@@ -17,7 +17,7 @@ import { artifactSchema, StoredArtifacts } from './artifacts.ts';
 import { registerSwarmCommand } from './commands.ts';
 import { DshCommandExecutor } from './dsh-executor.ts';
 import { DshWorkerHost } from './dsh-worker-host.ts';
-import { CLAIM_TTL_MAX_MS, CLAIM_TTL_MIN_MS, DEFAULT_CLAIM_TTL_MS, runSchema } from './schema.ts';
+import { ACTIVATION_RETRIES_MAX, DEFAULT_ACTIVATION_RETRIES, CLAIM_TTL_MAX_MS, CLAIM_TTL_MIN_MS, DEFAULT_CLAIM_TTL_MS, runSchema } from './schema.ts';
 import type { Run, RunSpec } from './types.ts';
 import type { ArtifactRecord } from './artifacts.ts';
 import type {} from '@deepseek-ai/dsh-fs';
@@ -39,6 +39,8 @@ export interface SwarmConfig {
   eventPageSize: number;
   /** Claim Findings leave live views/notices after this many ms (history keeps them). */
   claimTtlMs: number;
+  /** Automatic re-wakes of one failed worker before only that worker is isolated. */
+  activationRetries: number;
   commandOutputBytes: number;
   commandGraceMs: number;
   /** Distinct CLI storage avoids recovering another live GUI process's runs. */
@@ -70,6 +72,7 @@ export class SwarmService extends Service {
   static Config = Schema.object({
     workerCountMax: Schema.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).volatile(),
     eventPageSize: Schema.number().min(1).max(100).default(20),
+    activationRetries: Schema.number().step(1).min(0).max(ACTIVATION_RETRIES_MAX).default(DEFAULT_ACTIVATION_RETRIES),
     claimTtlMs: Schema.number().step(1).min(CLAIM_TTL_MIN_MS).max(CLAIM_TTL_MAX_MS).default(DEFAULT_CLAIM_TTL_MS),
     commandOutputBytes: Schema.number().min(4096).max(4194304).default(262144),
     commandGraceMs: Schema.number().min(100).max(30000).default(3000),
@@ -138,6 +141,7 @@ export class SwarmService extends Service {
     const runtime = new SwarmRuntime(store, host, workspace, artifacts, {
       eventPageSize: config.eventPageSize,
       claimTtlMs: config.claimTtlMs ?? DEFAULT_CLAIM_TTL_MS,
+      activationRetries: config.activationRetries ?? DEFAULT_ACTIVATION_RETRIES,
       workerLimit: dshWorkerLimitResolver(this.ctx, config.workerCountMax),
     });
     this.artifactsValue = artifacts;

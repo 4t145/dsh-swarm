@@ -30,6 +30,7 @@ const harness = vi.hoisted(() => ({
         kind: 'create' | 'notify',
       ) => Promise<{ signal: AbortSignal; release(): void }>;
       onError: (runId: string, error: unknown) => void;
+      onWorkerUnavailable?: (runId: string, workerId: string, reason: 'activation_failed' | 'no_progress', diagnostic: string) => void;
     },
   },
   integration: {
@@ -59,6 +60,10 @@ vi.mock('../src/delivery.ts', () => ({
 
     async resume(runId: string, workerId: string): Promise<void> {
       harness.delivery.kicks.push(`${runId}:${workerId}:resume`);
+    }
+
+    resetWorker(runId: string, workerId: string): void {
+      harness.delivery.kicks.push(`${runId}:${workerId}:reset`);
     }
 
     async kick(runId: string): Promise<void> {
@@ -1387,15 +1392,106 @@ describe('cross-module wiring regressions', () => {
     await h.runtime.dispose();
   });
 
-  it('pauses a failed worker activation without turning it into permanent run failure', async () => {
+  it('isolates only the failed worker, releases its claimed task and keeps the run running', async () => {
     const h = createHarness();
     const run = await startRun(h);
     await settleWorkers(h, run.id);
+    const [failedId, otherId] = workerIds(run);
+    await seedClaimedTask(h.store, run.id, failedId!);
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, failedId!, 'activation_failed', 'activation a1 failed; 3 automatic retries exhausted');
+    await waitFor(() => h.store.get(run.id).workers[failedId!]?.unavailableReason === 'activation_failed', 'worker isolation');
+
+    const current = h.store.get(run.id);
+    expect(current.phase).toBe('running');
+    expect(current.workers[failedId!]?.unavailableDetail).toMatchObject({ reason: 'activation_failed',
+      diagnostic: expect.stringContaining('retries exhausted') });
+    expect(current.workers[failedId!]?.currentTaskId).toBeNull();
+    expect(current.workers[otherId!]?.unavailableReason).toBeNull();
+    expect(current.tasks['t1']).toMatchObject({ status: 'open', ownerWorkerId: null, revision: 2 });
+    expect(current.events.some((event) => event.kind === 'worker' && event.workerId === failedId
+      && event.status === 'unavailable' && event.audience.kind === 'all')).toBe(true);
+    expect(h.runtime.status(OWNER).workers.find((w) => w.id === failedId)?.unavailableDetail?.reason).toBe('activation_failed');
+    await h.runtime.dispose();
+  });
+
+  it('keeps a proposed task with its proposal when its worker is isolated', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    const [failedId] = workerIds(run);
+    await seedClaimedTask(h.store, run.id, failedId!);
+    await h.store.update(run.id, (current) => ({ ...current,
+      tasks: { ...current.tasks, t1: { ...current.tasks['t1']!, status: 'proposed', proposalId: 'p1' } } }));
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, failedId!, 'no_progress', 'settled twice without progress');
+    await waitFor(() => h.store.get(run.id).workers[failedId!]?.unavailableReason === 'no_progress', 'worker isolation');
+    expect(h.store.get(run.id).tasks['t1']).toMatchObject({ status: 'proposed', ownerWorkerId: failedId, proposalId: 'p1' });
+    expect(h.store.get(run.id).phase).toBe('running');
+    await h.runtime.dispose();
+  });
+
+  it('pauses the whole run only when no worker remains available', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    const [first, second] = workerIds(run);
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, first!, 'activation_failed', 'x');
+    await waitFor(() => h.store.get(run.id).workers[first!]?.unavailableReason !== null, 'first isolation');
+    expect(h.store.get(run.id).phase).toBe('running');
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, second!, 'no_progress', 'y');
+    await waitFor(() => h.store.get(run.id).phase === 'paused', 'all-unavailable pause');
+    expect(h.store.get(run.id).reason).toBe('no_available_workers');
+    await h.runtime.dispose();
+  });
+
+  it('routes legacy worker-scoped onError reports to isolation, not a run pause', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    const [failedId] = workerIds(run);
     harness.delivery.options?.onError(run.id, new SwarmError('SWARM_INTERNAL', 'worker failed', {
-      details: { workerId: workerIds(run)[0] ?? '', activationId: 'activation-1' },
+      details: { workerId: failedId!, activationId: 'activation-1' },
     }));
-    await waitFor(() => h.store.get(run.id).phase === 'paused', 'worker failure pause');
-    expect(h.store.get(run.id).reason).toBe('worker_activation_failed');
+    await waitFor(() => h.store.get(run.id).workers[failedId!]?.unavailableReason === 'activation_failed', 'isolation');
+    expect(h.store.get(run.id).phase).toBe('running');
+    await h.runtime.dispose();
+  });
+
+  it('restart_worker re-enables one worker, resets its retries and wakes only it', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    const [failedId, otherId] = workerIds(run);
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, failedId!, 'activation_failed', 'x');
+    await waitFor(() => h.store.get(run.id).workers[failedId!]?.unavailableReason !== null, 'isolation');
+    const before = harness.delivery.kicks.length;
+    const runBefore = h.store.get(run.id);
+
+    const record = await h.runtime.reenableWorker(run.id, failedId!);
+    await macrotask();
+    expect(record.unavailableReason).toBeNull();
+    expect(record.unavailableDetail).toBeNull();
+    const after = h.store.get(run.id);
+    expect(after.phase).toBe('running');
+    expect(after.deadline).toBe(runBefore.deadline);
+    expect(harness.delivery.kicks.slice(before)).toEqual([`${run.id}:${failedId}:reset`, `${run.id}:${failedId}:resume`]);
+    expect(harness.delivery.kicks.slice(before).some((kick) => kick.includes(otherId!))).toBe(false);
+    expect(after.events.some((event) => event.kind === 'worker' && event.workerId === failedId && event.status === 'available')).toBe(true);
+    await expect(h.runtime.reenableWorker(run.id, otherId!)).rejects.toMatchObject({ code: 'SWARM_INVALID_STATE' });
+    await h.runtime.dispose();
+  });
+
+  it('restart_worker on a paused (all-unavailable) run re-enables without resuming it', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    for (const id of workerIds(run)) harness.delivery.options?.onWorkerUnavailable?.(run.id, id, 'activation_failed', 'x');
+    await waitFor(() => h.store.get(run.id).phase === 'paused', 'pause');
+    const [first] = workerIds(run);
+    const before = harness.delivery.kicks.length;
+    await h.runtime.reenableWorker(run.id, first!);
+    await macrotask();
+    expect(h.store.get(run.id).phase).toBe('paused');
+    expect(harness.delivery.kicks.slice(before)).toEqual([`${run.id}:${first}:reset`]);
     await h.runtime.dispose();
   });
 
