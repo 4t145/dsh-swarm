@@ -15,7 +15,9 @@ import { isSwarmError, SwarmError } from './errors.ts';
 import { pendingNotifications, shownEventSeq } from './events.ts';
 import type { NotificationRecord } from './public-types.ts';
 import type { WorkerHost } from './ports.ts';
+import { DEFAULT_ACTIVATION_RETRIES, DEFAULT_ACTIVATION_RETRY_BASE_MS } from './schema.ts';
 import { SerialQueue } from './serial.ts';
+import { isIsolatedWorker } from './worker-availability.ts';
 import type { StateStore } from './store.ts';
 import type { EventSeq, Run, RunId, WorkerId, WorkerRecord } from './types.ts';
 
@@ -28,9 +30,29 @@ export interface OperationPermit {
 export interface DeliveryOptions {
   /** 由 Runtime 提供的 admission：检查 run 状态/预算并登记在途操作。 */
   admitWorkerOperation(runId: string, workerId: string, kind: 'create' | 'notify'): Promise<OperationPermit>;
-  /** 非预期失败（activation failed、连续空转、store 写失败）的上报通道。 */
+  /** 非预期失败（store 写失败、无隔离回调时的 activation failed/连续空转）的上报通道。 */
   onError(runId: string, error: unknown): void;
+  /**
+   * 单 worker 隔离：自动重试用尽或连续空转时调用；只影响该 worker，不暂停 run。
+   * 缺省时退回 `onError`（旧语义）。
+   */
+  onWorkerUnavailable?(runId: string, workerId: string, reason: 'activation_failed' | 'no_progress', diagnostic: string): void;
+  /** 失败 activation 后自动重唤醒同一 worker 的次数上限，默认 3。 */
+  activationRetries?: number;
+  /** 第 n 次（1 起）重试前的退避毫秒数；默认 1000·2^(n-1)。 */
+  retryDelayMs?(attempt: number): number;
+  /** 可注入的定时器；返回取消函数。dispose 会取消所有未触发的重试。 */
+  schedule?(callback: () => void, delayMs: number): () => void;
 }
+
+function defaultSchedule(callback: () => void, delayMs: number): () => void {
+  const timer = setTimeout(callback, delayMs);
+  // A pending backoff must never keep the Host process alive on its own.
+  (timer as { unref?: () => void }).unref?.();
+  return () => clearTimeout(timer);
+}
+
+export { isIsolatedWorker };
 
 /** 已处理 settled 回调的激活 id 记忆上限（只做防御性去重）。 */
 const SETTLED_MEMORY = 512;
@@ -61,6 +83,10 @@ interface WorkerState {
   settledMarker: string | null;
   /** 连续多少次 settled 没有 cursor 或业务进展。 */
   settledWithoutProgress: number;
+  /** 连续失败的 activation 次数；成功 settled 或重新启用后清零。仅内存，不持久。 */
+  activationFailures: number;
+  /** 未触发的退避重试的取消函数。 */
+  retryCancel: (() => void) | null;
   /**
    * wait 屏障：true 表示“等待中的 activation 不能被打断”。
    * 初始为 true；settled 时打开一次（允许一次投递），通知被接受后重新关上。
@@ -167,6 +193,19 @@ export class Delivery {
   }
 
   /**
+   * 清掉一个 worker 的重试/空转计数并取消未触发的重试；owner 重新启用或 run resume 时调用。
+   * 不唤醒 worker：调用方随后用 `resume` 显式唤醒。
+   */
+  resetWorker(runId: RunId, workerId: WorkerId): void {
+    const state = this.workerState(runId, workerId);
+    state.retryCancel?.();
+    state.retryCancel = null;
+    state.activationFailures = 0;
+    state.settledMarker = null;
+    state.settledWithoutProgress = 0;
+  }
+
+  /**
    * 重新检查该 run（或其中某个 worker）的 pending 并尝试投递。
    *
    * 返回的 promise 覆盖本次 drain 完成；由于队列串行，重复调用会合并。
@@ -201,6 +240,10 @@ export class Delivery {
       return this.disposePromise;
     }
     this.disposed = true;
+    for (const state of this.states.values()) {
+      state.retryCancel?.();
+      state.retryCancel = null;
+    }
     this.unsubscribeStore();
     this.unsubscribeSettled();
     this.disposePromise = (async () => {
@@ -297,7 +340,7 @@ export class Delivery {
     }
     this.sessionIndex.set(worker.sessionId, { runId, workerId });
     // paused/stopped/draining/quiescing 一律不发，pending 原样保留。
-    if (run.phase !== 'running' || worker.initializationState !== 'ready') {
+    if (run.phase !== 'running' || worker.initializationState !== 'ready' || isIsolatedWorker(worker)) {
       return;
     }
 
@@ -402,16 +445,10 @@ export class Delivery {
     state.waitGateClosed = false;
 
     if (failed) {
-      this.report(
-        runId,
-        new SwarmError(
-          'SWARM_INTERNAL',
-          `worker ${workerId} activation ${activationId} failed`,
-          { details: { runId, workerId, activationId } },
-        ),
-      );
+      this.activationFailed(runId, workerId, state, `activation ${activationId} failed`, activationId);
       return;
     }
+    state.activationFailures = 0;
 
     if (!this.trackProgress(runId, workerId, activationId, state)) return;
 
@@ -423,13 +460,66 @@ export class Delivery {
     }
   }
 
+  /**
+   * 一次失败的 activation：在重试预算内经退避后通过同一串行队列与 admission 重唤醒该 worker；
+   * 用尽后只隔离该 worker。从不暂停 run。
+   */
+  private activationFailed(runId: RunId, workerId: WorkerId, state: WorkerState, diagnostic: string, activationId: string | null): void {
+    if (this.disposed) return;
+    state.activationFailures += 1;
+    const retries = this.options.activationRetries ?? DEFAULT_ACTIVATION_RETRIES;
+    if (state.activationFailures > retries) {
+      state.activationFailures = 0;
+      this.isolate(runId, workerId, 'activation_failed',
+        `${diagnostic}; ${retries} automatic retr${retries === 1 ? 'y' : 'ies'} exhausted`, activationId);
+      return;
+    }
+    const attempt = state.activationFailures;
+    const delay = this.options.retryDelayMs?.(attempt) ?? DEFAULT_ACTIVATION_RETRY_BASE_MS * 2 ** (attempt - 1);
+    state.retryCancel?.();
+    state.retryCancel = (this.options.schedule ?? defaultSchedule)(() => {
+      state.retryCancel = null;
+      if (this.disposed) return;
+      void this.retryActivation(runId, workerId, state, attempt);
+    }, delay);
+  }
+
+  /** 退避后的重唤醒；admission 的预期拒绝（暂停/停止/预算）保留 pending，不计失败。 */
+  private async retryActivation(runId: RunId, workerId: WorkerId, state: WorkerState, attempt: number): Promise<void> {
+    const run = this.readRun(runId);
+    const worker = run?.workers[workerId];
+    if (!run || run.phase !== 'running' || !worker || worker.initializationState !== 'ready' || isIsolatedWorker(worker)) return;
+    try {
+      await this.resume(runId, workerId);
+    } catch (error) {
+      if (isExpectedRejection(error) || this.disposed) return;
+      this.activationFailed(runId, workerId, state,
+        `retry ${attempt} could not wake the worker: ${error instanceof Error ? error.message : String(error)}`, null);
+    }
+  }
+
+  private isolate(runId: RunId, workerId: WorkerId, reason: 'activation_failed' | 'no_progress', diagnostic: string,
+    activationId: string | null): void {
+    if (this.options.onWorkerUnavailable) {
+      try {
+        this.options.onWorkerUnavailable(runId, workerId, reason, diagnostic);
+      } catch (handlerError) {
+        console.error('[dsh-swarm] delivery onWorkerUnavailable handler failed', handlerError);
+      }
+      return;
+    }
+    this.report(runId, new SwarmError(reason === 'no_progress' ? 'SWARM_WORKER_BUSY' : 'SWARM_INTERNAL',
+      reason === 'no_progress' ? `worker ${workerId} ${diagnostic}; consider pausing the run` : `worker ${workerId} ${diagnostic}`,
+      { details: { runId, workerId, ...(activationId === null ? {} : { activationId }) } }));
+  }
+
   /** Continue an ordinary finished activation, not an explicit wait or a stopped run. */
   private async continueAfterSettle(runId: RunId, workerId: WorkerId, state: WorkerState): Promise<void> {
     await state.queue.run(async () => {
       if (this.disposed || state.notifiedGeneration === state.generation) return;
       const run = this.readRun(runId);
       const worker = run?.workers[workerId];
-      if (!run || run.phase !== 'running' || !worker || worker.initializationState !== 'ready'
+      if (!run || run.phase !== 'running' || !worker || worker.initializationState !== 'ready' || isIsolatedWorker(worker)
         || worker.waitRegistration !== null || this.workerStatus(worker.sessionId) !== 'inactive'
         || this.host.isWorkerBusy(worker.sessionId)) return;
       try {
@@ -478,14 +568,9 @@ export class Delivery {
       return true;
     }
     state.settledWithoutProgress = 0;
-    this.report(
-      runId,
-      new SwarmError(
-        'SWARM_WORKER_BUSY',
-        `worker ${workerId} settled twice without progress after activation ${activationId}; consider pausing the run`,
-        { details: { runId, workerId, activationId, shownSeq: shownEventSeq(worker), observedSeq: worker.observedSeq } },
-      ),
-    );
+    this.isolate(runId, workerId, 'no_progress',
+      `settled twice without progress after activation ${activationId} (shownSeq=${shownEventSeq(worker)}, observedSeq=${worker.observedSeq})`,
+      activationId);
     return false;
   }
 
@@ -548,6 +633,8 @@ export class Delivery {
         lastNotifiedSeq: null,
         settledMarker: null,
         settledWithoutProgress: 0,
+        activationFailures: 0,
+        retryCancel: null,
         waitGateClosed: true,
       };
       this.states.set(key, state);

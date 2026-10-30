@@ -60,6 +60,9 @@ function notice(run: Run, event: SwarmEvent, chars: number): object | null {
     case 'public':
       // The collector groups public events below; never expand bodies at this boundary.
       return null;
+    case 'worker':
+      // One peer was isolated or re-enabled; its claimed task (if any) arrives as a separate task event.
+      return { ...base, workerId: event.workerId, status: event.status, reason: event.reason };
     case 'run':
       return null;
   }

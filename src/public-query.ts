@@ -17,6 +17,8 @@ export type PublicItem =
   | { kind: 'agreement'; agreement: AgreementView }
   | { kind: 'notification'; notification: NotificationRecord }
   | { kind: 'activity'; threadId: string; channelId: string; title: string; status: ThreadRecord['status']; updatedSeq: number; messageCount: number; pendingRequestCount: number; agreementIds: string[]; agreementCount: number; agreementsTruncated: boolean; taskIds: string[] }
+  /** Host-authored member status change (worker isolated / re-enabled), shown in the general channel. */
+  | { kind: 'member_status'; channelId: string; seq: number; createdAt: number; workerId: string; displayName: string; status: 'unavailable' | 'available'; reason: string | null; releasedTaskIds: string[] }
   | { kind: 'message_revision'; messageId: string; value: PublicMessageRevision }
   | { kind: 'agreement_version'; agreementId: string; value: AgreementVersion; confirmations: AgreementRecord['confirmations'] };
 export interface PublicPage {
@@ -119,6 +121,26 @@ export function buildPublicPage(run: Run, input: ParsedPublicQuery, workerId: st
             agreementIds: agreements.slice(0, 20).map((record) => record.id), agreementCount: agreements.length,
             agreementsTruncated: agreements.length > 20, taskIds: entry.taskIds });
         }
+      }
+      if (input.view === 'activity' && !input.threadId && !input.findingId) {
+        // Host isolation/re-enable events are public run facts posted to the permanent general channel.
+        const general = `${run.id}:general`;
+        run.events.forEach((event, index) => {
+          if (event.kind !== 'worker') return;
+          if (input.workerId && event.workerId !== input.workerId) return;
+          // Released tasks are the task→open events Host appended in the same isolation update.
+          const releasedTaskIds: string[] = [];
+          for (const next of run.events.slice(index + 1)) {
+            if (next.kind !== 'task' || next.authorWorkerId !== null || next.status !== 'open' || next.createdAt !== event.createdAt) break;
+            releasedTaskIds.push(next.taskId);
+          }
+          const worker = run.workers[event.workerId];
+          const displayName = worker ? workerDisplayName(worker) : event.workerId;
+          if (!matches({ channelId: general, taskIds: releasedTaskIds }, `${displayName} ${event.status} ${event.reason ?? ''}`,
+            { kind: 'member_status', authors: [event.workerId] })) return;
+          add(event.seq, `worker:${event.seq}`, { kind: 'member_status', channelId: general, seq: event.seq, createdAt: event.createdAt,
+            workerId: event.workerId, displayName, status: event.status, reason: event.reason, releasedTaskIds });
+        });
       }
       break;
     case 'messages':
