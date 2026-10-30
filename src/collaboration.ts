@@ -10,6 +10,10 @@ import { appendEvent, isEventVisible, matchesWait, pendingNotifications, shownEv
 import type { ShownReceipt } from './notification-receipts.ts';
 import type { NotificationRecord } from './public-types.ts';
 import { SwarmError } from './errors.ts';
+import { isLiveFinding, liveClaims, withoutDetails } from './claims.ts';
+import { DEFAULT_CLAIM_TTL_MS, FINDING_DETAILS_MAX_CHARS, FINDING_SUMMARY_LIMITS } from './schema.ts';
+import { matchQuery, parseQuery, type QueryNode, type QuerySubject } from './query-expr.ts';
+import { workerDisplayName } from './worker-names.ts';
 import { activeAcceptanceCriteria, type GoalRecord } from './types.ts';
 import type { StateStore } from './store.ts';
 import type {
@@ -45,6 +49,8 @@ export interface CollaborationOptions {
   id?: () => string;
   /** 单页事件上限，默认 20。 */
   eventPageSize?: number;
+  /** claim Finding 留在实时视图中的毫秒数，默认 1 小时。 */
+  claimTtlMs?: number;
 }
 
 /** 一次 mutation 的身份：真实 session 与其在 run 内的 worker。 */
@@ -79,6 +85,7 @@ export interface UpdateTaskInput {
 export interface PublishInput {
   kind: FindingKind;
   summary: string;
+  details?: string;
   scope?: string[];
   evidenceRefs?: string[];
   taskId?: string;
@@ -143,7 +150,8 @@ export interface TaskSummary {
 export interface SyncEventItem {
   event: SwarmEvent;
   task: TaskRecord | null;
-  finding: FindingRecord | null;
+  /** Pushed projection: `details` is omitted; `hasDetails` says whether swarm_read by id has more. */
+  finding: (Omit<FindingRecord, 'details'> & { hasDetails: boolean }) | null;
   message: MessageRecord | null;
   proposal: ProposalRecord | null;
   goal: GoalRecord | null;
@@ -168,11 +176,24 @@ export interface SyncResult extends AttentionSummary {
   acceptedHead: string;
   worker: WorkerSummary;
   tasks: TaskSummary[];
+  /** Live peer claims (unexpired, latest per author+task), newest last; announcements, not locks. */
+  claims: LiveClaimSummary[];
+  claimsTotal: number;
   events: SyncEventItem[];
   observedSeq: EventSeq;
   offeredSeq: EventSeq;
   throughSeq: EventSeq;
   hasMore: boolean;
+}
+
+export interface LiveClaimSummary {
+  id: string;
+  authorWorkerId: WorkerId;
+  taskId: string | null;
+  summary: string;
+  scope: string[];
+  createdAt: Millis;
+  expiresAt: Millis;
 }
 
 export interface ReadItem {
@@ -301,6 +322,17 @@ export class Collaboration {
   private readonly now: () => number;
   private readonly makeId: () => string;
   private readonly eventPageSize: number;
+  private readonly claimTtlMs: number;
+
+  /** Live-view TTL for claim Findings, shared with the passive notice projection. */
+  get claimLiveTtlMs(): number {
+    return this.claimTtlMs;
+  }
+
+  /** Clock used for claim expiry in live views. */
+  currentTime(): number {
+    return this.now();
+  }
 
   constructor(store: StateStore, options: CollaborationOptions = {}) {
     this.store = store;
@@ -310,6 +342,12 @@ export class Collaboration {
     if (!Number.isInteger(this.eventPageSize) || this.eventPageSize < 1) {
       throw new SwarmError('SWARM_INVALID_INPUT', 'eventPageSize must be a positive integer', {
         details: { eventPageSize: this.eventPageSize },
+      });
+    }
+    this.claimTtlMs = options.claimTtlMs ?? DEFAULT_CLAIM_TTL_MS;
+    if (!Number.isInteger(this.claimTtlMs) || this.claimTtlMs < 1) {
+      throw new SwarmError('SWARM_INVALID_INPUT', 'claimTtlMs must be a positive integer', {
+        details: { claimTtlMs: this.claimTtlMs },
       });
     }
   }
@@ -523,10 +561,23 @@ export class Collaboration {
     const identity = this.identity(sessionId);
     const runId = this.resolveWorker(sessionId).run.id;
     const kind = input.kind;
-    if (kind !== 'observed' && kind !== 'fact' && kind !== 'fail' && kind !== 'patch_summary') {
+    if (kind !== 'observed' && kind !== 'fact' && kind !== 'fail' && kind !== 'patch_summary' && kind !== 'claim') {
       throw new SwarmError('SWARM_INVALID_INPUT', 'unknown finding kind', { details: { kind } });
     }
-    const summary = requireText(input.summary, 'summary');
+    const summary = requireText(input.summary, 'summary').trim();
+    const summaryLimit = FINDING_SUMMARY_LIMITS[kind];
+    if (summary.length > summaryLimit) {
+      throw new SwarmError('SWARM_INVALID_INPUT',
+        `summary for ${kind} must be at most ${summaryLimit} characters (got ${summary.length}); put supporting detail in details`, {
+          details: { field: 'summary', kind, limit: summaryLimit, length: summary.length },
+        });
+    }
+    const details = input.details === undefined ? undefined : requireText(input.details, 'details');
+    if (details !== undefined && details.length > FINDING_DETAILS_MAX_CHARS) {
+      throw new SwarmError('SWARM_INVALID_INPUT', `details must be at most ${FINDING_DETAILS_MAX_CHARS} characters`, {
+        details: { field: 'details', limit: FINDING_DETAILS_MAX_CHARS, length: details.length },
+      });
+    }
     const scope = (input.scope ?? []).map((entry, index) => requireText(entry, `scope[${index}]`));
     const evidenceRefs = (input.evidenceRefs ?? []).map((entry, index) =>
       requireText(entry, `evidenceRefs[${index}]`),
@@ -575,6 +626,7 @@ export class Collaboration {
         taskId,
         kind,
         summary,
+        ...(details === undefined ? {} : { details }),
         scope: [...scope],
         evidenceRefs: [...evidenceRefs],
         supersedesId,
@@ -770,7 +822,7 @@ export class Collaboration {
       };
     }
 
-    const query = input.query === undefined ? null : requireText(input.query, 'query').toLowerCase();
+    const query = input.query === undefined ? null : parseQuery(requireText(input.query, 'query'));
     const all = this.readableItems(run, worker.id, query);
     const offset = this.parseCursor(input.cursor);
     const page = all.slice(offset, offset + limit);
@@ -1085,9 +1137,11 @@ export class Collaboration {
       case 'task':
         item.task = run.tasks[event.taskId] ?? null;
         break;
-      case 'finding':
-        item.finding = run.findings[event.findingId] ?? null;
+      case 'finding': {
+        const finding = run.findings[event.findingId];
+        item.finding = finding === undefined ? null : withoutDetails(finding);
         break;
+      }
       case 'message':
         item.message = run.messages[event.messageId] ?? null;
         break;
@@ -1112,9 +1166,10 @@ export class Collaboration {
     const events: SyncEventItem[] = [];
     let throughSeq = afterSeq;
     let hasMore = false;
+    const now = this.now();
     for (const event of run.events) {
       if (event.seq <= afterSeq) continue;
-      if (!isEventVisible(event, workerId)) {
+      if (!isEventVisible(event, workerId) || this.isStaleClaimEvent(run, event, now)) {
         throughSeq = event.seq;
         continue;
       }
@@ -1126,6 +1181,29 @@ export class Collaboration {
       throughSeq = event.seq;
     }
     return { events, throughSeq, hasMore };
+  }
+
+  /** Expired or replaced claims stay in history/search but leave live sync/wait pages. */
+  private isStaleClaimEvent(run: Run, event: SwarmEvent, now: number): boolean {
+    if (event.kind !== 'finding' || event.findingKind !== 'claim') return false;
+    const finding = run.findings[event.findingId];
+    return finding !== undefined && !isLiveFinding(run, finding, now, this.claimTtlMs);
+  }
+
+  private liveClaimSummaries(run: Run): { claims: LiveClaimSummary[]; claimsTotal: number } {
+    const claims = liveClaims(run, this.now(), this.claimTtlMs);
+    return {
+      claims: claims.slice(-this.eventPageSize).map((finding) => ({
+        id: finding.id,
+        authorWorkerId: finding.authorWorkerId,
+        taskId: finding.taskId,
+        summary: finding.summary,
+        scope: [...finding.scope],
+        createdAt: finding.createdAt,
+        expiresAt: finding.createdAt + this.claimTtlMs,
+      })),
+      claimsTotal: claims.length,
+    };
   }
 
   private syncResult(
@@ -1148,6 +1226,7 @@ export class Collaboration {
       tasks: Object.values(run.tasks)
         .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
         .map(summarizeTask),
+      ...this.liveClaimSummaries(run),
       events: page.events,
       observedSeq: worker.observedSeq,
       offeredSeq: worker.offeredSeq,
@@ -1183,17 +1262,26 @@ export class Collaboration {
     return null;
   }
 
-  private readableItems(run: Run, workerId: WorkerId, query: string | null): ReadItem[] {
+  private readableItems(run: Run, workerId: WorkerId, query: QueryNode | null): ReadItem[] {
     const items: ReadItem[] = [];
+    // author: 同时匹配 worker id 与显示名；搜索覆盖完整历史（含已过期 claim 与 details）。
+    const authors = (...ids: (WorkerId | null | undefined)[]): string[] =>
+      ids.flatMap((id) => {
+        if (!id) return [];
+        const worker = run.workers[id];
+        return worker ? [id, workerDisplayName(worker)] : [id];
+      });
+    const hit = (subject: QuerySubject): boolean => matchQuery(query, subject);
     for (const goal of Object.values(run.goals)) {
-      if (query !== null && ![goal.text, ...goal.acceptanceCriteria].join('\n').toLowerCase().includes(query)) continue;
+      if (!hit({ text: [goal.id, goal.text, ...goal.acceptanceCriteria].join('\n'), fields: { kind: ['goal'], author: ['owner'] } })) continue;
       items.push({ kind: 'goal', goal, task: null, finding: null, message: null });
     }
     for (const task of Object.values(run.tasks)) {
-      if (query !== null) {
-        const haystack = [task.subject, task.acceptance, ...task.scope].join('\n').toLowerCase();
-        if (!haystack.includes(query)) continue;
-      }
+      const subject: QuerySubject = {
+        text: [task.id, task.subject, task.acceptance, ...task.scope, task.blockReason ?? '', task.cancellationReason ?? ''].join('\n'),
+        fields: { kind: ['task', task.kind], author: authors(task.createdByWorkerId, task.ownerWorkerId), task: [task.id] },
+      };
+      if (!hit(subject)) continue;
       items.push({ kind: 'task', task, finding: null, message: null });
     }
     items.sort((left, right) => {
@@ -1205,10 +1293,12 @@ export class Collaboration {
 
     const findings: FindingRecord[] = [];
     for (const finding of Object.values(run.findings)) {
-      if (query !== null) {
-        const haystack = [finding.summary, ...finding.scope].join('\n').toLowerCase();
-        if (!haystack.includes(query)) continue;
-      }
+      const details = (finding as { details?: unknown }).details;
+      const subject: QuerySubject = {
+        text: [finding.id, finding.summary, typeof details === 'string' ? details : '', ...finding.scope, ...finding.evidenceRefs].join('\n'),
+        fields: { kind: ['finding', finding.kind], author: authors(finding.authorWorkerId), task: [finding.taskId] },
+      };
+      if (!hit(subject)) continue;
       findings.push(finding);
     }
     findings.sort((left, right) => left.seq - right.seq);
@@ -1219,7 +1309,7 @@ export class Collaboration {
     const messages: MessageRecord[] = [];
     for (const message of Object.values(run.messages)) {
       if (message.authorWorkerId !== workerId && message.targetWorkerId !== workerId) continue;
-      if (query !== null && !message.body.toLowerCase().includes(query)) continue;
+      if (!hit({ text: message.body, fields: { kind: ['message'], author: authors(message.authorWorkerId) } })) continue;
       messages.push(message);
     }
     messages.sort((left, right) => left.seq - right.seq);

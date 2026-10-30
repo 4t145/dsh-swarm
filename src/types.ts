@@ -84,6 +84,8 @@ export interface SwarmRuntimeConfig {
   defaultWorkerCount: number;
   /** 单次增量事件/列表返回的条目上限，默认 20。 */
   eventPageSize: number;
+  /** claim Finding 在实时视图/通知中保留的毫秒数，默认 1 小时；历史与搜索不受影响。 */
+  claimTtlMs: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -236,9 +238,10 @@ export interface TaskRecord {
 
 /**
  * 发现类型。`fail` 表示已证伪路径或存在未修复缺陷；
- * 只有后者填写 blockingRepairTaskId。
+ * 只有后者填写 blockingRepairTaskId。`claim` 是“即将处理某范围”的公告，不是锁；
+ * 过 TTL 后退出实时视图，同作者同任务的新 claim 替换旧 claim，历史与搜索保留全部。
  */
-export type FindingKind = 'observed' | 'fact' | 'fail' | 'patch_summary';
+export type FindingKind = 'observed' | 'fact' | 'fail' | 'patch_summary' | 'claim';
 
 export interface FindingRecord {
   id: FindingId;
@@ -247,6 +250,8 @@ export interface FindingRecord {
   taskId: TaskId | null;
   kind: FindingKind;
   summary: string;
+  /** Optional longer detail; never pushed in notices, expanded via swarm_read by id. Absent on older records. */
+  details?: string;
   scope: string[];
   evidenceRefs: string[];
   supersedesId: FindingId | null;

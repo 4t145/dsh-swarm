@@ -366,3 +366,32 @@ Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19
 [原生配置测试](<tests/dsh-worker-limit.test.ts>) 实际加载当前安装版 Cordis/SubagentRuntime（不启动模型），验证宿主默认 8、配置 12、替换 provider、隔离作用域、动态 getter、显式覆盖/移除和无效值。Schemastery 的 optional number 会保留显式 null，因此 Swarm 初始化在获取存储前再次验证，解析器每次也验证，null 从不被当作未设置。[Runtime 测试](<tests/runtime.test.ts>) 验证 8→12、并发第五次追加拒绝、降为 3 保留 12 人、旧数据恢复/resume 与 continue 重新验限、原生容量失败不伪造成功；[原生 adapter 测试](<tests/dsh-worker-host.test.ts>) 单独验证 `ACTIVATION_LIMIT_REACHED` 的错误分类。命令、owner、GUI、headless、公共频道/自动技术回执及原回归全部保留。
 
 没有修改 DSH 源码/用户 profile、部署或重启 GUI，没有启动替代服务器；源码/组件单测不等于当前 URL 已生效或真实模型/browser 端到端验收。最终提交仍须通过 Host 的组合验收，以上检查不替代它。
+
+## 布尔搜索表达式（Agensh 风格协作，2026-10-30）
+
+- 唯一解析/匹配模块 [query-expr](<src/query-expr.ts>) 为纯函数，[单测](<tests/query-expr.test.ts>) 覆盖优先级、短语、字段与错误位置。语法：词与 `"短语"` 为大小写不敏感子串；`&` 或空白为 AND，`|` 为 OR（优先级低于 AND），`-`/`!` 仅在词首表示 NOT（`foo-bar` 仍是一个词），括号分组。`kind:` 精确匹配，`author:`/`task:` 为子串匹配；未知前缀如 `http:` 视作普通词。多词显示名需加引号（`author:"Calm Robin"`）。
+- 非法表达式抛 `SWARM_INVALID_INPUT`，消息含 `position N`（0 起始字符偏移），`details.position` 同值；长度上限 500、嵌套上限 32，防止病态输入。空白查询等于不过滤。
+- `swarm_read` 查询覆盖 goal、task、finding（summary、可选 details、scope、evidence，含已过期 claim）与调用者自己的私信；第三方私信仍不可见。`kind:` 可取记录类型（goal/task/finding/message）或子类型（code/research、observed/fact/fail/patch_summary/claim）；`author:` 匹配 worker id 或显示名（task 同时匹配创建者和 owner）；`task:` 匹配 task id 或 finding 关联 task。结果原有 total/hasMore/truncated 语义不变。
+- 公开查询（`swarm_public_read`、owner GUI）在原有 channel/thread/task 过滤之后用同一表达式；`kind:` 为该 view 的记录类型（message/thread/request/agreement/channel），`author:` 为作者/创建者（thread 含参与者），`task:` 为关联 task。表达式参与游标 filter 绑定，换查询必须重新翻页。
+- GUI 会话搜索框把输入原样作为 query 发送，并在输入框下显示简短中英文语法提示（`public.searchHint`，`aria-describedby` 关联）。
+
+## CLAIM Finding、summary 限长与 details（Agensh 风格协作，2026-10-30）
+
+- 新增 Finding kind `claim`：worker 开始某范围时用 `swarm_publish kind=claim` 简短公告，可带 `task_id`/`scope`。它只是公告，不是锁；Task CAS 仍决定 owner（[测试](<tests/claims.test.ts>) 验证他人 claim 后仍可认领该 task）。
+- 实时视图规则在纯模块 [claims](<src/claims.ts>)：claim 创建满 `claimTtlMs` 后不再出现在 `swarm_sync` 的 `claims` 列表、sync/wait 事件页和被动推送通知；同作者、同 task 的更新 claim 使旧 claim 退出实时视图（无 task 的 claim 互不替换）。存储、`swarm_read` 按 id 与搜索保留全部历史。被跳过的 claim 事件仍推进游标，不会反复出现。
+- `claimTtlMs` 为 Host 配置项（Schemastery 与 `runtimeConfigSchema` 双重校验，范围 1 分钟–7 天，默认 3_600_000）。过期按 Collaboration 注入时钟在读取时判定，不写回记录。
+- summary 上限仅在发布时强制：observed/fact/fail/claim 100 字符，patch_summary 300 字符（`FINDING_SUMMARY_LIMITS`，工具参数描述写明）；超限返回 `SWARM_INVALID_INPUT`，`details` 含 kind/limit/length。持久 schema 不复检长度，旧的长 summary 与无 `details` 的记录照常加载。Host 内部生成的最终验证失败 fail Finding 不经过发布路径。
+- 可选 `details`（≤4000 字符）随记录存储；sync 事件中的 finding 投影去掉 `details` 并给出 `hasDetails`，被动通知也只带 `hasDetails: true`；`swarm_read` 按 id 返回完整记录。owner GUI 会话视图把 details 放在可折叠的“详情/Details”中，GUI 标签 `flow.finding.claim` 为“认领声明/claim”。
+- WORKER_POLICY 要求认领 task 后发布 claim、summary 保持简短 gist、细节放入 details/evidence_refs 并按需 `swarm_read` 展开。
+
+## 紧急私信优先投递（Agensh 风格协作，2026-10-30）
+
+- 私信语义：`swarm_message` 用于需要对方及时处理的紧急一对一协调（重叠编辑、阻塞依赖、直接请求），优先级高于公共流量；公共线程仍是默认协作途径，未经授权不得把私信抄到公共历史。WORKER_POLICY 与工具描述同步写明。
+- 运行中的目标：[worker-context](<src/worker-context.ts>) 的 `tools/post-execute` 被动 context 在每个工具结果边界先列出该 worker 未显示的私信（`directMessages`，有界 `peerNoticeItems` 条、正文截断 `peerNoticeChars`、`directMessagesHasMore`），再给普通更新；私信不受普通更新上限挤压。显示范围游标绝不越过本页未展示的私信，因此超出批次的私信在下一个边界继续出现。仅当日志确认显示后才推进 shownSeq（与原回执语义相同），重放可能重复，不承诺 exactly-once。
+- 空闲/等待目标：Delivery 原有唤醒与 wait/settled 屏障不变；公共 digest 仍只在空闲/结算边界发送（[测试](<tests/urgent-dm.test.ts>) 用假工具与显式屏障验证三种情况）。
+
+## Owner 重新启用单个 worker（失败隔离配套，2026-10-30）
+
+- `swarm_manage action=restart_worker worker_id=<id>` 与 `/swarm worker restart <id> [--json]` 共用 [restartWorker](<src/commands.ts>)：先按 status 校验 owner，再要求该成员存在且带 `unavailableReason`，否则分别报 `SWARM_FORBIDDEN` / `SWARM_NOT_FOUND` / `SWARM_INVALID_STATE`；随后只调用 runtime `reenableWorker(runId, workerId)`，不 resume、不重启 run，回执带当前 phase。宿主缺少该能力时明确报 `SWARM_INVALID_STATE`，不回退为整 run resume。只读 sandbox、已取消调用与子代理会话在调用 runtime 之前被拒绝。
+- `/swarm status` 的成员行显示 `UNAVAILABLE=<reason>` 与有界诊断；owner 前台状态新增 `unavailableWorkers`（id、显示名、原因码、≤160 字诊断，最多 8 项并给出省略数），并提示用 restart_worker 而非 resume/stop/start。
+- 进度 DTO 的成员新增 `unavailableReason`，`diagnostic` 优先显示 `原因: 诊断`。面板把带原因码的就绪成员显示为“已被 Host 隔离 / Isolated by Host”（初始化失败仍是 failed），并提供中英文原因说明与“重新启用”按钮。按钮只对 Host 生成的安全 id 发送 `/swarm worker restart <id> --json`，并校验回执的 runId/workerId。

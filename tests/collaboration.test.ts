@@ -277,6 +277,32 @@ describe('Collaboration', () => {
     ).rejects.toMatchObject({ code: 'SWARM_INVALID_INPUT' });
   });
 
+  it('searches full history with the shared boolean expression language', async () => {
+    const { collaboration } = await makeHarness();
+    const task = await collaboration.createTask('s1', { kind: 'code', subject: 'parser work', acceptance: 'tests', scope }, 'c1');
+    await collaboration.publish('s1', { kind: 'fact', summary: 'parser handles phrases', taskId: task.id }, 'c2');
+    await collaboration.publish('s2', { kind: 'fail', summary: 'build broken on node' }, 'c3');
+    await collaboration.message('s1', { target: 'w2', body: 'parser review please' }, 'c4');
+
+    const kinds = async (query: string, session = 's2') =>
+      (await collaboration.read(session, { query })).items.map((item) => item.kind);
+    expect(await kinds('parser')).toEqual(['task', 'finding', 'message']);
+    expect(await kinds('parser -kind:task')).toEqual(['finding', 'message']);
+    expect(await kinds('kind:fact | kind:fail')).toEqual(['finding', 'finding']);
+    expect(await kinds(`task:${task.id} kind:finding`)).toEqual(['finding']);
+    expect(await kinds('author:w2')).toEqual(['finding']);
+    expect(await kinds('"handles phrases"')).toEqual(['finding']);
+    // DMs remain private to their two parties.
+    expect(await kinds('review', 's3')).toEqual([]);
+
+    const page = await collaboration.read('s2', { query: 'parser | build', limit: 2 });
+    expect(page).toMatchObject({ total: 4, truncated: true, hasMore: true });
+    await expect(collaboration.read('s2', { query: '(parser' })).rejects.toMatchObject({
+      code: 'SWARM_INVALID_INPUT',
+      details: { position: 0 },
+    });
+  });
+
   it('paginates sync events, skips invisible messages and honors ack', async () => {
     const { collaboration, store, runId } = await makeHarness({ pageSize: 2 });
     await collaboration.createTask('s1', { kind: 'code', subject: 't1', acceptance: 'a', scope }, 'c1');

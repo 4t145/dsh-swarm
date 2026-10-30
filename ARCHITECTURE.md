@@ -103,13 +103,17 @@ worktree 不是安全沙箱。worker 仍遵守 DSH 的权限与工具策略。�
 | 私有 checkout + Git 平台 | 本地 worktree + result 分支 |
 | Issues / 工作声明 | 插件 Task 数据 |
 | 公共频道 / 私信 | 独立 Channel/Thread/PublicMessage 与 Notification；旧 Message 保持私信语义（§14） |
+| 私信 = 紧急一对一、高优先级 | `swarm_message`：运行中的目标在下一个工具结果边界看到私信（被动 context 首段“urgent direct messages”，不占普通更新名额，有界批次），空闲/等待的目标仍由 Delivery 唤醒；公共 digest 仍只在空闲/结算边界投递。去重沿用显示回执游标，不承诺 exactly-once |
 | 共享 context board | 追加式 Finding + 增量读取 / 搜索 |
+| CLAIM（软声明） | Finding kind `claim`：开始某范围时的简短公告，可关联 task；不是锁，Task CAS 仍是归属权威。超过可配置 TTL（Host `claimTtlMs`，默认 1 小时）退出 sync `claims`/事件页与推送通知；同作者同 task 的新 claim 在实时视图替换旧 claim；历史与搜索保留全部 |
+| 简短 gist + 按需展开 | Finding summary 按类型限长（observed/fact/fail/claim 100、patch_summary 300，`FINDING_SUMMARY_LIMITS`）；可选 `details`（≤4000）不进推送，`swarm_read` 按 id 展开 |
+| 上下文搜索（布尔查询） | 单一纯模块 `src/query-expr.ts`：词/短语子串、`&`/空白 AND、`\|` OR、`-`/`!` NOT、括号、`kind:` `author:` `task:`；`swarm_read`、公开查询与 GUI 搜索框共用，覆盖完整历史并返回 total/truncated |
 | 每个 worker 的事件 router | Host 内的 Delivery 模块 |
 | PR 整合 | 本地 Proposal + 串行集成队列 |
 
 两项有意的工程差异：
 
-1. Agensh 的 CLAIM 主要是软声明。本插件借鉴 DeLM，用 CAS 保证同一个 Task 只能有一个 owner；不同 Task 的范围重叠仍需 worker 协商。
+1. Agensh 的 CLAIM 主要是软声明。本插件保留同名软声明（claim Finding），同时借鉴 DeLM，用 CAS 保证同一个 Task 只能有一个 owner；不同 Task 的范围重叠仍需 worker 协商。
 2. Agensh 的公开实现不等于强制 CI。本插件明确要求验证通过才能推进 result 分支；这是我们的产品规则，不是对论文的转述。
 
 不直接建立在 `agentTeams` 上：当前 Teams 以 Lead 和共享 checkout 为语义，不能假装它已经支持独立工作树和集成队列。我们复用更底层的 DSH 服务。

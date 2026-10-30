@@ -129,6 +129,8 @@ export interface ProgressWorker {
   readonly activity: WorkerActivity;
   /** 原生状态读取失败或初始化失败的有界诊断；成功时为 null。 */
   readonly diagnostic: string | null;
+  /** Host 隔离该 worker 的原因码（activation_failed / no_progress / initialization_failed）；可用时为 null。 */
+  readonly unavailableReason: string | null;
 }
 
 /** run 级任务计数，直接来自 runtime 的公开 status。 */
@@ -465,8 +467,11 @@ function currentProposal(workerId: string, detail: ProgressRunDetail | undefined
 }
 
 function diagnosticOf(worker: WorkerStatusSummary): string | null {
+  const detail = (worker as { unavailableDetail?: { diagnostic?: unknown } | null }).unavailableDetail;
+  const isolated = worker.unavailableReason && typeof detail?.diagnostic === 'string'
+    ? `${worker.unavailableReason}: ${detail.diagnostic}` : null;
   return bounded(
-    worker.nativeStatusError ?? worker.unavailableReason ?? worker.initializationError,
+    worker.nativeStatusError ?? isolated ?? worker.unavailableReason ?? worker.initializationError,
     PROGRESS_LIMITS.diagnosticChars,
   );
 }
@@ -532,6 +537,7 @@ export function toProgressSnapshot(
       currentProposal: currentProposal(worker.id, detail),
       activity: readActivity(worker, activity),
       diagnostic: diagnosticOf(worker),
+      unavailableReason: bounded(worker.unavailableReason, PROGRESS_LIMITS.reasonChars),
     })),
     proposals: {
       queued: status.proposals.queued,

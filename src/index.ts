@@ -17,7 +17,7 @@ import { artifactSchema, StoredArtifacts } from './artifacts.ts';
 import { registerSwarmCommand } from './commands.ts';
 import { DshCommandExecutor } from './dsh-executor.ts';
 import { DshWorkerHost } from './dsh-worker-host.ts';
-import { runSchema } from './schema.ts';
+import { CLAIM_TTL_MAX_MS, CLAIM_TTL_MIN_MS, DEFAULT_CLAIM_TTL_MS, runSchema } from './schema.ts';
 import type { Run, RunSpec } from './types.ts';
 import type { ArtifactRecord } from './artifacts.ts';
 import type {} from '@deepseek-ai/dsh-fs';
@@ -37,6 +37,8 @@ export interface SwarmConfig {
   /** Optional live team limit; no numeric default, inherits native config when unset. */
   workerCountMax?: Volatile<number | undefined>;
   eventPageSize: number;
+  /** Claim Findings leave live views/notices after this many ms (history keeps them). */
+  claimTtlMs: number;
   commandOutputBytes: number;
   commandGraceMs: number;
   /** Distinct CLI storage avoids recovering another live GUI process's runs. */
@@ -68,6 +70,7 @@ export class SwarmService extends Service {
   static Config = Schema.object({
     workerCountMax: Schema.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).volatile(),
     eventPageSize: Schema.number().min(1).max(100).default(20),
+    claimTtlMs: Schema.number().step(1).min(CLAIM_TTL_MIN_MS).max(CLAIM_TTL_MAX_MS).default(DEFAULT_CLAIM_TTL_MS),
     commandOutputBytes: Schema.number().min(4096).max(4194304).default(262144),
     commandGraceMs: Schema.number().min(100).max(30000).default(3000),
     storageDomainName: Schema.string().default('local_swarm'),
@@ -134,6 +137,7 @@ export class SwarmService extends Service {
     const workspace = new GitWorkspace(executor);
     const runtime = new SwarmRuntime(store, host, workspace, artifacts, {
       eventPageSize: config.eventPageSize,
+      claimTtlMs: config.claimTtlMs ?? DEFAULT_CLAIM_TTL_MS,
       workerLimit: dshWorkerLimitResolver(this.ctx, config.workerCountMax),
     });
     this.artifactsValue = artifacts;

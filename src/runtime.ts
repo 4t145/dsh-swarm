@@ -68,6 +68,8 @@ export interface SwarmRuntimeOptions {
   clock?: Clock;
   id?: () => string;
   eventPageSize?: number;
+  /** Live-view TTL for claim Findings; default 1 hour. */
+  claimTtlMs?: number;
   /** Required for admission; absence is a capability error, never a numeric fallback. */
   workerLimit?: WorkerLimitResolver;
 }
@@ -301,6 +303,7 @@ export class SwarmRuntime {
       now: () => this.clock.now(),
       id: this.makeId,
       eventPageSize: this.eventPageSize,
+      claimTtlMs: options.claimTtlMs ?? DEFAULT_RUNTIME_CONFIG.claimTtlMs,
     });
     this.publicCollaboration = new PublicCollaboration(store, { now: () => this.clock.now(), id: this.makeId });
     this.delivery = new Delivery(store, host, {

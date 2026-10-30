@@ -19,6 +19,7 @@ import { toolReceiptMeta } from './notification-receipts.ts';
 import { publicCommandSchema, publicQuerySchema } from './public-input.ts';
 import type { SwarmRuntime } from './runtime.ts';
 import type { JsonValue } from './types.ts';
+import { FINDING_DETAILS_MAX_CHARS, FINDING_SUMMARY_LIMITS } from './schema.ts';
 
 /* ------------------------------------------------------------------ */
 /* 共享基础设施                                                        */
@@ -178,9 +179,14 @@ const taskUpdateInput = z.strictObject({
   finding_id: z.string().min(1).optional(),
 });
 
+const FINDING_KINDS = ['observed', 'fact', 'fail', 'patch_summary', 'claim'] as const;
+const SUMMARY_LIMIT_TEXT = `at most ${FINDING_SUMMARY_LIMITS.observed} characters for observed/fact/fail/claim, `
+  + `${FINDING_SUMMARY_LIMITS.patch_summary} for patch_summary`;
+
 const publishInput = z.strictObject({
-  kind: z.enum(['observed', 'fact', 'fail', 'patch_summary']),
+  kind: z.enum(FINDING_KINDS),
   summary: z.string().min(1),
+  details: z.string().min(1).max(FINDING_DETAILS_MAX_CHARS).optional(),
   scope: z.array(z.string().min(1)).optional(),
   evidence_refs: z.array(z.string().min(1)).optional(),
   task_id: z.string().min(1).optional(),
@@ -283,11 +289,11 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_read',
       description:
-        'Read one record by id, or search tasks, findings, and your direct messages. Diagnostic artifact ids '
+        'Read one record by id, or search goals, tasks, findings, and your direct messages with a boolean query expression. Diagnostic artifact ids '
         + '(starting with swarm-artifact-) return bounded text slices instead.',
       properties: {
         id: { type: 'string', description: 'Task, finding, message, or diagnostic artifact id.' },
-        query: { type: 'string', description: 'Case-insensitive text filter when no id is given.' },
+        query: { type: 'string', description: 'When no id is given: Search expression: terms (case-insensitive substring), \"quoted phrases\", AND via & or whitespace, OR via |, NOT via - or !, parentheses, field filters kind:, author: (worker id or display name), task:. Example: (build | test) -kind:claim author:w2. Invalid expressions fail with SWARM_INVALID_INPUT naming the position. Covers full history: goals, tasks, findings (summary, details, expired claims) and your own direct messages; results report total and truncated.' },
         cursor: { type: 'string', description: 'nextCursor from a previous read result.' },
         limit: {
           type: 'integer',
@@ -392,11 +398,17 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_publish',
       description:
-        'Publish an immutable finding: an observed fact, a decision peers must build on, or a failure that '
-        + 'needs repair. Returns the stored finding with the event seq peers will see.',
+        'Publish an immutable finding: an observed fact, a decision peers must build on, a failure that '
+        + 'needs repair, or a claim announcing the scope you are about to work on (an announcement, not a lock; '
+        + 'Task CAS stays the authority). Claims leave live views after a TTL and a newer claim on the same task '
+        + 'replaces yours there; history and search keep all. Returns the stored finding with the event seq peers will see.',
       properties: {
-        kind: { type: 'string', enum: ['observed', 'fact', 'fail', 'patch_summary'], description: 'Finding kind.' },
-        summary: { type: 'string', description: 'Concise, self-contained statement.' },
+        kind: { type: 'string', enum: [...FINDING_KINDS], description: 'Finding kind. Use claim when starting a scope.' },
+        summary: { type: 'string', description: `Short gist pushed to peers: ${SUMMARY_LIMIT_TEXT}.` },
+        details: {
+          type: 'string',
+          description: `Optional supporting detail (at most ${FINDING_DETAILS_MAX_CHARS} characters). Not pushed in notices; peers expand it with swarm_read by id.`,
+        },
         scope: { type: 'array', items: { type: 'string' }, description: 'Affected paths or areas.' },
         evidence_refs: {
           type: 'array',
@@ -418,6 +430,7 @@ export function registerWorkerTools(
           {
             kind: input.kind,
             summary: input.summary,
+            details: input.details,
             scope: input.scope,
             evidenceRefs: input.evidence_refs,
             taskId: input.task_id,
@@ -431,8 +444,13 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_message',
       description:
-        'Send a short private message to one peer worker, addressed by worker id or session id. '
-        + 'Returns the delivered message; only the sender and recipient can read it.',
+        'Send a short urgent private message to one peer worker, addressed by worker id or session id. '
+        + 'Direct messages have higher priority than public traffic: a running recipient sees it at its next '
+        + 'tool-result boundary and an idle or waiting recipient is woken. Use it only for targeted one-to-one '
+        + 'coordination that needs prompt attention (an overlapping edit, a blocking dependency, a direct request); '
+        + 'public threads stay the default for anything others may need. Never copy a private message into public '
+        + 'history without authorization. Returns the stored message; only the sender and recipient can read it. '
+        + 'Delivery is at-least-once to the boundary, not exactly-once.',
       properties: {
         target: { type: 'string', description: 'Recipient worker id or session id.' },
         body: { type: 'string', description: 'Message text.' },
