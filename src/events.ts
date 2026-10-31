@@ -6,6 +6,7 @@
  * 增一次），也不启动任何运行时唤醒。
  */
 
+import type { NotificationRecord, PublicEvent } from './public-types.ts';
 import type {
   EventAudience,
   EventSeq,
@@ -39,6 +40,40 @@ export function isEventVisible(event: { audience: EventAudience }, workerId: Wor
   return event.audience.kind === 'all' || event.audience.workerIds.includes(workerId);
 }
 
+/** Effective notification cursor: automatic display receipts plus legacy explicit confirmations. */
+export function shownEventSeq(worker: WorkerRecord): number {
+  return Math.max(worker.observedSeq, worker.shownSeq ?? 0);
+}
+
+/** Pending public attention is independent of global event ACK and full-message reads. */
+export function pendingNotifications(run: Run, workerId: WorkerId): NotificationRecord[] {
+  return Object.values(run.notifications).filter((item) => item.workerId === workerId
+    && item.acknowledgedAt === null).sort((a, b) => notificationRank(a) - notificationRank(b)
+      || a.seq - b.seq || a.id.localeCompare(b.id));
+}
+
+/** Compact references safe for control notifications and passive context (never public body fan-out). */
+export function notificationReference(item: NotificationRecord): object {
+  return { id: item.id, seq: item.seq, reasons: item.reasons, priority: item.priority,
+    channelId: item.channelId, threadId: item.threadId, messageId: item.messageId,
+    requestId: item.requestId, agreementId: item.agreementId };
+}
+
+/** Explicit response requests stay ahead of mentions, then merged ordinary updates. */
+function notificationRank(item: NotificationRecord): number {
+  return item.reasons.includes('response_request') ? 0 : item.priority === 'immediate' ? 1 : 2;
+}
+
+/** Public visibility never implies a wake: only persisted, addressed, unacknowledged attention does. */
+export function publicEventNeedsAttention(run: Run, workerId: WorkerId, event: PublicEvent): boolean {
+  if (event.authorWorkerId === workerId) return false;
+  return event.notificationIds.some((id) => {
+    const item = run.notifications[id];
+    // A coalesced notification now describes its latest source, not earlier events.
+    return item?.workerId === workerId && item.acknowledgedAt === null && item.seq === event.seq;
+  });
+}
+
 /**
  * 事件是否满足该 worker 已登记的等待（架构 §7.2 匹配表，按顺序判断）。
  *
@@ -51,7 +86,10 @@ export function matchesWait(run: Run, worker: WorkerRecord, event: SwarmEvent): 
   if (!isEventVisible(event, worker.id)) return false;
 
   const wait = worker.waitRegistration;
-  if (wait === null || event.seq <= wait.afterSeq) return false;
+  if (wait === null) return false;
+  // A global event ACK is not an attention ACK. An outstanding request may predate the wait cursor.
+  if (event.kind === 'public') return publicEventNeedsAttention(run, worker.id, event);
+  if (event.seq <= Math.max(wait.afterSeq, shownEventSeq(worker))) return false;
 
   // 发给自己的直接消息：两种模式都恒匹配，不受 ID 列表限制。
   if (event.kind === 'message') return event.targetWorkerId === worker.id;
@@ -111,6 +149,10 @@ export function appendEvent(run: Run, event: EventInput, now: number): SwarmEven
 
   const appended: SwarmEvent = { ...event, seq, createdAt: now };
   run.events.push(appended);
+
+  // Public notifications are already durable in this transaction. Do not mix their
+  // independent ACK with the legacy global-cursor wake target (which would leave stale wakes).
+  if (appended.kind === 'public') return appended;
 
   for (const worker of Object.values(run.workers)) {
     if (!(appended.kind === 'goal' && appended.status === 'active') && !matchesWait(run, worker, appended)) continue;

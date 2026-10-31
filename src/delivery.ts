@@ -12,8 +12,12 @@
  */
 
 import { isSwarmError, SwarmError } from './errors.ts';
+import { pendingNotifications, shownEventSeq } from './events.ts';
+import type { NotificationRecord } from './public-types.ts';
 import type { WorkerHost } from './ports.ts';
+import { DEFAULT_ACTIVATION_RETRIES, DEFAULT_ACTIVATION_RETRY_BASE_MS } from './schema.ts';
 import { SerialQueue } from './serial.ts';
+import { isIsolatedWorker } from './worker-availability.ts';
 import type { StateStore } from './store.ts';
 import type { EventSeq, Run, RunId, WorkerId, WorkerRecord } from './types.ts';
 
@@ -26,9 +30,29 @@ export interface OperationPermit {
 export interface DeliveryOptions {
   /** 由 Runtime 提供的 admission：检查 run 状态/预算并登记在途操作。 */
   admitWorkerOperation(runId: string, workerId: string, kind: 'create' | 'notify'): Promise<OperationPermit>;
-  /** 非预期失败（activation failed、连续空转、store 写失败）的上报通道。 */
+  /** 非预期失败（store 写失败、无隔离回调时的 activation failed/连续空转）的上报通道。 */
   onError(runId: string, error: unknown): void;
+  /**
+   * 单 worker 隔离：自动重试用尽或连续空转时调用；只影响该 worker，不暂停 run。
+   * 缺省时退回 `onError`（旧语义）。
+   */
+  onWorkerUnavailable?(runId: string, workerId: string, reason: 'activation_failed' | 'no_progress', diagnostic: string): void;
+  /** 失败 activation 后自动重唤醒同一 worker 的次数上限，默认 3。 */
+  activationRetries?: number;
+  /** 第 n 次（1 起）重试前的退避毫秒数；默认 1000·2^(n-1)。 */
+  retryDelayMs?(attempt: number): number;
+  /** 可注入的定时器；返回取消函数。dispose 会取消所有未触发的重试。 */
+  schedule?(callback: () => void, delayMs: number): () => void;
 }
+
+function defaultSchedule(callback: () => void, delayMs: number): () => void {
+  const timer = setTimeout(callback, delayMs);
+  // A pending backoff must never keep the Host process alive on its own.
+  (timer as { unref?: () => void }).unref?.();
+  return () => clearTimeout(timer);
+}
+
+export { isIsolatedWorker };
 
 /** 已处理 settled 回调的激活 id 记忆上限（只做防御性去重）。 */
 const SETTLED_MEMORY = 512;
@@ -51,12 +75,18 @@ interface WorkerState {
   generation: number;
   /** 最近一次被接受的通知发生在哪一代。 */
   notifiedGeneration: number;
+  /** Notification id/version pairs delivered in this activation; never a read/response ACK. */
+  publicNotified: Map<string, number>;
   /** 最近一次被接受的通知上界（仅诊断用，权威值是 notifiedSeq）。 */
   lastNotifiedSeq: EventSeq | null;
   /** 上一次 settled 时的业务进度标记，用于检测连续空转。 */
   settledMarker: string | null;
   /** 连续多少次 settled 没有 cursor 或业务进展。 */
   settledWithoutProgress: number;
+  /** 连续失败的 activation 次数；成功 settled 或重新启用后清零。仅内存，不持久。 */
+  activationFailures: number;
+  /** 未触发的退避重试的取消函数。 */
+  retryCancel: (() => void) | null;
   /**
    * wait 屏障：true 表示“等待中的 activation 不能被打断”。
    * 初始为 true；settled 时打开一次（允许一次投递），通知被接受后重新关上。
@@ -65,6 +95,11 @@ interface WorkerState {
 }
 
 type WorkerStatus = 'running' | 'inactive' | 'unavailable';
+const NOTIFICATION_BATCH_SIZE = 20;
+interface DeliveryTarget {
+  throughSeq: EventSeq;
+  notifications: NotificationRecord[];
+}
 
 /**
  * 把持久 pending 转成 Host 投递动作。
@@ -140,7 +175,14 @@ export class Delivery {
       const permit = await this.options.admitWorkerOperation(runId, workerId, 'notify');
       try {
         permit.signal.throwIfAborted();
-        await this.host.notify(run, worker, Math.max(worker.observedSeq, run.nextSeq - 1), permit.signal);
+        const through = Math.max(shownEventSeq(worker), run.nextSeq - 1);
+        const notifications = pendingNotifications(run, worker.id).slice(0, NOTIFICATION_BATCH_SIZE);
+        await this.host.notify(run, worker, through, permit.signal, notifications);
+        state.notifiedGeneration = state.generation;
+        state.lastNotifiedSeq = through;
+        state.publicNotified.clear();
+        for (const item of notifications) state.publicNotified.set(item.id, item.seq);
+        await this.recordNotified(runId, workerId, through, notifications);
         state.waitGateClosed = true;
         state.settledMarker = null;
         state.settledWithoutProgress = 0;
@@ -148,6 +190,19 @@ export class Delivery {
         permit.release();
       }
     });
+  }
+
+  /**
+   * 清掉一个 worker 的重试/空转计数并取消未触发的重试；owner 重新启用或 run resume 时调用。
+   * 不唤醒 worker：调用方随后用 `resume` 显式唤醒。
+   */
+  resetWorker(runId: RunId, workerId: WorkerId): void {
+    const state = this.workerState(runId, workerId);
+    state.retryCancel?.();
+    state.retryCancel = null;
+    state.activationFailures = 0;
+    state.settledMarker = null;
+    state.settledWithoutProgress = 0;
   }
 
   /**
@@ -185,6 +240,10 @@ export class Delivery {
       return this.disposePromise;
     }
     this.disposed = true;
+    for (const state of this.states.values()) {
+      state.retryCancel?.();
+      state.retryCancel = null;
+    }
     this.unsubscribeStore();
     this.unsubscribeSettled();
     this.disposePromise = (async () => {
@@ -211,7 +270,8 @@ export class Delivery {
     }
     for (const worker of Object.values(run.workers)) {
       this.sessionIndex.set(worker.sessionId, { runId: run.id, workerId: worker.id });
-      if (worker.wakeTargetSeq > worker.observedSeq || latestUnreadMessageSeq(run, worker) !== null) {
+      if (worker.wakeTargetSeq > shownEventSeq(worker) || latestUnreadMessageSeq(run, worker) !== null
+        || pendingNotifications(run, worker.id).length > 0) {
         this.scheduleKick(run.id, worker.id);
       }
     }
@@ -280,7 +340,7 @@ export class Delivery {
     }
     this.sessionIndex.set(worker.sessionId, { runId, workerId });
     // paused/stopped/draining/quiescing 一律不发，pending 原样保留。
-    if (run.phase !== 'running' || worker.initializationState !== 'ready') {
+    if (run.phase !== 'running' || worker.initializationState !== 'ready' || isIsolatedWorker(worker)) {
       return;
     }
 
@@ -297,7 +357,7 @@ export class Delivery {
         if (permit.signal.aborted) {
           return;
         }
-        await this.host.notify(run, worker, target, permit.signal);
+        await this.host.notify(run, worker, target.throughSeq, permit.signal, target.notifications);
       } finally {
         permit.release();
       }
@@ -312,10 +372,11 @@ export class Delivery {
     }
 
     state.notifiedGeneration = state.generation;
-    state.lastNotifiedSeq = target;
+    state.lastNotifiedSeq = target.throughSeq;
+    for (const item of target.notifications) state.publicNotified.set(item.id, item.seq);
     state.waitGateClosed = true;
     try {
-      await this.recordNotified(runId, workerId, target);
+      await this.recordNotified(runId, workerId, target.throughSeq, target.notifications);
     } catch (error) {
       // 已通知但没记上界：允许 at-least-once 重投，但必须让上层知道。
       this.report(runId, error);
@@ -336,12 +397,12 @@ export class Delivery {
     worker: WorkerRecord,
     status: WorkerStatus,
     state: WorkerState,
-  ): EventSeq | null {
+  ): DeliveryTarget | null {
     if (status === 'unavailable') {
       return null;
     }
     const unreadMessage = latestUnreadMessageSeq(run, worker);
-    const pendingWake = worker.wakeTargetSeq > worker.observedSeq ? worker.wakeTargetSeq : null;
+    const pendingWake = worker.wakeTargetSeq > shownEventSeq(worker) ? worker.wakeTargetSeq : null;
     const waiting = worker.waitRegistration !== null && status === 'running';
 
     // 等待中的 activation 不能被打断：pending 只置位，settled 之后才发。
@@ -351,27 +412,20 @@ export class Delivery {
     // 刚刚 settled、但 wait 登记还没被业务代码清掉：整批 pending 都可以发。
     const afterSettle = waiting && !state.waitGateClosed;
 
-    let target: EventSeq | null;
-    if (status === 'running' && !afterSettle) {
-      if (unreadMessage === null) {
-        // 无 wait 的活跃 activation 只能被最新未确认直接消息 steer；finding 留待 sync。
-        return null;
-      }
-      target = unreadMessage;
-    } else {
-      target = pendingWake !== null && unreadMessage !== null
-        ? Math.max(pendingWake, unreadMessage)
-        : (pendingWake ?? unreadMessage);
+    const active = status === 'running' && !afterSettle;
+    const pending = pendingNotifications(run, worker.id);
+    const pendingIds = new Set(pending.map((item) => item.id));
+    for (const id of state.publicNotified.keys()) {
+      if (!pendingIds.has(id)) state.publicNotified.delete(id);
     }
+    const notifications = pending.filter((item) => (!active || item.priority === 'immediate')
+      && state.publicNotified.get(item.id) !== item.seq).slice(0, NOTIFICATION_BATCH_SIZE);
 
-    if (target === null) {
-      return null;
-    }
-    if (target <= worker.notifiedSeq && state.notifiedGeneration === state.generation) {
-      // 本 activation 内已经通知过这个上界：不重复唤醒。
-      return null;
-    }
-    return target;
+    // Ordinary public updates coalesce until an idle/settled boundary; explicit requests steer.
+    let legacy = active ? unreadMessage : maxSeq(pendingWake, unreadMessage);
+    if (legacy !== null && legacy <= worker.notifiedSeq && state.notifiedGeneration === state.generation) legacy = null;
+    const throughSeq = maxSeq(legacy, notifications.length ? Math.max(...notifications.map((item) => item.seq)) : null);
+    return throughSeq === null ? null : { throughSeq, notifications };
   }
 
   /** settled 之后：推进代际、检测连续空转，然后重新尝试投递。 */
@@ -386,20 +440,15 @@ export class Delivery {
     }
     const state = this.workerState(runId, workerId);
     state.generation += 1;
+    state.publicNotified.clear();
     // 该 activation 已结束：允许一次“即便还有 wait 登记也要发”的投递。
     state.waitGateClosed = false;
 
     if (failed) {
-      this.report(
-        runId,
-        new SwarmError(
-          'SWARM_INTERNAL',
-          `worker ${workerId} activation ${activationId} failed`,
-          { details: { runId, workerId, activationId } },
-        ),
-      );
+      this.activationFailed(runId, workerId, state, `activation ${activationId} failed`, activationId);
       return;
     }
+    state.activationFailures = 0;
 
     if (!this.trackProgress(runId, workerId, activationId, state)) return;
 
@@ -411,20 +460,73 @@ export class Delivery {
     }
   }
 
+  /**
+   * 一次失败的 activation：在重试预算内经退避后通过同一串行队列与 admission 重唤醒该 worker；
+   * 用尽后只隔离该 worker。从不暂停 run。
+   */
+  private activationFailed(runId: RunId, workerId: WorkerId, state: WorkerState, diagnostic: string, activationId: string | null): void {
+    if (this.disposed) return;
+    state.activationFailures += 1;
+    const retries = this.options.activationRetries ?? DEFAULT_ACTIVATION_RETRIES;
+    if (state.activationFailures > retries) {
+      state.activationFailures = 0;
+      this.isolate(runId, workerId, 'activation_failed',
+        `${diagnostic}; ${retries} automatic retr${retries === 1 ? 'y' : 'ies'} exhausted`, activationId);
+      return;
+    }
+    const attempt = state.activationFailures;
+    const delay = this.options.retryDelayMs?.(attempt) ?? DEFAULT_ACTIVATION_RETRY_BASE_MS * 2 ** (attempt - 1);
+    state.retryCancel?.();
+    state.retryCancel = (this.options.schedule ?? defaultSchedule)(() => {
+      state.retryCancel = null;
+      if (this.disposed) return;
+      void this.retryActivation(runId, workerId, state, attempt);
+    }, delay);
+  }
+
+  /** 退避后的重唤醒；admission 的预期拒绝（暂停/停止/预算）保留 pending，不计失败。 */
+  private async retryActivation(runId: RunId, workerId: WorkerId, state: WorkerState, attempt: number): Promise<void> {
+    const run = this.readRun(runId);
+    const worker = run?.workers[workerId];
+    if (!run || run.phase !== 'running' || !worker || worker.initializationState !== 'ready' || isIsolatedWorker(worker)) return;
+    try {
+      await this.resume(runId, workerId);
+    } catch (error) {
+      if (isExpectedRejection(error) || this.disposed) return;
+      this.activationFailed(runId, workerId, state,
+        `retry ${attempt} could not wake the worker: ${error instanceof Error ? error.message : String(error)}`, null);
+    }
+  }
+
+  private isolate(runId: RunId, workerId: WorkerId, reason: 'activation_failed' | 'no_progress', diagnostic: string,
+    activationId: string | null): void {
+    if (this.options.onWorkerUnavailable) {
+      try {
+        this.options.onWorkerUnavailable(runId, workerId, reason, diagnostic);
+      } catch (handlerError) {
+        console.error('[dsh-swarm] delivery onWorkerUnavailable handler failed', handlerError);
+      }
+      return;
+    }
+    this.report(runId, new SwarmError(reason === 'no_progress' ? 'SWARM_WORKER_BUSY' : 'SWARM_INTERNAL',
+      reason === 'no_progress' ? `worker ${workerId} ${diagnostic}; consider pausing the run` : `worker ${workerId} ${diagnostic}`,
+      { details: { runId, workerId, ...(activationId === null ? {} : { activationId }) } }));
+  }
+
   /** Continue an ordinary finished activation, not an explicit wait or a stopped run. */
   private async continueAfterSettle(runId: RunId, workerId: WorkerId, state: WorkerState): Promise<void> {
     await state.queue.run(async () => {
       if (this.disposed || state.notifiedGeneration === state.generation) return;
       const run = this.readRun(runId);
       const worker = run?.workers[workerId];
-      if (!run || run.phase !== 'running' || !worker || worker.initializationState !== 'ready'
+      if (!run || run.phase !== 'running' || !worker || worker.initializationState !== 'ready' || isIsolatedWorker(worker)
         || worker.waitRegistration !== null || this.workerStatus(worker.sessionId) !== 'inactive'
         || this.host.isWorkerBusy(worker.sessionId)) return;
       try {
         const permit = await this.options.admitWorkerOperation(runId, workerId, 'notify');
         try {
           permit.signal.throwIfAborted();
-          const through = Math.max(worker.observedSeq, run.nextSeq - 1);
+          const through = Math.max(shownEventSeq(worker), run.nextSeq - 1);
           // No task is assigned here: peers choose what to inspect, claim, help with, or finish.
           await this.host.notify(run, worker, through, permit.signal);
           state.notifiedGeneration = state.generation;
@@ -453,7 +555,8 @@ export class Delivery {
     if (worker === undefined) {
       return false;
     }
-    const marker = `${worker.observedSeq}:${run.nextSeq}`;
+    const attention = pendingNotifications(run, workerId).map((item) => `${item.id}:${item.seq}`).join(',');
+    const marker = `${shownEventSeq(worker)}:${run.nextSeq}:${attention}`;
     if (state.settledMarker !== null && marker === state.settledMarker) {
       state.settledWithoutProgress += 1;
     } else {
@@ -465,14 +568,9 @@ export class Delivery {
       return true;
     }
     state.settledWithoutProgress = 0;
-    this.report(
-      runId,
-      new SwarmError(
-        'SWARM_WORKER_BUSY',
-        `worker ${workerId} settled twice without progress after activation ${activationId}; consider pausing the run`,
-        { details: { runId, workerId, activationId, observedSeq: worker.observedSeq } },
-      ),
-    );
+    this.isolate(runId, workerId, 'no_progress',
+      `settled twice without progress after activation ${activationId} (shownSeq=${shownEventSeq(worker)}, observedSeq=${worker.observedSeq})`,
+      activationId);
     return false;
   }
 
@@ -481,18 +579,24 @@ export class Delivery {
   /* ---------------------------------------------------------------- */
 
   /** 记录通知已被 inbox 接受的上界；不改 offered/observed。 */
-  private async recordNotified(runId: RunId, workerId: WorkerId, throughSeq: EventSeq): Promise<void> {
+  private async recordNotified(runId: RunId, workerId: WorkerId, throughSeq: EventSeq,
+    delivered: readonly NotificationRecord[] = []): Promise<void> {
     await this.store.update(runId, (run) => {
       const worker = run.workers[workerId];
-      if (worker === undefined || worker.notifiedSeq >= throughSeq) {
-        return run;
+      if (worker === undefined) return run;
+      let changed = worker.notifiedSeq < throughSeq;
+      const notifications = { ...run.notifications };
+      const now = Date.now();
+      for (const sent of delivered) {
+        const current = notifications[sent.id];
+        // A concurrent coalescing update must not be marked delivered by an older receipt.
+        if (current?.workerId !== workerId || current.seq !== sent.seq || current.deliveredAt !== null) continue;
+        notifications[sent.id] = { ...current, deliveredAt: now };
+        changed = true;
       }
-      return {
-        ...run,
-        revision: run.revision + 1,
-        updatedAt: Math.max(run.updatedAt, Date.now()),
-        workers: { ...run.workers, [workerId]: { ...worker, notifiedSeq: throughSeq } },
-      };
+      if (!changed) return run;
+      return { ...run, notifications, revision: run.revision + 1, updatedAt: Math.max(run.updatedAt, now),
+        workers: { ...run.workers, [workerId]: { ...worker, notifiedSeq: Math.max(worker.notifiedSeq, throughSeq) } } };
     });
   }
 
@@ -524,10 +628,13 @@ export class Delivery {
         requested: false,
         loop: null,
         generation: 0,
-        notifiedGeneration: 0,
+        notifiedGeneration: -1,
+        publicNotified: new Map(),
         lastNotifiedSeq: null,
         settledMarker: null,
         settledWithoutProgress: 0,
+        activationFailures: 0,
+        retryCancel: null,
         waitGateClosed: true,
       };
       this.states.set(key, state);
@@ -595,7 +702,7 @@ function latestUnreadMessageSeq(run: Run, worker: WorkerRecord): EventSeq | null
     if (event.kind !== 'message' || event.targetWorkerId !== worker.id) {
       continue;
     }
-    if (event.seq <= worker.observedSeq) {
+    if (event.seq <= shownEventSeq(worker)) {
       continue;
     }
     if (latest === null || event.seq > latest) {
@@ -603,6 +710,10 @@ function latestUnreadMessageSeq(run: Run, worker: WorkerRecord): EventSeq | null
     }
   }
   return latest;
+}
+
+function maxSeq(a: EventSeq | null, b: EventSeq | null): EventSeq | null {
+  return a === null ? b : b === null ? a : Math.max(a, b);
 }
 
 function isExpectedRejection(error: unknown): boolean {

@@ -118,7 +118,7 @@ export const workerActivityProjection = {
   init: emptyWorkerActivity,
   apply: applyWorkerActivity,
   wire: { viewSchema: workerActivitySchema, view: (state: WorkerActivityState) => state },
-} satisfies ProjectionDefinition<typeof WORKER_ACTIVITY_KEY>;
+} satisfies ProjectionDefinition<typeof WORKER_ACTIVITY_KEY, WorkerActivityState>;
 
 /** Native liveness wins over historical projection state, without mutating that state. */
 export function toWorkerActivity(
@@ -150,10 +150,11 @@ export interface WorkerActivitySource {
 }
 
 /** Plugin-owned registry registration and listeners; reads live agents, never rescans logs. */
-export function registerWorkerActivity(ctx: Context): WorkerActivitySource {
+export async function registerWorkerActivity(ctx: Context): Promise<WorkerActivitySource> {
   const registry = ctx.get('sessionProjections');
   if (!registry) throw new Error('Swarm progress requires sessionProjections');
-  const unregister = registry.register(workerActivityProjection);
+  // DSH 0.2.2: registration is awaitable and reads go through the owned handle.
+  const handle = await registry.register(workerActivityProjection);
   const subscriptions = new Set<() => void>();
   let disposed = false;
   return {
@@ -161,9 +162,7 @@ export function registerWorkerActivity(ctx: Context): WorkerActivitySource {
       if (disposed) throw new Error('worker activity projection is disposed');
       const agent = ctx.agents.get(SessionId(sessionId));
       if (!agent) return undefined;
-      const state = registry.stateOf(agent.session, WORKER_ACTIVITY_KEY);
-      if (!state) throw new Error('worker activity projection is not registered');
-      return state;
+      return handle.stateOf(agent.session);
     },
     subscribe: (listener) => {
       if (disposed) throw new Error('worker activity projection is disposed');
@@ -178,7 +177,9 @@ export function registerWorkerActivity(ctx: Context): WorkerActivitySource {
       if (disposed) return;
       disposed = true;
       for (const close of [...subscriptions]) close();
-      unregister();
+      void handle.dispose().catch((error: unknown) => {
+        ctx.logger.warn('Swarm worker activity projection release failed: %s', error instanceof Error ? error.message : String(error));
+      });
     },
   };
 }

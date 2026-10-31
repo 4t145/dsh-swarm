@@ -36,7 +36,8 @@
 ### 1.2 RuntimeConfig 与 RunSpec 分开
 
 `RunSpec` 是启动输入（绝对路径、已解析），`SwarmRuntimeConfig` 是 Host 插件配置项
-（`workerCountMin=2`、`workerCountMax=4`、`defaultWorkerCount=2`、`eventPageSize=20`）。
+（`workerCountMin=2`、可选 `workerCountMax` override 无数值默认、`defaultWorkerCount=2`、`eventPageSize=20`）。
+未设置上限时从原生 subagents 的当前有效 Volatile 配置继承；启动/扩容/状态共用解析入口。
 run 一旦创建，目标/验收/验证配置固定，修改需停止旧 run。
 
 ## 2. 错误约定（src/errors.ts）
@@ -60,6 +61,9 @@ function isSwarmError(value: unknown): value is SwarmError
 |---|---|
 | `SWARM_INVALID_SPEC` | spec 字段缺失/类型错/constraint 不满足；`details.issues` 为字段诊断 |
 | `SWARM_INVALID_INPUT` | 其他输入形状错误（含非绝对 specPath） |
+| `SWARM_CONFIG_UNAVAILABLE` | 当前团队上限配置无效或宿主有效配置不可解析；无 fallback |
+| `SWARM_WORKER_LIMIT` | 团队配置上限拒绝，附 requestedWorkers / maxWorkers / source |
+| `SWARM_NATIVE_CAPACITY` | 原生 ACTIVATION_LIMIT_REACHED 拒绝；override 不绕过或预留槽位 |
 | `SWARM_NOT_FOUND` | run 不存在（或事件过滤目标不存在） |
 | `SWARM_ALREADY_EXISTS` | runId 重复创建 |
 | `SWARM_STORE_CLOSED` | store 已 close |

@@ -20,13 +20,17 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-agent';
 import {
-  Remote,
   RemoteError,
   TypertRemoteService,
   remoteMethods,
-  type RemoteMethodOptions,
 } from '@deepseek-ai/dsh-typert-protocol';
 import { isSwarmError } from './errors.ts';
+import { markRemoteMethod } from './remote-marker.ts';
+import { ConversationLog, type ConversationPage } from './conversation-log.ts';
+import { PublicHistoryReader, type PublicReaderPort } from './public-remote.ts';
+import type { PublicQuery } from './public-input.ts';
+import type { PublicPage } from './public-query.ts';
+import type { ChannelRecord, ThreadRecord, ResponseRequestRecord, AgreementRecord } from './public-types.ts';
 import { WorktreeHistory, type WorktreeHistoryGitPort, type WorktreeHistoryPage } from './worktree-history.ts';
 import { workerDisplayName } from './worker-names.ts';
 import { isTerminalRunPhase } from './types.ts';
@@ -55,13 +59,13 @@ export const PROGRESS_LIMITS = Object.freeze({
   diagnosticChars: 200,
   reasonChars: 200,
   refChars: 200,
-  workers: 8,
   goalChars: 16000,
   goalBoard: 40,
   goalCriteria: 32,
   criterionChars: 2000,
   taskBoard: 40,
   recentEvents: 24,
+  interactions: 80,
   waitIds: 16,
 });
 
@@ -80,10 +84,28 @@ export interface ProgressBoardTask extends ProgressTask {
 
 export interface ProgressEvent {
   readonly seq: number;
-  readonly kind: 'task' | 'proposal' | 'head' | 'run';
+  readonly kind: 'task' | 'proposal' | 'head' | 'run' | 'worker';
   readonly objectId: string;
   readonly status: string;
   readonly authorWorkerId: string | null;
+  readonly createdAt: number;
+}
+
+/**
+ * Worker-to-worker and worker-to-result interaction metadata. Never carries message
+ * bodies or finding text: a message is only "actor → peer at time".
+ */
+export interface ProgressInteraction {
+  readonly seq: number;
+  readonly kind: 'message' | 'finding' | 'task' | 'proposal' | 'head';
+  /** Task/proposal status, finding kind, `sent` for messages, `accepted` for head. */
+  readonly status: string;
+  readonly actorWorkerId: string | null;
+  /** Message target, proposal author or task owner; null when there is none. */
+  readonly peerWorkerId: string | null;
+  /** Task id, proposal id or accepted SHA; empty for messages and findings, whose ids stay private. */
+  readonly objectId: string;
+  readonly taskId: string | null;
   readonly createdAt: number;
 }
 
@@ -107,6 +129,8 @@ export interface ProgressWorker {
   readonly activity: WorkerActivity;
   /** 原生状态读取失败或初始化失败的有界诊断；成功时为 null。 */
   readonly diagnostic: string | null;
+  /** Host 隔离该 worker 的原因码（activation_failed / no_progress / initialization_failed）；可用时为 null。 */
+  readonly unavailableReason: string | null;
 }
 
 /** run 级任务计数，直接来自 runtime 的公开 status。 */
@@ -156,9 +180,20 @@ export interface ProgressGoalBoard {
   readonly counts: { readonly active: number; readonly deferred: number; readonly completed: number; readonly continued: number };
 }
 
+/** Public protocol capability and bounded invalidation metadata; bodies stay on demand. */
+export interface PublicActivitySummary {
+  readonly protocolVersion: 1;
+  readonly latestSeq: number;
+  readonly channels: number;
+  readonly threads: number;
+  readonly pendingRequests: number;
+  readonly agreements: number;
+}
+
 /** 面板渲染所需的全部公开事实；不含私信、finding 正文或完整事件日志。 */
 export interface ProgressSnapshot {
   readonly protocolVersion: 2;
+  readonly publicActivity: PublicActivitySummary | null;
   readonly goal: string | null;
   readonly acceptanceCriteria: readonly string[];
   readonly originalGoalTruncated: boolean;
@@ -167,6 +202,8 @@ export interface ProgressSnapshot {
   readonly createdAt: number | null;
   readonly taskBoard: { readonly items: readonly ProgressBoardTask[]; readonly total: number; readonly truncated: boolean };
   readonly recentEvents: readonly ProgressEvent[];
+  /** Additive v2 extension; newest last, bounded by `PROGRESS_LIMITS.interactions`. */
+  readonly interactions: readonly ProgressInteraction[];
   readonly runId: RunId;
   readonly phase: RunPhase;
   readonly reason: string | null;
@@ -178,7 +215,7 @@ export interface ProgressSnapshot {
   readonly remainingMs: number | null;
   readonly tasks: ProgressTaskCounts;
   readonly workers: readonly ProgressWorker[];
-  readonly workerControls: { readonly canAdd: boolean; readonly maxWorkers: number } | null;
+  readonly workerControls: NonNullable<RunStatus['workerControls']> | null;
   readonly proposals: ProgressProposalCounts;
   readonly verifications: ProgressVerificationCounts;
   readonly finishRequest: RunStatus['finishRequest'];
@@ -201,11 +238,16 @@ export interface ProgressWatchItem {
 /** 只读 runtime 端口；真实 `SwarmRuntime` 直接满足。 */
 export interface ProgressRuntimePort {
   status(ownerSessionId: string, details?: boolean): RunStatus;
+  readonly publicCollaboration?: PublicReaderPort;
 }
 
 /** 任务板/worker 归属的最小只读视图；真实 `Run` 直接满足。 */
 export interface ProgressRunDetail {
   readonly ownerSessionId?: string;
+  readonly channels?: Readonly<Record<string, ChannelRecord>>;
+  readonly threads?: Readonly<Record<string, ThreadRecord>>;
+  readonly responseRequests?: Readonly<Record<string, ResponseRequestRecord>>;
+  readonly agreements?: Readonly<Record<string, AgreementRecord>>;
   readonly goal?: string;
   readonly acceptanceCriteria?: readonly string[];
   readonly goals?: Readonly<Record<string, ProgressGoal>>;
@@ -362,10 +404,51 @@ function recentEvents(detail: ProgressRunDetail | undefined, runId: string): Pro
       case 'proposal': objectId = event.proposalId; status = event.status; break;
       case 'head': objectId = event.acceptedHead; status = 'accepted'; break;
       case 'run': objectId = runId; status = event.phase; break;
+      case 'worker': objectId = event.workerId; status = event.status; break;
       default: continue; // Finding/message metadata is not public activity either.
     }
     result.push({ seq: event.seq, kind: event.kind, objectId, status,
       authorWorkerId: event.authorWorkerId, createdAt: event.createdAt });
+  }
+  return result.reverse();
+}
+
+function interactions(detail: ProgressRunDetail | undefined): ProgressInteraction[] {
+  const events = detail?.events ?? [];
+  const result: ProgressInteraction[] = [];
+  for (let index = events.length - 1; index >= 0 && result.length < PROGRESS_LIMITS.interactions; index--) {
+    const event = events[index];
+    if (!event) continue;
+    const base = { seq: event.seq, actorWorkerId: event.authorWorkerId, createdAt: event.createdAt };
+    switch (event.kind) {
+      case 'message':
+        result.push({ ...base, kind: 'message', status: 'sent', peerWorkerId: event.targetWorkerId, objectId: '', taskId: null });
+        break;
+      case 'finding':
+        result.push({ ...base, kind: 'finding', status: event.findingKind, peerWorkerId: null, objectId: '', taskId: event.taskId });
+        break;
+      case 'task':
+        result.push({ ...base, kind: 'task', status: event.status, peerWorkerId: event.ownerWorkerId, objectId: event.taskId, taskId: event.taskId });
+        break;
+      case 'proposal':
+        result.push({ ...base, kind: 'proposal', status: event.status, peerWorkerId: detail?.proposals?.[event.proposalId]?.authorWorkerId ?? null, objectId: event.proposalId, taskId: event.taskId });
+        break;
+      case 'head': {
+        const author = event.proposalId ? detail?.proposals?.[event.proposalId]?.authorWorkerId ?? null : null;
+        result.push({ ...base, kind: 'head', status: 'accepted', peerWorkerId: author, objectId: event.acceptedHead, taskId: null });
+        break;
+      }
+      case 'public':
+        break; // Public discussion bodies are queried on demand, not copied into progress.
+      case 'run':
+      case 'goal':
+      case 'worker':
+        break; // Control, goal and worker isolation changes are shown by the dashboard, goal board and channel.
+      default: {
+        const unknown: never = event;
+        void unknown;
+      }
+    }
   }
   return result.reverse();
 }
@@ -386,8 +469,11 @@ function currentProposal(workerId: string, detail: ProgressRunDetail | undefined
 }
 
 function diagnosticOf(worker: WorkerStatusSummary): string | null {
+  const detail = (worker as { unavailableDetail?: { diagnostic?: unknown } | null }).unavailableDetail;
+  const isolated = worker.unavailableReason && typeof detail?.diagnostic === 'string'
+    ? `${worker.unavailableReason}: ${detail.diagnostic}` : null;
   return bounded(
-    worker.nativeStatusError ?? worker.unavailableReason ?? worker.initializationError,
+    worker.nativeStatusError ?? isolated ?? worker.unavailableReason ?? worker.initializationError,
     PROGRESS_LIMITS.diagnosticChars,
   );
 }
@@ -418,6 +504,11 @@ export function toProgressSnapshot(
 ): ProgressSnapshot {
   return {
     protocolVersion: 2,
+    publicActivity: detail?.channels ? { protocolVersion: 1,
+      latestSeq: detail.events?.findLast((event) => event.kind === 'public')?.seq ?? 0,
+      channels: Object.keys(detail.channels).length, threads: Object.keys(detail.threads ?? {}).length,
+      pendingRequests: Object.values(detail.responseRequests ?? {}).filter((request) => request.status === 'pending').length,
+      agreements: Object.keys(detail.agreements ?? {}).length } : null,
     goal: bounded(detail?.goal, PROGRESS_LIMITS.goalChars),
     acceptanceCriteria: goalCriteria(detail?.acceptanceCriteria ?? [], detail?.goal ?? ''),
     originalGoalTruncated: goalTruncated(detail?.goal ?? '', detail?.acceptanceCriteria ?? []),
@@ -425,6 +516,7 @@ export function toProgressSnapshot(
     createdAt: detail?.createdAt ?? null,
     taskBoard: taskBoard(detail),
     recentEvents: recentEvents(detail, status.runId),
+    interactions: interactions(detail),
     runId: status.runId,
     phase: status.phase,
     reason: bounded(status.reason, PROGRESS_LIMITS.reasonChars),
@@ -434,8 +526,10 @@ export function toProgressSnapshot(
     now,
     remainingMs: status.deadline === null ? null : Math.max(0, status.deadline - now),
     tasks: countTasks(status.tasks),
-    workerControls: status.workerControls ?? null,
-    workers: status.workers.slice(0, PROGRESS_LIMITS.workers).map((worker) => ({
+    workerControls: status.workerControls ? { ...status.workerControls,
+      diagnostic: bounded(status.workerControls.diagnostic, PROGRESS_LIMITS.diagnosticChars) } : null,
+    // The Host owns team admission; never hide admitted members behind a UI cap.
+    workers: status.workers.map((worker) => ({
       id: worker.id,
       displayName: workerDisplayName(worker),
       nativeStatus: worker.nativeStatus,
@@ -445,6 +539,7 @@ export function toProgressSnapshot(
       currentProposal: currentProposal(worker.id, detail),
       activity: readActivity(worker, activity),
       diagnostic: diagnosticOf(worker),
+      unavailableReason: bounded(worker.unavailableReason, PROGRESS_LIMITS.reasonChars),
     })),
     proposals: {
       queued: status.proposals.queued,
@@ -681,54 +776,35 @@ export class ProgressFeed {
 /* Host Remote 服务                                                    */
 /* ------------------------------------------------------------------ */
 
-/**
- * 把 Remote 标记直接安装到原型上。
- *
- * `@Remote` 的标准装饰器语义被等价展开：先取标记，再以实例语义执行它注册的
- * initializer。这样源码保持 esbuild 可编译，同时 `remoteMethods()` 与 Gateway
- * 的 SRC 发现行为与生成装饰器一致。
- */
-type RemoteMethod = (this: object, ...args: unknown[]) => unknown;
-
-function markRemoteMethod(
-  prototype: object,
-  method: string,
-  options?: Pick<RemoteMethodOptions<unknown[]>, 'mode' | 'name'>,
-): void {
-  const initializers: Array<(this: object) => void> = [];
-  const context = {
-    kind: 'method',
-    name: method,
-    static: false,
-    private: false,
-    access: {
-      has: (target: object): boolean => method in target,
-      get: (target: object): RemoteMethod => Reflect.get(target, method) as RemoteMethod,
-    },
-    addInitializer: (initializer: (this: object) => void): void => {
-      initializers.push(initializer);
-    },
-    metadata: undefined,
-  } satisfies ClassMethodDecoratorContext<object, RemoteMethod>;
-  const target = Reflect.get(prototype, method) as RemoteMethod;
-  if (options?.mode === 'stream') {
-    Remote({ mode: 'stream' })(target, context);
-  } else if (options?.name !== undefined) {
-    Remote(options.name)(target, context);
-  } else {
-    Remote(target, context);
+/** Preserve each read endpoint's input path while sharing its stable Remote error contract. */
+function progressReadError(error: unknown, sessionId: string, inputPath: string): unknown {
+  if (!isSwarmError(error)) return error;
+  if (error.code === 'SWARM_FORBIDDEN') {
+    return new RemoteError('swarm-progress/forbidden', error.message, { sessionId, runId: '' });
   }
-  const instance = Object.create(prototype) as object;
-  for (const initializer of initializers) initializer.call(instance);
+  if (error.code === 'SWARM_INVALID_INPUT' || error.code === 'SWARM_INVALID_CURSOR' || error.code === 'SWARM_NOT_FOUND') {
+    return new RemoteError('gateway/bad-request', error.message, { issues: [{ path: inputPath, message: error.message }] });
+  }
+  return new RemoteError('gateway/internal', error.message, {});
 }
 
-/** Host 侧只读进度服务；服务键与 Remote 命名空间均为 `swarmProgress`。 */
+/**
+ * Host 侧只读进度服务；服务键与 Remote 命名空间均为 `swarmProgress`。
+ */
 export class ProgressService extends TypertRemoteService<never> {
   private readonly feed: ProgressFeed;
+  private readonly publicHistory: PublicHistoryReader | null;
 
-  constructor(ctx: Context, runtime: ProgressRuntimePort, options: ProgressFeedOptions, private readonly history?: WorktreeHistory) {
+  constructor(
+    ctx: Context,
+    runtime: ProgressRuntimePort,
+    options: ProgressFeedOptions,
+    private readonly history?: WorktreeHistory,
+    private readonly conversations?: ConversationLog,
+  ) {
     super(ctx, 'swarmProgress');
     this.feed = new ProgressFeed(runtime, options);
+    this.publicHistory = runtime.publicCollaboration ? new PublicHistoryReader(runtime, runtime.publicCollaboration) : null;
   }
 
   /** 当前快照；没有 run 时返回 null。 */
@@ -746,27 +822,43 @@ export class ProgressService extends TypertRemoteService<never> {
     return this.feed.watchSession(sessionId, signal);
   }
 
-  /** A bounded page of the merged worker/result Git DAG; a null cursor captures fresh heads. */
-  async worktreeHistory(sessionId: string, cursor: string | null = null, signal?: AbortSignal): Promise<WorktreeHistoryPage | null> {
+  /**
+   * A bounded page of the merged worker/result Git DAG; a null cursor captures
+   * fresh heads.
+   *
+   * SRC fallback: parameters must stay bare identifiers (no defaults or
+   * destructuring), or the gateway rejects the endpoint at discovery.
+   */
+  async worktreeHistory(sessionId: string, cursor: string | null, signal?: AbortSignal): Promise<WorktreeHistoryPage | null> {
     assertSessionId(sessionId);
     if (!this.history) throw new RemoteError('gateway/internal', 'Worktree history is unavailable on this Host', {});
     try { return await this.history.page(sessionId, cursor, signal); }
-    catch (error) {
-      if (isSwarmError(error)) {
-        if (error.code === 'SWARM_FORBIDDEN') {
-          throw new RemoteError('swarm-progress/forbidden', error.message, { sessionId, runId: '' });
-        }
-        if (error.code === 'SWARM_INVALID_INPUT') {
-          throw new RemoteError('gateway/bad-request', error.message, { issues: [{ path: 'cursor', message: error.message }] });
-        }
-        throw new RemoteError('gateway/internal', error.message, {});
-      }
-      throw error;
-    }
+    catch (error) { throw progressReadError(error, sessionId, 'cursor'); }
+  }
+
+  /**
+   * Owner-only page of worker messages and findings with bodies, newest first.
+   * SRC fallback: bare identifier parameters only.
+   */
+  async conversation(sessionId: string, beforeSeq: number | null): Promise<ConversationPage | null> {
+    assertSessionId(sessionId);
+    if (!this.conversations) throw new RemoteError('gateway/internal', 'Worker conversations are unavailable on this Host', {});
+    try { return this.conversations.page(sessionId, beforeSeq); }
+    catch (error) { throw progressReadError(error, sessionId, 'beforeSeq'); }
+  }
+
+  /** Owner-only public records, bounded and validated by the same domain query as worker tools. */
+  async publicDiscussion(sessionId: string, runId: string, query: PublicQuery, signal?: AbortSignal): Promise<PublicPage> {
+    assertSessionId(sessionId);
+    signal?.throwIfAborted();
+    if (!this.publicHistory) throw new RemoteError('gateway/internal', 'Public collaboration is unavailable on this Host', {});
+    try { return this.publicHistory.page(sessionId, runId, query); }
+    catch (error) { throw progressReadError(error, sessionId, 'query'); }
   }
 
   /** 停止全部 watch 和 Git 读取；由 Host 卸载时调用。 */
   async dispose(): Promise<void> {
+    this.publicHistory?.dispose();
     await this.feed.dispose();
     await this.history?.dispose();
   }
@@ -775,12 +867,14 @@ export class ProgressService extends TypertRemoteService<never> {
 // 模块加载时安装标记（幂等）。prototype 上的 SRC 方法名来自真实参数名，
 // 因此 snapshot/watch 必须保持简单的具名参数。
 markRemoteMethod(ProgressService.prototype, 'worktreeHistory');
+markRemoteMethod(ProgressService.prototype, 'conversation');
+markRemoteMethod(ProgressService.prototype, 'publicDiscussion');
 markRemoteMethod(ProgressService.prototype, 'snapshot');
 markRemoteMethod(ProgressService.prototype, 'watch', { mode: 'stream' });
 markRemoteMethod(ProgressService.prototype, 'watchSession', { mode: 'stream' });
 
-/** 构造后即可用的进度服务；调用方负责在卸载时 `dispose()`。 */
-export function registerProgress(
+/** 等待活动投影注册完成后返回进度服务；调用方负责在卸载时 `dispose()`。 */
+export async function registerProgress(
   ctx: Context,
   runtime: ProgressRuntimePort,
   store: {
@@ -788,8 +882,8 @@ export function registerProgress(
     subscribe(listener: (run: Run) => void): () => void;
   },
   options: { now?: () => number; git?: WorktreeHistoryGitPort } = {},
-): ProgressService {
-  const activity = registerWorkerActivity(ctx);
+): Promise<ProgressService> {
+  const activity = await registerWorkerActivity(ctx);
   try {
     return new ProgressService(ctx, runtime, {
       activity,
@@ -808,7 +902,8 @@ export function registerProgress(
         };
       },
       ...(options.now === undefined ? {} : { now: options.now }),
-    }, options.git ? new WorktreeHistory({ status: (sessionId) => runtime.status(sessionId), getRun: (runId) => store.get(runId), git: options.git }) : undefined);
+    }, options.git ? new WorktreeHistory({ status: (sessionId) => runtime.status(sessionId), getRun: (runId) => store.get(runId), git: options.git }) : undefined,
+    new ConversationLog({ status: (sessionId) => runtime.status(sessionId), getRun: (runId) => store.get(runId) }));
   } catch (error) {
     activity.dispose();
     throw error;

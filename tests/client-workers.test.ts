@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { clientSource as source, loadClient } from './client-fixture.ts';
 import { describe, expect, it } from 'vitest';
 
 // Fact derivations only; these tests do not claim browser or visual acceptance.
@@ -11,12 +10,7 @@ interface Client {
   selectWorkers(progress: Progress, selection: Selection | null): { selectedId: string | null; items: { worker: Worker; number: number }[] };
   dictionaries: Record<'en' | 'zh', Record<string, string>>;
 }
-interface BrowserModule { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
-let captured: BrowserModule | undefined;
-runInNewContext(source, { window: { __ModuleLoader__: { load: (module: BrowserModule) => { captured = module; } } } });
-if (!captured) throw new Error('Client module did not register');
-const client = captured.factory(() => ({})).progressClient;
+const client = loadClient<{ progressClient: Client }>().progressClient;
 
 function worker(overrides: Record<string, unknown> = {}): Worker {
   return {
@@ -53,6 +47,20 @@ describe('worker fact hierarchy', () => {
     expect(client.deriveWorker(worker({ nativeStatus: 'inactive', activity: { status: 'unavailable' } }))).toMatchObject({ activity: 'unavailable', activeTools: [] });
     expect(client.deriveWorker(worker({ activity: undefined }))).toMatchObject({ activity: 'legacy', activeTools: [] });
     expect(client.deriveWorker(worker({ initializationState: 'future-state' })).work).toBe('unavailable');
+  });
+
+  it('shows a Host-isolated worker as isolated while keeping initialization failure distinct', () => {
+    expect(client.deriveWorker(worker({ unavailableReason: 'activation_failed' })).work).toBe('isolated');
+    expect(client.deriveWorker(worker({ unavailableReason: 'no_progress', wait: { mode: 'any', afterSeq: 1, taskIds: [], proposalIds: [] } })).work).toBe('isolated');
+    expect(client.deriveWorker(worker({ unavailableReason: 'initialization_failed', initializationState: 'failed' })).work).toBe('failed');
+    expect(client.deriveWorker(worker({ unavailableReason: null })).work).toBe('assigned');
+  });
+
+  it('keeps isolation and restart labels in sync across zh/en', () => {
+    const keys = (lang: 'en' | 'zh') => Object.keys(client.dictionaries[lang]).filter((key) => key.startsWith('worker.isolated.') || key.startsWith('worker.restart') || key === 'work.isolated').sort();
+    expect(keys('en')).toHaveLength(9);
+    expect(keys('zh')).toEqual(keys('en'));
+    expect(source).toContain('"/swarm worker restart " + worker.id + " --json"');
   });
 
   it('removes completed and cancelled task pointers without inventing a replacement', () => {

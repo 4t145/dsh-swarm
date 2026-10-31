@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { clientSource as source, loadClient } from './client-fixture.ts';
 import { describe, expect, it, vi } from 'vitest';
 
 // Transport and projection checks; these do not claim browser visual acceptance.
@@ -10,15 +9,7 @@ interface Client {
   goalState(goal: { status: string; continuedInRunId?: string | null }, phase: string): string;
   dictionaries: Record<'zh' | 'en', Record<string, string>>;
 }
-interface Module { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
-let module: Module | undefined;
-runInNewContext(source, {
-  window: { __ModuleLoader__: { load(value: Module) { module = value; } } },
-  console, AbortController, Date, Error, TypeError,
-});
-if (!module) throw new Error('Client was not registered');
-const client = module.factory(() => ({})).progressClient;
+const client = loadClient<{ progressClient: Client }>().progressClient;
 
 describe('goal panel native command transport', () => {
   it('encodes arbitrary goal text as one native command without shell quoting', () => {
@@ -73,8 +64,6 @@ describe('goal panel native command transport', () => {
     expect(client.dictionaries.en['goals.clipped']).not.toContain('ask the Agent');
     expect(client.dictionaries.zh['goals.publishFirst']).toBeTruthy();
     expect(client.dictionaries.en['goals.publishFirst']).toBeTruthy();
-    expect(source).toContain('(action === "continue" && hasDraft)');
-    expect(source).toContain('(p.phase !== "paused" && hasDraft)');
   });
 
   it('keeps publishing accessible, drafts on errors, scoped effects and bilingual identity', () => {

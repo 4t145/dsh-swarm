@@ -180,6 +180,13 @@ class FakeRuntime implements SwarmRuntimePort {
   readonly appendCalls: Array<{ ownerSessionId: string; input: AppendGoalInput; callId: string }> = [];
   readonly continueCalls: string[] = [];
   readonly addWorkerCalls: string[] = [];
+  readonly reenableCalls: Array<{ runId: string; workerId: string }> = [];
+
+  async reenableWorker(runId: string, workerId: string) {
+    this.reenableCalls.push({ runId, workerId });
+    if (this.failure !== undefined) throw this.failure;
+    return { id: workerId, displayName: 'Calm Robin', unavailableReason: null };
+  }
 
   async addWorker(ownerSessionId: string) {
     this.addWorkerCalls.push(ownerSessionId);
@@ -576,6 +583,24 @@ describe('status', () => {
     expect(result).toMatchObject({ text: expect.stringContaining('saved, not executing') });
   });
 
+  it('reports the authoritative team limit, source and failures independently of native slots', async () => {
+    const runtime = new FakeRuntime();
+    for (const controls of [
+      { canAdd: true, maxWorkers: 12, source: 'host' as const, diagnostic: null },
+      { canAdd: false, maxWorkers: 3, source: 'override' as const, diagnostic: null },
+      { canAdd: false, maxWorkers: null, source: null, diagnostic: 'Native config unavailable' },
+    ]) {
+      runtime.statusView = { ...BASE_STATUS, workerControls: controls };
+      const { result } = await runCommand('status', { runtime });
+      expect(result).toMatchObject({ kind: 'success', text: expect.stringContaining(`team limit: ${controls.maxWorkers ?? 'unavailable'} source=${controls.source ?? 'unavailable'} canAdd=${controls.canAdd}`) });
+      expect(result).toMatchObject({ text: expect.stringContaining('not native free capacity') });
+      if (controls.diagnostic) expect(result).toMatchObject({ text: expect.stringContaining(controls.diagnostic) });
+    }
+    runtime.statusView = { ...BASE_STATUS };
+    expect((await runCommand('status', { runtime })).result).toMatchObject({ text: expect.stringContaining('team limit: unavailable source=unavailable canAdd=false') });
+    expect(runtime.startCalls).toHaveLength(0);
+  });
+
   it('omits details for a plain status request', async () => {
     const { runtime, result } = await runCommand('status');
 
@@ -679,5 +704,38 @@ describe('task control', () => {
       expect(result.text).toContain('task task-3 release applied');
       expect(result.text).toContain('revision=3');
     }
+  });
+});
+describe('worker restart', () => {
+  const unavailableStatus = (reason: string | null): SwarmRunStatusView => ({ ...structuredClone(BASE_STATUS),
+    workers: BASE_STATUS.workers.map((worker) => ({ ...worker, unavailableReason: reason,
+      unavailableDetail: reason ? { reason, diagnostic: 'MALFORMED_RESPONSE after 3 retries', at: 1 } : null })) });
+
+  it('parses worker restart <id> [--json] and rejects malformed forms', () => {
+    expect(parseSwarmCommand('worker restart w1')).toEqual({ kind: 'worker', action: 'restart', workerId: 'w1', json: false });
+    expect(parseSwarmCommand('worker restart w1 --json')).toEqual({ kind: 'worker', action: 'restart', workerId: 'w1', json: true });
+    for (const input of ['worker restart', 'worker restart a b', 'worker restart --json', 'worker restart w1 --json --json']) {
+      expect(() => parseSwarmCommand(input)).toThrow();
+    }
+  });
+
+  it('re-enables only an unavailable member and shows the reason in status', async () => {
+    const runtime = new FakeRuntime();
+    const workerId = BASE_STATUS.workers[0]!.id;
+    runtime.statusView = unavailableStatus('activation_failed');
+    const status = await runCommand('status', { runtime });
+    expect(status.result.kind === 'success' && status.result.text).toContain('UNAVAILABLE=activation_failed');
+    expect(status.result.kind === 'success' && status.result.text).toContain('MALFORMED_RESPONSE after 3 retries');
+
+    const { result } = await runCommand(`worker restart ${workerId} --json`, { runtime });
+    expect(runtime.reenableCalls).toEqual([{ runId: BASE_STATUS.runId, workerId }]);
+    expect(result.kind === 'success' && JSON.parse(result.text ?? '')).toMatchObject({ action: 'restart_worker', workerId, unavailableReason: null });
+    expect(runtime.resumeCalls).toEqual([]);
+
+    const fresh = new FakeRuntime();
+    fresh.statusView = unavailableStatus(null);
+    const denied = await runCommand(`worker restart ${workerId}`, { runtime: fresh });
+    expect(denied.result).toMatchObject({ kind: 'error', text: expect.stringContaining('SWARM_INVALID_STATE') });
+    expect(fresh.reenableCalls).toEqual([]);
   });
 });

@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { loadClient } from './client-fixture.ts';
 import { describe, expect, it, vi } from 'vitest';
 import { Context } from '@deepseek-ai/cordis';
 import * as registry from '@deepseek-ai/dsh-typert-registry/client';
@@ -13,6 +12,9 @@ interface ViewProps {
   watchSessionProgress(sessionId: string, signal?: AbortSignal): Stream;
   executeCommand(sessionId: string, line: string, attachments: readonly unknown[], signal?: AbortSignal): Promise<unknown>;
   loadHistory(sessionId: string, cursor: string | null, signal?: AbortSignal): Promise<unknown>;
+  loadPublic(sessionId: string, runId: string, query: unknown, signal?: AbortSignal): Promise<unknown>;
+  listWorktrees(sessionId: string): Promise<unknown>;
+  createWorktree(sessionId: string, request: unknown): Promise<unknown>;
 }
 interface Registration {
   name: string;
@@ -20,21 +22,8 @@ interface Registration {
   order: number;
   inject: () => ViewProps;
 }
-interface Captured {
-  factory: (require: (name: string) => unknown) => { apply: (ctx: Context) => void; inject: string[] };
-}
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
 function load() {
-  let captured: Captured | undefined;
-  runInNewContext(source, {
-    window: { __ModuleLoader__: { load: (module: Captured) => { captured = module; } } },
-    console, AbortController, Error,
-  });
-  if (!captured) throw new Error('client.js did not register');
-  return captured.factory((name) => {
-    if (name === 'react') return {}; // Slot registration only; not visual rendering.
-    throw new Error(`unexpected require ${name}`);
-  });
+  return loadClient<{ apply: (ctx: Context) => void; inject: string[] }>();
 }
 function viewServices(ctx: Context) {
   let registration: Registration | undefined;
@@ -169,6 +158,69 @@ describe('client.js with the real Remote client', () => {
       controller.abort();
       expect(rawSignal?.aborted).toBe(true);
       expect(view.registration()?.inject().loadHistory).toBe(props.loadHistory);
+      await panel.dispose();
+    } finally {
+      await ctx.fiber.dispose();
+    }
+  });
+
+  it('forwards bounded public query identity and cancellation through the real Remote descriptor', async () => {
+    const ctx = new Context();
+    const page = { runId: 'run', items: [], total: 0, hasMore: false, truncated: false, nextCursor: null, snapshotSeq: 0 };
+    let rawSignal: AbortSignal | undefined;
+    const call = vi.fn(async (_path: string, _endpoint: string, _payload: unknown, signal: AbortSignal) => { rawSignal = signal; return { ok: true, value: page }; });
+    try {
+      ctx.provide('connection', { interactions: 'none', isLoopback: true, generation: { getSnapshot: () => undefined }, rpc: { call } });
+      await ctx.plugin(registry); await ctx.plugin(gateway);
+      const view = viewServices(ctx); const panel = await ctx.plugin(load());
+      const props = view.registration()!.inject();
+      const abort = new AbortController();
+      const query = { view: 'messages', threadId: 'thread', cursor: 'opaque', limit: 10 };
+      await expect(props.loadPublic('owner', 'run', query, abort.signal)).resolves.toEqual(page);
+      expect(call).toHaveBeenCalledWith('/api', 'swarmProgress/publicDiscussion', { args: { sessionId: 'owner', runId: 'run', query } }, expect.any(AbortSignal));
+      abort.abort(); expect(rawSignal?.aborted).toBe(true);
+      expect(view.registration()!.inject().loadPublic).toBe(props.loadPublic);
+      await expect(props.loadPublic('owner', 'run', { view: 'messages', limit: 21 })).rejects.toThrow('page limit');
+      expect(call).toHaveBeenCalledTimes(1);
+      await panel.dispose(); expect(ctx.get('remote.swarmProgress')).toBeUndefined();
+    } finally { await ctx.fiber.dispose(); }
+  });
+
+  it('lists and creates worktrees through the real repository descriptors', async () => {
+    const ctx = new Context();
+    const snapshot = {
+      sessionDirectory: '/repo',
+      repositoryRoot: '/repo',
+      repositoryName: 'repo',
+      note: null,
+      worktrees: [],
+      updatedAt: 1,
+    };
+    const created = { worktree: { branch: 'wt-1' }, snapshot };
+    const calls: Array<{ endpoint: string; payload: unknown }> = [];
+    try {
+      ctx.provide('connection', {
+        interactions: 'none', isLoopback: true,
+        generation: { getSnapshot: () => undefined },
+        rpc: {
+          call: async (_path: string, endpoint: string, payload: unknown) => {
+            calls.push({ endpoint, payload });
+            return { ok: true, value: endpoint === 'swarmWorktrees/list' ? snapshot : created };
+          },
+        },
+      });
+      await ctx.plugin(registry);
+      await ctx.plugin(gateway);
+      const view = viewServices(ctx);
+      const panel = await ctx.plugin(load());
+      const props = view.registration()?.inject();
+      if (!props) throw new Error('missing view');
+      await expect(props.listWorktrees('owner-session')).resolves.toEqual(snapshot);
+      await expect(props.createWorktree('owner-session', { name: 'wt-1' })).resolves.toEqual(created);
+      expect(calls).toEqual([
+        { endpoint: 'swarmWorktrees/list', payload: { args: { sessionId: 'owner-session' } } },
+        { endpoint: 'swarmWorktrees/create', payload: { args: { sessionId: 'owner-session', request: { name: 'wt-1' } } } },
+      ]);
       await panel.dispose();
     } finally {
       await ctx.fiber.dispose();

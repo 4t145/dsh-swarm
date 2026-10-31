@@ -6,8 +6,14 @@
  * 不 await 任何外部 IO。
  */
 
-import { appendEvent, isEventVisible, matchesWait } from './events.ts';
+import { appendEvent, isEventVisible, matchesWait, pendingNotifications, shownEventSeq } from './events.ts';
+import type { ShownReceipt } from './notification-receipts.ts';
+import type { NotificationRecord } from './public-types.ts';
 import { SwarmError } from './errors.ts';
+import { isLiveFinding, liveClaims, withoutDetails } from './claims.ts';
+import { DEFAULT_CLAIM_TTL_MS, FINDING_DETAILS_MAX_CHARS, FINDING_SUMMARY_LIMITS } from './schema.ts';
+import { matchQuery, parseQuery, type QueryNode, type QuerySubject } from './query-expr.ts';
+import { workerDisplayName } from './worker-names.ts';
 import { activeAcceptanceCriteria, type GoalRecord } from './types.ts';
 import type { StateStore } from './store.ts';
 import type {
@@ -43,6 +49,8 @@ export interface CollaborationOptions {
   id?: () => string;
   /** 单页事件上限，默认 20。 */
   eventPageSize?: number;
+  /** claim Finding 留在实时视图中的毫秒数，默认 1 小时。 */
+  claimTtlMs?: number;
 }
 
 /** 一次 mutation 的身份：真实 session 与其在 run 内的 worker。 */
@@ -77,6 +85,7 @@ export interface UpdateTaskInput {
 export interface PublishInput {
   kind: FindingKind;
   summary: string;
+  details?: string;
   scope?: string[];
   evidenceRefs?: string[];
   taskId?: string;
@@ -102,7 +111,8 @@ export interface ReadInput {
 }
 
 export interface WaitInput {
-  afterSeq: number;
+  /** Omit to use the Host's durable display cursor. Explicit legacy ACK remains supported. */
+  afterSeq?: number;
   taskIds?: string[];
   proposalIds?: string[];
 }
@@ -140,13 +150,22 @@ export interface TaskSummary {
 export interface SyncEventItem {
   event: SwarmEvent;
   task: TaskRecord | null;
-  finding: FindingRecord | null;
+  /** Pushed projection: `details` is omitted; `hasDetails` says whether swarm_read by id has more. */
+  finding: (Omit<FindingRecord, 'details'> & { hasDetails: boolean }) | null;
   message: MessageRecord | null;
   proposal: ProposalRecord | null;
   goal: GoalRecord | null;
 }
 
-export interface SyncResult {
+export interface AttentionSummary {
+  /** References only. Preparing these is not proof of display or a full-message read. */
+  attention: NotificationRecord[];
+  attentionTotal: number;
+  attentionHasMore: boolean;
+}
+
+export interface SyncResult extends AttentionSummary {
+  fromSeq: EventSeq;
   runId: RunId;
   goal: string;
   acceptanceCriteria: string[];
@@ -157,11 +176,24 @@ export interface SyncResult {
   acceptedHead: string;
   worker: WorkerSummary;
   tasks: TaskSummary[];
+  /** Live peer claims (unexpired, latest per author+task), newest last; announcements, not locks. */
+  claims: LiveClaimSummary[];
+  claimsTotal: number;
   events: SyncEventItem[];
   observedSeq: EventSeq;
   offeredSeq: EventSeq;
   throughSeq: EventSeq;
   hasMore: boolean;
+}
+
+export interface LiveClaimSummary {
+  id: string;
+  authorWorkerId: WorkerId;
+  taskId: string | null;
+  summary: string;
+  scope: string[];
+  createdAt: Millis;
+  expiresAt: Millis;
 }
 
 export interface ReadItem {
@@ -182,7 +214,8 @@ export interface ReadResult {
   nextCursor: string | null;
 }
 
-export interface WaitResult {
+export interface WaitResult extends AttentionSummary {
+  fromSeq: EventSeq;
   runId: RunId;
   waiting: boolean;
   worker: WorkerSummary;
@@ -289,6 +322,17 @@ export class Collaboration {
   private readonly now: () => number;
   private readonly makeId: () => string;
   private readonly eventPageSize: number;
+  private readonly claimTtlMs: number;
+
+  /** Live-view TTL for claim Findings, shared with the passive notice projection. */
+  get claimLiveTtlMs(): number {
+    return this.claimTtlMs;
+  }
+
+  /** Clock used for claim expiry in live views. */
+  currentTime(): number {
+    return this.now();
+  }
 
   constructor(store: StateStore, options: CollaborationOptions = {}) {
     this.store = store;
@@ -298,6 +342,12 @@ export class Collaboration {
     if (!Number.isInteger(this.eventPageSize) || this.eventPageSize < 1) {
       throw new SwarmError('SWARM_INVALID_INPUT', 'eventPageSize must be a positive integer', {
         details: { eventPageSize: this.eventPageSize },
+      });
+    }
+    this.claimTtlMs = options.claimTtlMs ?? DEFAULT_CLAIM_TTL_MS;
+    if (!Number.isInteger(this.claimTtlMs) || this.claimTtlMs < 1) {
+      throw new SwarmError('SWARM_INVALID_INPUT', 'claimTtlMs must be a positive integer', {
+        details: { claimTtlMs: this.claimTtlMs },
       });
     }
   }
@@ -511,10 +561,23 @@ export class Collaboration {
     const identity = this.identity(sessionId);
     const runId = this.resolveWorker(sessionId).run.id;
     const kind = input.kind;
-    if (kind !== 'observed' && kind !== 'fact' && kind !== 'fail' && kind !== 'patch_summary') {
+    if (kind !== 'observed' && kind !== 'fact' && kind !== 'fail' && kind !== 'patch_summary' && kind !== 'claim') {
       throw new SwarmError('SWARM_INVALID_INPUT', 'unknown finding kind', { details: { kind } });
     }
-    const summary = requireText(input.summary, 'summary');
+    const summary = requireText(input.summary, 'summary').trim();
+    const summaryLimit = FINDING_SUMMARY_LIMITS[kind];
+    if (summary.length > summaryLimit) {
+      throw new SwarmError('SWARM_INVALID_INPUT',
+        `summary for ${kind} must be at most ${summaryLimit} characters (got ${summary.length}); put supporting detail in details`, {
+          details: { field: 'summary', kind, limit: summaryLimit, length: summary.length },
+        });
+    }
+    const details = input.details === undefined ? undefined : requireText(input.details, 'details');
+    if (details !== undefined && details.length > FINDING_DETAILS_MAX_CHARS) {
+      throw new SwarmError('SWARM_INVALID_INPUT', `details must be at most ${FINDING_DETAILS_MAX_CHARS} characters`, {
+        details: { field: 'details', limit: FINDING_DETAILS_MAX_CHARS, length: details.length },
+      });
+    }
     const scope = (input.scope ?? []).map((entry, index) => requireText(entry, `scope[${index}]`));
     const evidenceRefs = (input.evidenceRefs ?? []).map((entry, index) =>
       requireText(entry, `evidenceRefs[${index}]`),
@@ -563,6 +626,7 @@ export class Collaboration {
         taskId,
         kind,
         summary,
+        ...(details === undefined ? {} : { details }),
         scope: [...scope],
         evidenceRefs: [...evidenceRefs],
         supersedesId,
@@ -623,6 +687,61 @@ export class Collaboration {
     });
   }
 
+  /**
+   * Host-only receipt after the exact model-facing Session content has been flushed.
+   * Updates technical display evidence only; never answers a request, confirms an agreement,
+   * clears a wait, emits an event, or wakes another worker. Replays and older versions are harmless.
+   */
+  async recordShown(sessionId: string, receipt: ShownReceipt): Promise<void> {
+    const identity = this.identity(sessionId);
+    const membership = this.resolveWorker(sessionId);
+    if (receipt.runId !== membership.run.id) {
+      throw new SwarmError('SWARM_FORBIDDEN', 'Display receipt belongs to another run');
+    }
+    await this.store.update(receipt.runId, (run) => {
+      const draft = structuredClone(run);
+      const worker = this.draftWorker(draft, identity);
+      let changed = false;
+      let shown = shownEventSeq(worker);
+      for (const range of receipt.ranges) {
+        if (range.through >= draft.nextSeq) throw new SwarmError('SWARM_INVALID_CURSOR', 'Display receipt is beyond the event log');
+        // Never bridge an unprovided prefix; cumulative replay can later fill the gap.
+        if (range.from <= shown && range.through > shown) { shown = range.through; changed = true; }
+      }
+      if (shown > (worker.shownSeq ?? 0)) { worker.shownSeq = shown; changed = true; }
+      const now = this.now();
+      for (const reference of receipt.notifications) {
+        const notification = draft.notifications[reference.id];
+        if (!notification || notification.workerId !== worker.id) {
+          throw new SwarmError('SWARM_FORBIDDEN', 'Display receipt contains another worker notification');
+        }
+        // A coalesced newer notification has not been shown by this receipt.
+        if (notification.seq === reference.seq && notification.acknowledgedAt === null) {
+          notification.acknowledgedAt = now;
+          changed = true;
+        }
+      }
+      for (const reference of receipt.messages) {
+        const message = draft.publicMessages[reference.id];
+        if (!message || message.channelId !== reference.channelId || reference.revision > message.revision) {
+          throw new SwarmError('SWARM_INVALID_INPUT', 'Display receipt contains an invalid public message version');
+        }
+        const key = JSON.stringify([worker.id, message.channelId]);
+        const read = draft.channelReads[key] ??= { id: key, workerId: worker.id, channelId: message.channelId,
+          offeredMessageRevisions: {}, readMessageRevisions: {} };
+        if ((read.readMessageRevisions[message.id] ?? 0) < reference.revision) {
+          read.offeredMessageRevisions[message.id] = Math.max(read.offeredMessageRevisions[message.id] ?? 0, reference.revision);
+          read.readMessageRevisions[message.id] = reference.revision;
+          changed = true;
+        }
+      }
+      if (!changed) return run;
+      draft.revision++;
+      draft.updatedAt = Math.max(draft.updatedAt, now);
+      return draft;
+    });
+  }
+
   /* ----------------------------- sync ----------------------------- */
 
   /** 增量同步：确认 ack、清除等待登记、返回可见事件与 run 摘要。 */
@@ -637,7 +756,7 @@ export class Collaboration {
       const worker = this.draftWorker(draft, identity);
       this.assertRunning(draft);
 
-      let start = worker.observedSeq;
+      let start = shownEventSeq(worker);
       if (input.ackSeq !== undefined) {
         if (!isNonNegativeInteger(input.ackSeq)) {
           throw new SwarmError('SWARM_INVALID_INPUT', 'ackSeq must be a non-negative integer', {
@@ -654,7 +773,7 @@ export class Collaboration {
           });
         }
         worker.observedSeq = input.ackSeq;
-        start = input.ackSeq;
+        start = shownEventSeq(worker);
       }
 
       worker.waitRegistration = null;
@@ -703,7 +822,7 @@ export class Collaboration {
       };
     }
 
-    const query = input.query === undefined ? null : requireText(input.query, 'query').toLowerCase();
+    const query = input.query === undefined ? null : parseQuery(requireText(input.query, 'query'));
     const all = this.readableItems(run, worker.id, query);
     const offset = this.parseCursor(input.cursor);
     const page = all.slice(offset, offset + limit);
@@ -724,7 +843,8 @@ export class Collaboration {
   /**
    * 登记或立即完成一次等待。
    *
-   * busy=true 直接拒绝。afterSeq 必须先满足 observedSeq <= afterSeq <= offeredSeq；
+   * busy=true 直接拒绝。省略 afterSeq 时使用 Host 已持久展示位置；
+   * 旧显式 afterSeq 仍检查 observedSeq <= afterSeq <= offeredSeq。
    * 若该前缀之后已有匹配事件，立即返回 waiting=false 与可见增量，否则登记等待。
    */
   async wait(
@@ -741,21 +861,21 @@ export class Collaboration {
         details: { workerId: identity.workerId },
       });
     }
-    if (!isNonNegativeInteger(input.afterSeq)) {
+    if (input.afterSeq !== undefined && !isNonNegativeInteger(input.afterSeq)) {
       throw new SwarmError('SWARM_INVALID_INPUT', 'afterSeq must be a non-negative integer', {
         details: { field: 'afterSeq' },
       });
     }
     const taskIds = this.normalizeIds(input.taskIds, 'taskIds');
     const proposalIds = this.normalizeIds(input.proposalIds, 'proposalIds');
-    const afterSeq = input.afterSeq;
     let result: WaitResult | undefined;
 
     await this.store.update(runId, (run) => {
       const draft = structuredClone(run);
       const worker = this.draftWorker(draft, identity);
       this.assertRunning(draft);
-      if (afterSeq < worker.observedSeq || afterSeq > worker.offeredSeq) {
+      const afterSeq = input.afterSeq ?? shownEventSeq(worker);
+      if (input.afterSeq !== undefined && (afterSeq < worker.observedSeq || afterSeq > worker.offeredSeq)) {
         throw new SwarmError('SWARM_INVALID_INPUT', 'afterSeq outside [observedSeq, offeredSeq]', {
           details: {
             afterSeq,
@@ -771,10 +891,11 @@ export class Collaboration {
         taskIds: [...taskIds],
         proposalIds: [...proposalIds],
       };
-      worker.observedSeq = afterSeq;
+      if (input.afterSeq !== undefined) worker.observedSeq = afterSeq;
       worker.waitRegistration = registration;
 
-      const matched = draft.events.some(
+      const attention = this.attentionSummary(draft, worker.id);
+      const matched = attention.attentionTotal > 0 || draft.events.some(
         (event) => event.seq > afterSeq && matchesWait(draft, worker, event),
       );
 
@@ -784,6 +905,8 @@ export class Collaboration {
         result = {
           runId: draft.id,
           waiting: true,
+          fromSeq: afterSeq,
+          ...attention,
           worker: summarizeWorker(worker),
           events: [],
           observedSeq: worker.observedSeq,
@@ -804,6 +927,8 @@ export class Collaboration {
       result = {
         runId: draft.id,
         waiting: false,
+        fromSeq: afterSeq,
+        ...attention,
         worker: summarizeWorker(worker),
         events: page.events,
         observedSeq: worker.observedSeq,
@@ -1012,9 +1137,11 @@ export class Collaboration {
       case 'task':
         item.task = run.tasks[event.taskId] ?? null;
         break;
-      case 'finding':
-        item.finding = run.findings[event.findingId] ?? null;
+      case 'finding': {
+        const finding = run.findings[event.findingId];
+        item.finding = finding === undefined ? null : withoutDetails(finding);
         break;
+      }
       case 'message':
         item.message = run.messages[event.messageId] ?? null;
         break;
@@ -1039,9 +1166,10 @@ export class Collaboration {
     const events: SyncEventItem[] = [];
     let throughSeq = afterSeq;
     let hasMore = false;
+    const now = this.now();
     for (const event of run.events) {
       if (event.seq <= afterSeq) continue;
-      if (!isEventVisible(event, workerId)) {
+      if (!isEventVisible(event, workerId) || this.isStaleClaimEvent(run, event, now)) {
         throughSeq = event.seq;
         continue;
       }
@@ -1055,6 +1183,29 @@ export class Collaboration {
     return { events, throughSeq, hasMore };
   }
 
+  /** Expired or replaced claims stay in history/search but leave live sync/wait pages. */
+  private isStaleClaimEvent(run: Run, event: SwarmEvent, now: number): boolean {
+    if (event.kind !== 'finding' || event.findingKind !== 'claim') return false;
+    const finding = run.findings[event.findingId];
+    return finding !== undefined && !isLiveFinding(run, finding, now, this.claimTtlMs);
+  }
+
+  private liveClaimSummaries(run: Run): { claims: LiveClaimSummary[]; claimsTotal: number } {
+    const claims = liveClaims(run, this.now(), this.claimTtlMs);
+    return {
+      claims: claims.slice(-this.eventPageSize).map((finding) => ({
+        id: finding.id,
+        authorWorkerId: finding.authorWorkerId,
+        taskId: finding.taskId,
+        summary: finding.summary,
+        scope: [...finding.scope],
+        createdAt: finding.createdAt,
+        expiresAt: finding.createdAt + this.claimTtlMs,
+      })),
+      claimsTotal: claims.length,
+    };
+  }
+
   private syncResult(
     run: Run,
     worker: WorkerRecord,
@@ -1062,23 +1213,32 @@ export class Collaboration {
   ): SyncResult {
     return {
       runId: run.id,
+      fromSeq: shownEventSeq(worker),
       goal: run.goal,
       acceptanceCriteria: activeAcceptanceCriteria(run),
       originalAcceptanceCriteria: [...run.acceptanceCriteria],
       goalRevision: run.goalRevision,
       goals: Object.values(run.goals).slice(-this.eventPageSize),
       goalsTotal: Object.keys(run.goals).length,
+      ...this.attentionSummary(run, worker.id),
       acceptedHead: run.acceptedHead,
       worker: summarizeWorker(worker),
       tasks: Object.values(run.tasks)
         .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
         .map(summarizeTask),
+      ...this.liveClaimSummaries(run),
       events: page.events,
       observedSeq: worker.observedSeq,
       offeredSeq: worker.offeredSeq,
       throughSeq: page.throughSeq,
       hasMore: page.hasMore,
     };
+  }
+
+  private attentionSummary(run: Run, workerId: WorkerId): AttentionSummary {
+    const pending = pendingNotifications(run, workerId);
+    return { attention: pending.slice(0, this.eventPageSize), attentionTotal: pending.length,
+      attentionHasMore: pending.length > this.eventPageSize };
   }
 
   private findReadable(run: Run, workerId: WorkerId, id: string): ReadItem | null {
@@ -1102,17 +1262,26 @@ export class Collaboration {
     return null;
   }
 
-  private readableItems(run: Run, workerId: WorkerId, query: string | null): ReadItem[] {
+  private readableItems(run: Run, workerId: WorkerId, query: QueryNode | null): ReadItem[] {
     const items: ReadItem[] = [];
+    // author: 同时匹配 worker id 与显示名；搜索覆盖完整历史（含已过期 claim 与 details）。
+    const authors = (...ids: (WorkerId | null | undefined)[]): string[] =>
+      ids.flatMap((id) => {
+        if (!id) return [];
+        const worker = run.workers[id];
+        return worker ? [id, workerDisplayName(worker)] : [id];
+      });
+    const hit = (subject: QuerySubject): boolean => matchQuery(query, subject);
     for (const goal of Object.values(run.goals)) {
-      if (query !== null && ![goal.text, ...goal.acceptanceCriteria].join('\n').toLowerCase().includes(query)) continue;
+      if (!hit({ text: [goal.id, goal.text, ...goal.acceptanceCriteria].join('\n'), fields: { kind: ['goal'], author: ['owner'] } })) continue;
       items.push({ kind: 'goal', goal, task: null, finding: null, message: null });
     }
     for (const task of Object.values(run.tasks)) {
-      if (query !== null) {
-        const haystack = [task.subject, task.acceptance, ...task.scope].join('\n').toLowerCase();
-        if (!haystack.includes(query)) continue;
-      }
+      const subject: QuerySubject = {
+        text: [task.id, task.subject, task.acceptance, ...task.scope, task.blockReason ?? '', task.cancellationReason ?? ''].join('\n'),
+        fields: { kind: ['task', task.kind], author: authors(task.createdByWorkerId, task.ownerWorkerId), task: [task.id] },
+      };
+      if (!hit(subject)) continue;
       items.push({ kind: 'task', task, finding: null, message: null });
     }
     items.sort((left, right) => {
@@ -1124,10 +1293,12 @@ export class Collaboration {
 
     const findings: FindingRecord[] = [];
     for (const finding of Object.values(run.findings)) {
-      if (query !== null) {
-        const haystack = [finding.summary, ...finding.scope].join('\n').toLowerCase();
-        if (!haystack.includes(query)) continue;
-      }
+      const details = (finding as { details?: unknown }).details;
+      const subject: QuerySubject = {
+        text: [finding.id, finding.summary, typeof details === 'string' ? details : '', ...finding.scope, ...finding.evidenceRefs].join('\n'),
+        fields: { kind: ['finding', finding.kind], author: authors(finding.authorWorkerId), task: [finding.taskId] },
+      };
+      if (!hit(subject)) continue;
       findings.push(finding);
     }
     findings.sort((left, right) => left.seq - right.seq);
@@ -1138,7 +1309,7 @@ export class Collaboration {
     const messages: MessageRecord[] = [];
     for (const message of Object.values(run.messages)) {
       if (message.authorWorkerId !== workerId && message.targetWorkerId !== workerId) continue;
-      if (query !== null && !message.body.toLowerCase().includes(query)) continue;
+      if (!hit({ text: message.body, fields: { kind: ['message'], author: authors(message.authorWorkerId) } })) continue;
       messages.push(message);
     }
     messages.sort((left, right) => left.seq - right.seq);

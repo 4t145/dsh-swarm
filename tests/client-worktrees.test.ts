@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { loadClient } from './client-fixture.ts';
 import { describe, expect, it, vi } from 'vitest';
 
 interface Lane { workerId: string | null; displayName: string | null; branch: string; worktreePath: string | null }
@@ -15,22 +14,16 @@ interface Client {
   initialHistory(sessionId: string, runId: string): HistoryState;
   createHistoryPager(options: { sessionId: string; runId: string; loadHistory: Loader; onChange(state: HistoryState): void }): Pager;
   observeHistoryEnd(root: object, target: object, loadMore: () => void): (() => void) | undefined;
+  anchorHistoryScroll(previousWidth: number, scrollLeft: number, scrollWidth: number): number;
   GitStreamSection(props: { t: (key: string) => string; progress: { runId: string; workers: unknown[] }; sessionId: string; loadHistory?: Loader }): Element;
+  trackLayout(items: Commit[], worktrees: Page['worktrees'], tips: { sha: string; workerId: string }[], more: boolean): { lanes: { key: string }[]; nodes: { lane: { key: string }; merge: boolean; head: boolean }[]; edges: { key: string; kind: string }[]; base: object | null };
   dictionaries: Record<'zh' | 'en', Record<string, string>>;
 }
-interface Module { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
 function load(extras: Record<string, unknown> = {}, state?: HistoryState): Client {
-  let module: Module | undefined;
-  runInNewContext(source, {
-    window: { __ModuleLoader__: { load(value: Module) { module = value; } } },
-    console, AbortController, Date, Error, TypeError, ...extras,
-  });
-  if (!module) throw new Error('Client did not register');
-  return module.factory(() => ({
+  return loadClient<{ progressClient: Client }>({
     createElement: (type: string, props: Record<string, unknown>, ...children: unknown[]) => ({ type, props, children }),
     useState: (init: () => unknown) => [state ?? init(), vi.fn()], useRef: () => ({ current: null }), useEffect: vi.fn(),
-  })).progressClient;
+  }, extras).progressClient;
 }
 const client = load();
 const lane: Lane = { workerId: 'w1', displayName: 'Bright Otter', branch: 'run-w1', worktreePath: '/repo/.agents/worktrees/w1' };
@@ -152,7 +145,7 @@ describe('Git history infinite-scroll enhancement and presentation', () => {
     } });
     const root = {}, target = {}, next = vi.fn();
     const dispose = enhanced.observeHistoryEnd(root, target, next);
-    expect(construct).toHaveBeenCalledWith({ root, rootMargin: '0px 0px 240px 0px' });
+    expect(construct).toHaveBeenCalledWith({ root, rootMargin: '0px 0px 0px 240px' });
     expect(observe).toHaveBeenCalledExactlyOnceWith(target);
     callback([{ isIntersecting: false }]);
     expect(next).not.toHaveBeenCalled();
@@ -168,17 +161,95 @@ describe('Git history infinite-scroll enhancement and presentation', () => {
     const rendered = load({}, state).GitStreamSection({ t: (key) => key, progress: { runId: 'run', workers: [] }, sessionId: 'owner', loadHistory: async () => page([]) });
     const all = elements(rendered);
     expect(all.find((item) => item.props.className === 'dshSwarm_gitScroll')?.props).toMatchObject({ tabIndex: 0, role: 'region', 'aria-busy': false });
-    expect(all.find((item) => item.props.className === 'dshSwarm_gitCommit')?.props).toMatchObject({ 'data-merge': true, key: sha('f') });
+    const canvas = all.find((item) => item.props.className === 'dshSwarm_trackCanvas');
+    expect(canvas).toBeTruthy();
+    const labels = all.filter((item) => item.props.className === 'dshSwarm_trackLabel');
+    expect(labels).toHaveLength(1);
+    expect(labels[0]?.props).toMatchObject({ key: sha('f') });
     expect(all.find((item) => item.type === 'button' && item.children.includes('git.more'))?.props).toMatchObject({ type: 'button', disabled: false });
     const text = JSON.stringify(rendered);
-    for (const label of ['Bright Otter', 'run-w1', 'git.source', 'git.merge', sha('a'), sha('b')]) expect(text).toContain(label);
+    for (const label of ['Bright Otter', 'run-w1', 'git.source', 'git.merge', sha('f').slice(0, 10)]) expect(text).toContain(label);
     expect(text).not.toContain('authored by');
   });
 
   it('never renders preceding-session data while effects are switching', () => {
     const state: HistoryState = { ...client.initialHistory('old-owner', 'run'), ...page([commit('f')]), started: true };
     const rendered = load({}, state).GitStreamSection({ t: (key) => key, progress: { runId: 'run', workers: [] }, sessionId: 'new-owner', loadHistory: async () => page([]) });
-    expect(elements(rendered).filter((item) => item.props.className === 'dshSwarm_gitCommit')).toHaveLength(0);
+    expect(elements(rendered).filter((item) => item.props.className === 'dshSwarm_trackLabel')).toHaveLength(0);
+  });
+
+  it('puts each commit on its worktree track by first-parent chain and routes merges between tracks', () => {
+    const w1 = { ...lane, head: sha('b'), diagnostic: null };
+    const w2 = { ...lane, workerId: 'w2', displayName: 'Calm Heron', branch: 'run-w2', head: sha('c'), diagnostic: null };
+    const result = { workerId: null, displayName: null, branch: 'swarm/result', worktreePath: null, head: sha('e'), diagnostic: null };
+    // --source attributes everything to the result head; layout must still split tracks.
+    const src = { workerId: null, displayName: null, branch: 'swarm/result', worktreePath: null };
+    const items = [
+      commit('e', { ...src, parents: [sha('d'), sha('b')] }),
+      commit('c', { ...src, parents: [sha('d')] }),
+      commit('b', { ...src, parents: [sha('d')] }),
+      commit('d', { ...src, parents: [sha('0')] }),
+    ];
+    const layout = client.trackLayout(items, [w1, w2, result], [], false);
+    expect(layout.lanes.map((item) => item.key)).toEqual(['result:swarm/result', 'worker:w1', 'worker:w2']);
+    expect(layout.nodes.map((node) => node.lane.key)).toEqual(['result:swarm/result', 'worker:w2', 'worker:w1', 'result:swarm/result']);
+    expect(layout.nodes[0]).toMatchObject({ merge: true, head: true });
+    const kinds = Object.fromEntries(layout.edges.map((edge) => [edge.key, edge.kind]));
+    expect(kinds[`${sha('e')}:${sha('d')}`]).toBe('track');
+    expect(kinds[`${sha('e')}:${sha('b')}`]).toBe('merge');
+    expect(kinds[`${sha('b')}:${sha('d')}`]).toBe('branch');
+    // The pre-run parent becomes a base terminus only when no older page exists.
+    expect(layout.base).not.toBeNull();
+    expect(client.trackLayout(items, [w1, w2, result], [], true).base).toBeNull();
+  });
+
+  it('keeps merged worker commits on their track through proposal tips after HEAD moves on', () => {
+    const w1 = { ...lane, head: sha('c'), diagnostic: null };
+    const result = { workerId: null, displayName: null, branch: 'swarm/result', worktreePath: null, head: sha('e'), diagnostic: null };
+    const src = { workerId: null, displayName: null, branch: 'swarm/result', worktreePath: null };
+    const items = [
+      commit('c', { ...src, parents: [sha('d')] }),
+      commit('e', { ...src, parents: [sha('d'), sha('b')] }),
+      commit('b', { ...src, parents: [sha('d')] }),
+      commit('d', { ...src, parents: [sha('0')] }),
+    ];
+    const keys = (tips: { sha: string; workerId: string }[]) => client.trackLayout(items, [w1, result], tips, false).nodes.map((node) => node.lane.key);
+    // Without a tip, b is only reachable from the result head and falls back to the trunk.
+    expect(keys([])[2]).toBe('result:swarm/result');
+    expect(keys([{ sha: sha('b'), workerId: 'w1' }])[2]).toBe('worker:w1');
+  });
+
+  it('lays commits oldest-left to newest-right and keeps that order after an older page loads', () => {
+    const result = { workerId: null, displayName: null, branch: 'swarm/result', worktreePath: null, head: sha('e'), diagnostic: null };
+    const src = { workerId: null, displayName: null, branch: 'swarm/result', worktreePath: null };
+    const all = [
+      commit('e', { ...src, parents: [sha('d')] }),
+      commit('d', { ...src, parents: [sha('c')] }),
+      commit('c', { ...src, parents: [sha('b')] }),
+      commit('b', { ...src, parents: [sha('0')] }),
+    ];
+    type Node = { item: { sha: string }; x: number };
+    const order = (nodes: Node[]) => [...nodes].sort((a, b) => a.x - b.x).map((node) => node.item.sha[0]);
+    const first = client.trackLayout(all.slice(0, 2), [result], [], true) as unknown as { nodes: Node[]; edges: { kind: string; path: string }[] };
+    expect(order(first.nodes)).toEqual(['d', 'e']);
+    // The open edge toward unloaded history fades out on the left, not the right.
+    const open = first.edges.find((edge) => edge.kind === 'open');
+    expect(Number(open?.path.split(' H ')[1])).toBeLessThan(Math.min(...first.nodes.map((node) => node.x)));
+    const second = client.trackLayout(all, [result], [], false) as unknown as { nodes: Node[]; base: { x: number } | null };
+    expect(order(second.nodes)).toEqual(['b', 'c', 'd', 'e']);
+    expect(second.base?.x).toBeLessThan(Math.min(...second.nodes.map((node) => node.x)));
+    // Older pages grow the canvas on the left; the scroll anchor keeps the viewed commits in place.
+    expect(client.anchorHistoryScroll(0, 0, 900)).toBe(900);
+    expect(client.anchorHistoryScroll(900, 300, 1300)).toBe(700);
+  });
+
+  it('uses no transit metaphors in any UI text and reads the axis oldest to newest', () => {
+    for (const lang of ['zh', 'en'] as const) {
+      const text = Object.values(client.dictionaries[lang]).join('\n');
+      expect(text).not.toMatch(/换乘|站点|车站|地铁|interchange|transfer station|metro|subway|station/i);
+    }
+    expect(client.dictionaries.en['git.axis']).toBe('← Older · Newer →');
+    expect(client.dictionaries.zh['git.axis']).toBe('← 更早 · 最新 →');
   });
 
   it('provides bilingual labels and retains truthful unavailable/empty states', () => {

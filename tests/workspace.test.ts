@@ -6,7 +6,7 @@
  */
 
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -739,11 +739,8 @@ describe('GitWorkspace.publish', () => {
 });
 
 describe('GitWorkspace command isolation', () => {
-  it('ignores failing repository hooks and clean/smudge filters', async () => {
+  it('ignores failing repository hooks and clean/smudge/process filters', async () => {
     const fixture = await createFixture();
-    gitSync(['config', 'filter.evil.clean', 'cat'], fixture.source);
-    gitSync(['config', 'filter.evil.smudge', 'false'], fixture.source);
-    gitSync(['config', 'filter.evil.required', 'true'], fixture.source);
     await mkdir(join(fixture.source, '.git', 'hooks'), { recursive: true });
     await writeFile(
       join(fixture.source, '.git', 'hooks', 'pre-merge-commit'),
@@ -753,9 +750,17 @@ describe('GitWorkspace command isolation', () => {
 
     const commit = await commitChanges(
       fixture.workerOne,
-      { '.gitattributes': '*.txt filter=evil\n', 'a.txt': 'alpha one\n' },
-      'worker change with a filter attribute',
+      { '.gitattributes': 'a.txt filter=evil\nb.txt filter=fixture.driver\n', 'a.txt': 'alpha one\n', 'b.txt': 'beta one\n' },
+      'worker change with filter attributes',
     );
+    // Configure only after the fixture commit so setup does not invoke the hostile drivers.
+    for (const driver of ['evil', 'fixture.driver']) {
+      for (const operation of ['clean', 'smudge', 'process']) {
+        gitSync(['config', `filter.${driver}.${operation}`, 'false'], fixture.source);
+      }
+      gitSync(['config', `filter.${driver}.required`, 'true'], fixture.source);
+    }
+    const configBefore = gitSync(['config', '--local', '--list'], fixture.source);
     const proposal = makeProposal(fixture.run, commit);
     const attempt = makeAttempt(proposal, fixture.base);
 
@@ -766,6 +771,9 @@ describe('GitWorkspace command isolation', () => {
     }
     // 合并成功说明 pre-merge-commit 没有执行；文件内容未被 smudge 过滤改写说明 filter 被禁用。
     expect(gitSync(['show', `${result.commit}:a.txt`], fixture.source)).toBe('alpha one\n');
+    expect(await readFile(join(fixture.build, 'a.txt'), 'utf8')).toBe('alpha one\n');
+    expect(await readFile(join(fixture.build, 'b.txt'), 'utf8')).toBe('beta one\n');
+    expect(gitSync(['config', '--local', '--list'], fixture.source)).toBe(configBefore);
     expect(gitSync(['show', `${result.commit}:.gitattributes`], fixture.source)).toContain('filter=evil');
   });
 

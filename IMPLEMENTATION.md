@@ -1,10 +1,13 @@
 # 实现记录
 
+> 当前团队上限规则见文末“R7 继承宿主的团队上限”与 [架构 §1.4](<ARCHITECTURE.md>)；公共频道协议见“R6 公共协作体系”与 [架构 §14](<ARCHITECTURE.md>)。此前各版本的安装、原型、测试数量和局限为历史记录，不代表本次结果分支已部署；旧 pnpm 临时环境开关方式已由项目配置替代。
+
 ## 基线
 
 - 业务规格：[ARCHITECTURE.md](<ARCHITECTURE.md>) R4。
 - 实现由 Lead 组织 `vast-internal/deepseek-v4.1-flash-1017` 分批并行完成；共享接口先固定，再展开独立模块。
-- DSH 目标版本为当前安装版 0.2.1-rc.4。依赖其 experimental worktree API，未承诺其他版本兼容。
+- DSH 目标版本为当前安装版 0.2.2-alpha.2（自 0.2.1-rc.4 迁移）。依赖其 experimental worktree API，未承诺其他版本兼容。
+- 0.2.2 迁移：worker preset 显式挂载 `@deepseek-ai/dsh-tool-executor-native`，取代已移除的 `ctx.tools.presentAs('native')`；`sessionProjections.register` 改为 await 后经返回的 handle 读取与释放，`registerProgress`/`registerWorkerActivity`/`registerWorkerReceipts` 随之变为异步。
 - 保留现有四轮冷读原始报告；已按用户要求删除评审 README，不新增 README。
 
 ## 工程约定
@@ -146,3 +149,257 @@
 - 前台代办目标澄清、启动 spec、追加需求、进度问答、暂停/继续及结果收集；不要求用户输入命令/JSON，不变成给各 worker 派工的经理。咨询和暂定想法不等于执行授权；命令和面板仍是备用入口。
 - 当前状态由原生 prompt 管线刷新并日志化，仅包含阶段、任务计数、结果引用和最多 6 个待处理目标摘要，不搬入完整消息/事件历史，不新增轮询或模型唤醒。只在用户/现有驱动触发前台下一步时更新，不宣称新增全天候主动通知服务。ACK 协议保持原样。
 - 空态文案改为直接对话引导。[关键回归](<tests/owner-context.test.ts>) 覆盖 owner/worker 边界、有界只读状态、缺失/失败区分与注册清理；本轮仅构建与定向检查，不另开模型验收。
+
+## 工作树页签：无 run 的仓库工作树与创建
+
+- 现象：面板的 Git 工作树历史依赖 `swarmProgress/worktreeHistory`；旧进程未加载该 Host 方法时直连报 HTTP 404。该方法在 `ac1da67` 已存在，错误来自进程仍运行 22:48 的旧代码，重启后消失；源码测试不能代替重启加载。
+- [worktrees](<src/worktrees.ts>) 新增独立的 `swarmWorktrees` Remote：`list(sessionId)` 读取 `git worktree list --porcelain`，返回主树与 linked worktree 的相对路径、分支、HEAD 短 SHA/标题及最多 20 条最近提交；`create(sessionId, request)` 在 `.agents/worktrees/` 下新建分支与检出。两者只依赖会话工作目录，**不要求存在 run**；不调用 `ctx.worktrees.create`，也不调用 `workingDirectory.set`，因此不会改变 owner 会话 cwd 或用户 checkout。
+- Git 命令全部经注入的 `CommandExecutor`（sandbox/subprocess 适配），不使用 shell 字符串；名称/基准 ref 在边界校验，重复分支或路径、非 Git 目录、只读 sandbox、Git 失败分别映射为稳定的 `swarm-worktrees/*` Remote 错误码。会话目录解析只接受 `ctx.agents` 中存活的 Agent，否则返回 forbidden。
+- [remote-marker](<src/remote-marker.ts>) 把 `@Remote` 的显式标记安装抽成共享实现，`progress.ts` 与 `worktrees.ts` 共用，保持 source-fallback 的参数名稳定。
+- [client](<client.js>) 新增 `swarmWorktrees/list|create` 描述符；创建入口改为页签底部可折叠的“新建工作树”，不再把 worktree 列表当作主视图。创建结果通过 `readRemoteValue` 统一解包 `{ok, value}`，失败显示真实错误。
+- “Git 工作树”页签的主视图是**地铁式轨道图**（`trackLanes` / `trackLayout` / `renderCommitTrack`）：一条轨道对应一个工作树，已接受结果是第一条主线（`label-primary` 色），worker 按名册顺序用 alias token 着色。轨道不再按 `computeGraph` 的密集 lane 分配，而是按归属：提交属于第一个沿 first-parent 链认领它的轨道，顺序为主线 HEAD → worker HEAD → 提案 tip；`git log --source` 只表示可达性（集成后所有 worker 提交都从结果 HEAD 可达），因此只作最后兜底。为此 history 页新增 `tips`（`proposals` 的 `sourceCommit`/`authorWorkerId`，最新优先、去重、上限 200），使 worker HEAD 前进后旧提交仍留在自己的轨道上；客户端把缺失的 `tips` 当作空数组，兼容旧 Host。跨轨道曲线只在站点旁无标签的间隙里弯折：分出边沿子轨道走到父站点前再弯，合并边在合并站点后立即弯回父轨道，合并站点的标签翻到曲线对侧。合并是换乘站（双环），当前 HEAD 带光晕，最后一页时在主线末端画 run 基线终点，否则父边用虚线延伸提示还有更早历史。左侧轨道名牌 `position:sticky`，横向滚动时保持可见。颜色全部是 `--dsw-alias-*` token 并通过 inline style 应用，满足主题测试。`computeGraph` 保留为导出的纯函数与既有测试，但渲染不再使用。
+- **SRC 签名修复**：`worktreeHistory(sessionId, cursor = null, signal?)` 的默认参数被 typert gateway 的 SRC 兜底发现拒绝（`gateway/signature-invalid: must use unique identifier parameters without destructuring, defaults, or rest`），端点因此不可用。现改为 `worktreeHistory(sessionId, cursor, signal?)`；客户端本来就总是传 `cursor`（可为 `null`），无需改调用。`tests/progress.test.ts` 增加对 `Function.prototype.toString` 参数名的断言，锁住 SRC 兼容性。Host 代码变更仍需重启 DSH 才生效。
+- 检查：`tests/worktrees.test.ts` 30 项（临时 Git 仓库，不碰用户 checkout）、`tests/client-remote.test.ts` 新增真实 typert-registry/api-gateway 的 list/create 转发、`tests/client-dashboard.test.ts` 新增 lane/合并/复用单元测试、`tests/client-worktrees.test.ts` 更新为轨道图断言；全量 **35 文件 / 448 项测试**、typecheck、build 与 `node --check client.js` 通过。横向轨道图是纯 Client 改动，刷新页面即可；SRC 修复已在上一轮 Host 重启后生效（面板已能读到提交）。
+
+### 成员列表 / 目标看板重设计、中途扩容与启动可发现性
+
+- **成员列表**：顶部是标题与一句汇总（成员数、执行中、等待协作或集成），右侧是“团队规模”卡片：`已用 / 上限`、按名册顺序着色的名额色块（空位为虚线框）和“+ 添加成员”。成员颜色由 `workerColor(index)` 给出，与 Git 轨道图的 worker 轨道使用同一组 alias token，同一个人在两个页签里颜色一致。卡片顶边是成员颜色，头像显示名字缩写；状态胶囊带圆点，只有连接正常且 turn/工具确实在执行时才有脉冲动画（reduced-motion 下关闭）。当前任务放在浅底块里，没有任务时用次要色。
+- **目标看板**：标题区右侧显示“已办结数 / 总数”和三段组成条（办结/办理中/代办）。组成条只表示数量组成，`aria-hidden`，不是进度百分比，遵守既有“不合成百分比”的测试约束。三个池是浅底圆角栏，计数用胶囊；目标卡片左侧色条表示状态（办理中=品牌色、办结=成功色、待下一轮/已转移=警告色），正文最多三行，底部显示验收条数、办结提交短 SHA 和时间；展开后显示全文、验收列表和 ID。愿望输入框改为虚线边框。分池逻辑 `goalColumns` 与提交流程未改。
+- **中途扩容**：`swarm_manage` 新增 `add_workers` 动作（`count` 1–4，默认 1），顺序调用既有 `runtime.addWorker`，每次都是独立的原子预留。第一次就失败时直接抛错；之后的失败返回 `{added, error}`，如实报告部分成功，不重试。只读 sandbox 与子会话在调用前拒绝。成员上限仍由 runtime 的 `workerCountMax`（4）保证。
+- **启动可发现性**：`SWARM_MANAGE_DESCRIPTION` 改为开宗明义“启动和控制 Swarm 的唯一入口”，并内嵌 start 的 inline spec 结构；`OWNER_POLICY` 增加直接调用 `action "start"` 的完整 JSON 模板，要求先读项目配置选真实验证命令，不去找 CLI/脚本；无 run 时的 owner state 也指向 `action=start`。owner state 新增 `workerLimit` 与 `canAddWorkers`，并在策略里说明扩容用 `add_workers`，不要停止重启。
+
+### 协作流页签
+
+- Host：`toProgressSnapshot` 新增 additive v2 字段 `interactions`（`PROGRESS_LIMITS.interactions = 80`，最新在后）。投影 message/finding/task/proposal/head 事件，只含 `seq/kind/status/actorWorkerId/peerWorkerId/objectId/taskId/createdAt`。私信只给出发送者与接收者，finding 只给出类型；两者的 `objectId` 置空，不暴露正文或 ID。`peerWorkerId` 对 task 是 owner，对 proposal/head 是提案作者（从 `detail.proposals` 查）。run/goal 事件已由 Dashboard 和目标看板展示，这里显式跳过；switch 穷尽检查。
+- Client：`FlowSection` / `flowLayout` / `messagePairs`。泳道顺序为 Host → 名册顺序 → 未知 id，颜色与成员列表和 Git 轨道一致（`workerColor`）。task/proposal 事件放在 owner/作者泳道（Host 执行的集成状态变更也归给作者），message 画成到接收者泳道的弧线，head 放在 Host 泳道并用虚线连回作者。旧 Host 不发 `interactions` 时显示“重启 DSH 后可用”，不伪造空数据。帧校验对该字段做 additive 校验，v1 Host 时清空。
+- 测试：`tests/client-flow.test.ts`（泳道、路由、筛选、私信对、双语键）；`tests/progress.test.ts` 增加私密性与顺序断言；tabs 测试改为五个页签。
+
+### Dashboard 重设计与成员配色
+
+- **成员配色**：DSH 的 `--dsw-alias-brand-primary` 与 `state-idle-primary` 实际映射到中性黑/白/灰，会和 Host 主线（`label-primary`）或“空闲”混淆。`TRACK_COLORS`（成员列表、协作流、Git 轨道、Dashboard 共用）改为只用有彩色的 token：`state-business-primary`（DeepSeek 蓝）、`success`、`warn`，以及它们与 `error` 的 `color-mix` 混色；`error` 红放最后。黑/白/灰只留给 Host/结果主线。我新加的成员列表、目标看板、Dashboard 样式中的强调色也从 `brand-primary` 换成 `state-business-primary`。
+- **Dashboard**：目标卡片左侧有品牌色竖条；四阶段流程改为带连接线的步进条（完成=绿色对勾，进行中=蓝色脉冲点，等待=序号）；三张 KPI 卡片中，“已完成任务”带按状态组成的分段条和图例（宽度按数量，`aria-hidden`，不是百分比），验证失败时显示红色标记；“当前交付”旁新增“团队现状”卡片（`TeamCard`：头像色、当前任务、工作状态胶囊）；任务板和最近公开活动放进卡片，活动时间线的圆点用作者的成员颜色，Host 事件用主线色。`deriveWorkflow`、`deliveryState`、筛选逻辑未改。
+
+### 成员对话与发现（owner 可观测性）
+
+- 与此前“面板不显示私信/finding 正文”的约束相比，这是一次有意的边界调整：run owner 需要看到 worker 实际说了什么。进度流（`watch`/`snapshot`/`interactions`）仍只含元数据；正文只走单独的、按需调用的 `swarmProgress/conversation(sessionId, beforeSeq)`。
+- [conversation-log](<src/conversation-log.ts>)：与 worktree history 相同的双重 owner 校验（runtime status 与持久化 run 的 `ownerSessionId` 都必须等于调用会话）；非 owner 抛 `SWARM_FORBIDDEN`，映射为 `swarm-progress/forbidden`。按 seq 倒序合并 messages 与 findings，每页 40 条，`beforeSeq` 为排他游标；正文上限 8000 字符并标 `truncated`，scope/evidence 各最多 16 条、每条 300 字符。worker 的可见性规则（`isEventVisible`）不变，这个接口不给 worker 使用。
+- Client：`ConversationSection` 放在“协作流”页签下方，在 unknown-codec 边界用 `readConversationPage` 校验，按 seq 用 `mergeConversation` 去重合并；`interactions` 中出现新的 message/finding seq 时自动重新读取首页，并保留已加载的更早内容与游标。卡片左边框与头像使用成员颜色，失败报告带红色描边。
+- 测试：`tests/conversation-log.test.ts`（排序、分页无重复、截断、非 owner/坏游标/无 run）、`tests/client-conversation.test.ts`（校验、合并、双语键）、`tests/progress.test.ts` 增加 `conversation` 的 Remote 标记与 SRC 裸参数断言。
+
+### 泳道节点悬停卡片
+
+- `FlowPanel` 用 `useConversation` 持有一份 owner 对话状态，泳道和下方阅读器共用，同一条正文只读一次。悬停 message/finding 节点时，如果已加载的页里没有这条，`loadAround(seq)` 用 `beforeSeq = seq + 1` 读取以它结尾的那一页并合并，不移动阅读器的分页游标；失败时卡片退回元数据，错误仍由阅读器报告。
+- 每个节点是 `tabIndex=0` 的 `role=button`，带 14px 透明命中圈；mouseenter/focus 显示 `role=tooltip` 卡片，click/Enter/Space 固定为带关闭按钮的 `role=dialog`，Esc 或滚动关闭。`flowHoverPosition` 是纯函数：卡片默认在节点右侧，靠右边缘时翻到左侧，处于下半区时向上展开。
+- 测试：`tests/client-flow.test.ts` 增加定位翻转、所有节点可聚焦且卡片显示正文、正文未到时的加载态与固定后的 dialog/关闭按钮。
+
+## 2026-10-29 全仓对等审阅与保持行为去重
+
+### 范围与历史文档冲突
+
+- 基线 `005fdaacf37742109eaaa3460f56bcfb026f94f0`，run `0ad56166-e58c-405a-927e-ebc7ea6eaafc`。四个同权 worker 自选、认领并直接协商范围；最初三人同时发现 Git 重复，协商后分别覆盖核心状态、Git/按需读取、Client/进度、Host/CLI 边界。没有经理模型分派模块。
+- 覆盖全部第一方源码、Client、测试（含 native fixture）、三个脚本、入口/构建/包装配置及必要说明；不把依赖、生成的 lib 或历史工作树计入覆盖。未改 owner checkout、DSH 源码、profile、凭据、依赖清单或 lockfile；不创建 README、不安装插件、不重启 Host、不另起 Web 服务、不自动合入或推送结果。
+- [AGENTS](<AGENTS.md>) 旧 Lead 分工文字与本轮同权方式有历史差异，写范围由 Task/私信约定。[架构](<ARCHITECTURE.md>) 当前为 R5，但顶部“待实现”、§12“尚未实现”是初版时态；本文“基线 R4”“v0.1 无看板/无 Git”等旧段落也是历史记录，不能当作当前事实。
+- [架构 §10.4](<ARCHITECTURE.md#L540>) 普通新 start“不继承旧目标”与 R5 显式 continue 是不同入口，不能据旧文字删除 continuation；[使用说明](<USAGE.md>)、[示例](<examples/swarm-run.json>) 已支持后者和默认不限时。本轮记录冲突，不重写历史规格来掩盖实现问题。
+
+### 按模块审阅覆盖与处理结论
+
+下表说明具体符号、共性与保留理由；“保留”不等于证明无缺陷，高风险另列。
+
+| 模块与符号 | 发现、处理与测试依据 |
+|---|---|
+| [types](<src/types.ts>) createRun/activeAcceptanceCriteria、[schema](<src/schema.ts>) runSchema/parseRun、[spec](<src/spec.ts>) parseRunSpec | JSON 结构/旧记录默认值、spec 路径/冻结、领域初始化各有边界，不合成万能校验。命令/verification schema 已共享；[spec 测试](<tests/spec.test.ts>) 验证完整字段诊断/坏输入/冻结，[goals 测试](<tests/goals.test.ts>) 验证 legacy、goalRevision 与 continuation。 |
+| [store](<src/store.ts>) applyUpdate/runReducer/publish、[serial](<src/serial.ts>) FIFO/key 队列、[ports](<src/ports.ts>) contracts/fingerprint | 保留持久后发布、同步 reducer、错误后队列继续；不把无 IO reducer 搬进异步层。[store 测试](<tests/store.test.ts>) 用持久屏障验证未发布/写失败/业务错误/close，[serial 测试](<tests/serial.test.ts>) 验证 FIFO/独立 key。fake table 的故障注入/复制/屏障不同，未强行统一。 |
+| [collaboration](<src/collaboration.ts>) mutate/updateTask/read/collectEvents/wait、[events](<src/events.ts>) appendEvent/matchesWait | CAS、receipt、私信可见性、扫描前缀/确认与 selected/any 匹配分层保留；worker 读取不并入 owner 正文接口。[collaboration 测试](<tests/collaboration.test.ts>) 检查认领/证据/授权/私信空洞分页，[events 测试](<tests/events.test.ts>) 保留完整匹配表。 |
+| [delivery](<src/delivery.ts>) selectTarget/settlePass/continueAfterSettle、[runtime](<src/runtime.ts>) admission/controlTransition/finishGaps/goalIntake | generation、waitGate、notified 与 observed 不是同一种 cursor，不压成普通消息队列。Runtime 整体拆分会跨短门禁/在途登记/持久状态，未机械搬家。[delivery 测试](<tests/delivery.test.ts>) 验证 pending/settled/重复/失败/暂停；[runtime 测试](<tests/runtime.test.ts>) mock 了 Delivery/Integration，不能充当组合验收。 |
+| [integration](<src/integration.ts>) rejectAttempt/settlePending、[proposal-state](<src/proposal-state.ts>) recordProposalRejection | 两份 proposal 拒绝、proposed task 回 claimed、revision/事件顺序实现确为同一事实，抽成无 IO 专责模块。caller 仍负责 terminal guard、attempt/verification、单次 run revision 与持久化。Runtime findReusableVerification 取首条而 selectPassedVerification 取最新，未为去重改变可见 verificationId。[integration 测试](<tests/integration.test.ts#L560-L626>) 新增四路径和批量边界共5项入口回归，保留两种 gate 顺序、崩溃补记、finish 失败修复断言。 |
+| [workspace](<src/workspace.ts>) GitWorkspace、[worktrees](<src/worktrees.ts>) WorktreeCatalogue、[git-isolation](<src/git-isolation.ts>) | 两处隔离 argv 与 filter driver 四项禁用解析完全重复，抽纯策略；执行器、权限/错误、Workspace 成功探针按 cwd 缓存和 Catalogue 每次扫描保留。[workspace 测试](<tests/workspace.test.ts>) 扩多 driver/含点名字/required/process/真实 checkout 内容与 config 不变；[worktrees 测试](<tests/worktrees.test.ts>) 补真实 create 的 hook/filter 与探针拒绝无分支副作用。只操作临时仓库。 |
+| [conversation-log](<src/conversation-log.ts>)、[worktree-history](<src/worktree-history.ts>) owner 校验/分页 | 双重 owner 检查相似，但无 run、游标、异步取消、错误/payload 契约不同，保留独立类。[conversation 测试](<tests/conversation-log.test.ts>) 从“唯一条数”升级为混合 message/finding 全序列、seq 空洞、读间插入、双重 owner、存储失败与 refs 截断；[history 测试](<tests/worktree-history.test.ts>) 保留真实 Git pinned traversal/new commit 分页。 |
+| [progress](<src/progress.ts>) snapshot/watch/watchSession/conversation/worktreeHistory、[remote-marker](<src/remote-marker.ts>) | 只合并两个按需端点相同的 SwarmError→RemoteError 映射；bounded DTO、metadata-only interactions、订阅去重/取消不混进 helper。裸参数与 Remote marker 不变。[progress 测试](<tests/progress.test.ts>) 新增真实 service/reader 的成功、坏游标、owner、存储/原异常入口；[Remote 测试](<tests/client-remote.test.ts>) 仍经真实 gateway/registry。 |
+| [worker-activity](<src/worker-activity.ts>) projection reducer/registry | 截断时保守 executing 与 native liveness 覆盖是观察语义，不与任务状态混合；[activity 测试](<tests/worker-activity.test.ts>) 保留真实 ProjectionRegistry、溢出/生命周期断言。 |
+| [client](<client.js>)、[client-fixture](<tests/client-fixture.ts>) | 正式单资源 ModuleLoader 工厂、CSS/双语/strict codecs、stream owner/legacy fallback/clock、五页签、trackLayout 和旧 computeGraph 导出均保留。10套测试复制读文件→VM→capture→factory，部分任意 require 或污染全局 window；抽独立 VM 正式入口 fixture，只允许 React。fakeReact 补 effect 清理；3个 tab 焦点/roving、goal 草稿/断线源码断言换真实 handler 行为，未删除有效断言。 |
+| Client 测试信号 | [tabs](<tests/client-tabs.test.ts>)、[goals](<tests/client-goals.test.ts>)、[workers](<tests/client-workers.test.ts>)、[overview](<tests/client-overview.test.ts>)、[dashboard](<tests/client-dashboard.test.ts>)、[flow](<tests/client-flow.test.ts>)、[worktrees](<tests/client-worktrees.test.ts>)、[conversation](<tests/client-conversation.test.ts>) 均经正式工厂。主题/双语/资源包装/SRC 签名断言有协议价值，保留；几何/DTO 测试不冒充浏览器视觉/DOM/网络生命周期验收。 |
+| [commands](<src/commands.ts>) startRun、[owner-tools](<src/owner-tools.ts>) 文件启动、[spec-file](<src/spec-file.ts>) loadRunSpecFile | 重复 resolve/readText→JSON.parse→parseRunSpec 抽取；权限仍由 caller 先检查，命令保留 cause 文本、工具保留摘要。CLI driver 错误契约不同，不并入。除原 [commands](<tests/commands.test.ts>)/[owner-tools](<tests/owner-tools.test.ts>) 测试，新 [入口回归](<tests/spec-file-entrypoints.test.ts>) 16项从已注册 command/真实 ToolRuntime 执行正常、坏 JSON/shape、resolve/read 失败、预取消/只读等边界，不只直接测 helper。 |
+| [tools](<src/tools.ts>)、[owner-context](<src/owner-context.ts>)、[worker-context](<src/worker-context.ts>)、[worker-policy](<src/worker-policy.ts>)、[worker](<src/worker.ts>)、[worker-names](<src/worker-names.ts>) | JSONSchema 描述子集与运行时 Zod 作用不同，不盲目去重；front-desk identity 与 worker 被动事件提示不同，不合并授权。提示不推进 durable ACK，注册随 scope 释放。[tools](<tests/tools.test.ts>)/[owner-context](<tests/owner-context.test.ts>) 保留真实注册边界，[names 测试](<tests/worker-names.test.ts>) 实际耗尽256词对/验证 legacy schema；worker-context 专项测试仍缺。 |
+| [dsh-executor](<src/dsh-executor.ts>)、[dsh-worker-host](<src/dsh-worker-host.ts>)、[errors](<src/errors.ts>) | sandbox/permission、owner→child、worktree 初始化/本 Session 资源停止不与测试执行器合并；错误码/normalizeError 保留。[executor](<tests/dsh-executor.test.ts>)/[host](<tests/dsh-worker-host.test.ts>) 覆盖权限/取消/资源屏障，不代表所有 quiescence/activation 双信号分支都覆盖。 |
+| [headless](<src/headless.ts>)、[args](<src/headless-args.ts>)、[driver](<src/headless-driver.ts>)、[lifetime](<src/headless-lifetime.ts>)、[signals](<src/headless-signals.ts>)、[preset](<src/headless-preset.ts>) | subscribe-before-start、单调 revision、terminal-only、once-stop 与应用信号/生命周期分层合理，不新增框架。[headless](<tests/headless.test.ts>)/[args](<tests/headless-args.test.ts>)/[lifetime](<tests/headless-lifetime.test.ts>)/[signals](<tests/headless-signals.test.ts>)/[preset](<tests/headless-preset.test.ts>) 验证契约，原生隔离脚本另验 SIGINT。 |
+| [index](<src/index.ts>)、[artifacts](<src/artifacts.ts>) | injection、回滚、资源所有权与 run-owned artifact ID/per-record 后端保留；[artifact 测试](<tests/artifacts.test.ts>) 用真实 JsonStorageBackend，不以 Map 测试冒充磁盘。卸载顺序风险另列，未以去重偷改生命周期。 |
+| [e2e](<tests/e2e.test.ts>)、[local-executor](<tests/local-executor.ts>) | 真实 Runtime/Store/Delivery/Integration/GitWorkspace 组合，fake 只替外部效果，订阅状态不用 sleep。中间验证允许0/1支持分步候选，最终独立 git show 断言两文件均1，并检查 resultRef、祖先、失败不推进/重提、owner HEAD/branch/index/status。child_process 只在测试/脚本，不入生产包；FakeWorkerHost 不证明模型或原生 settled 行为。 |
+| 脚本、构建、包装与文档 | [build](<scripts/build.mjs>) 五个 Node ESM 入口/声明、[link](<scripts/link-harness.mjs>) 精确宿主开发 symlink、[native-headless](<scripts/test-native-headless.mjs>) 隔离 DSH_HOME/[blocking adapter](<tests/native-smoke/blocking-model.js>)、[package](<package.json>) exports/files、[tsconfig](<tsconfig.json>)/[build config](<tsconfig.build.json>)/[vitest](<vitest.config.ts>)、[GUI patch](<cordis.patch.yml>)/[headless overlay](<cordis.headless.yml>)、[英文](<locale/en.json>)/[中文](<locale/zh.json>)/[图标](<icon.svg>)、[使用说明](<USAGE.md>)/[示例](<examples/swarm-run.json>)、[npmrc](<.npmrc>)/[忽略规则](<.gitignore>)/[许可证](<LICENSE>) 均核对。preset 重叠但 GUI compaction/headless 绝对 worker URL 不同，不制造 YAML 生成层。历史 [native 入口](<tests/native-smoke/index.js>)/[代际检查](<tests/native-smoke/check-current.js>)/[清单](<tests/native-smoke/package.json>)/[patch](<tests/native-smoke/cordis.patch.yml>) 仅审阅，本轮不安装或调用其模型路径；源码 marker 只证明代际，不替代行为测试。 |
+
+### 明确保留的风险与延期（并非本轮新引入）
+
+本轮是保持行为的结构优化，不偷偷改变权限/生命周期，也不声称消灭全仓缺陷。以下未改动，绿灯不覆盖这些缺口：
+
+1. **恢复 admission**：[Runtime.recover](<src/runtime.ts#L1045-L1095>) 捕获 resultRef/凭据失败后仍写 paused，诊断只在内存；[resume](<src/runtime.ts#L603-L713>) 未再次核对 ref 即开放 admission。[unknown-ref 测试](<tests/integration.test.ts>) 只证明 IntegrationQueue recover 拒绝未知 SHA，不证明随后 Runtime resume 仍阻断；需独立恢复→resume 组合修复。
+2. **卸载与长命令**：[Runtime.dispose](<src/runtime.ts#L1103-L1143>) 只等待 integration.idle，不像正常 stop 主动 interrupt；[入口](<src/index.ts>) closeResources 没有先 stop 全部 run。GUI 卸载可能等待长命令，headless driver 的 abort/stop 特例不能证明 GUI 链路快速静止。
+3. **原生退出确认**：[DshCommandExecutor](<src/dsh-executor.ts#L259-L278>) 取消/超时先返回，可能掩盖 quiescenceFailure；settle 忽略 waitForExit 的 false。[测试](<tests/dsh-executor.test.ts>) 只有 true/阻塞屏障，缺 false/reject+abort，属于停止确认高风险。
+4. **activation 与 jobs**：[DshWorkerHost.start](<src/dsh-worker-host.ts#L244-L251>) 成功 activation.result 未转 onSettled，依赖 subagent/end，与[架构“任一信号足够”](<ARCHITECTURE.md#L347>) 有差异；[host 测试](<tests/dsh-worker-host.test.ts>) 未覆盖双信号去重。[swarm_wait](<src/tools.ts#L456-L469>) 未如 host 过滤 jobs.owner，原生 list 含 unowned 时可能误拒等待，[tools fake](<tests/tools.test.ts>) 未验证。
+5. **Git 配置探针 fail-open**：[Workspace](<src/workspace.ts>) 与 [Catalogue](<src/worktrees.ts>) 对任意非零探针退空 overrides，不区分“无配置”退出1与读取故障；Workspace 成功结果按 cwd 缓存，依赖轮内配置稳定。本轮共享原策略，不把风险包装为已修复。
+6. **特殊 worktree 路径**：[Catalogue.parseWorktreePorcelain](<src/worktrees.ts>) 使用非 -z 行输出并 trim；换行、引号、首尾空格等合法路径未覆盖，不宣称任意文件名兼容。需先确定 NUL 协议与兼容行为。
+7. **Client 请求生命周期**：[CreateWorktreeSection](<client.js#L787-L805>) 只用 render 闭包 pending 防重复，完成不核对 session/unmount，没有 AddWorkerControl 的 ref/abort guard。[useConversation.loadAround](<client.js#L1280-L1310>) 吞失败且 controller 留 Map，同 seq 不能重试、reader 未必报告；保留旧 cursor 以 items.length 推断，hover 插入可能干扰。本文旧“错误仍由阅读器报告”描述不完整，以此事实为准。
+8. **提示/模板**：[worker-context](<src/worker-context.ts>) 无专项 waterfall/additionalContexts 行为回归，core 可见性测试不能替代。[owner 模板](<src/owner-context.ts>)/[工具模板](<src/owner-tools.ts>) 示例缺必需 timeoutMs，[schema](<src/schema.ts#L25-L33>) 拒绝，属于文案缺口，不是放宽校验的理由；[示例文件](<examples/swarm-run.json>) 参数齐全。
+9. **测试设施上界**：[runtime waitFor](<tests/runtime.test.ts#L363-L378>) 是 setImmediate 有界探测，虽无 sleep 仍可改订阅消除调度依赖；[e2e teardown](<tests/e2e.test.ts>) 仅记录 dispose 失败，可能漏报清理故障；[native 脚本](<scripts/test-native-headless.mjs#L52-L64>) 两 stream 后 await exit 无独立关闭超时。通过不豁免这些失败分支。
+10. **大模块仍在**：[runtime](<src/runtime.ts>)、[collaboration](<src/collaboration.ts>)、[integration](<src/integration.ts>) 与 [client](<client.js>) 仍大。只抽实际共性；Client 单资源加载不能直接拆 Node ESM，Runtime 不能绕 publicationGate；后续按控制/协议边界拆并补上述回归，不以行数为依据。
+
+### 增量、交叉复核与最终组合验证
+
+- 四份代码候选：核心 `dd632db`→accepted `9145649`；Git `38e307e`→`630db18`；Client/Remote `292a506`→`b2439f0`；Host/CLI `bb4b10c`→`734b475`。新模块各司其职，未改公开导出/打包清单、Client 本体、Remote 签名或五页签。
+- 审阅 findings：核心 `87a26736`/`01aabb4f`、Git `7989ae15`、Client `a62bd3f9`/`fc6b1457`、Host `78bb4790`/`f4498757`/`252b5ab8`、组合夹具 `eaadf64f`。独立复核 `61a2690d`（proposal）、`df0ca76d`（Git）、`8ee19b3f`（Remote/VM）、`54709298`（spec），不只作者自称通过。
+- 环境：首次 `pnpm install --frozen-lockfile` 已物化锁定依赖，但 pnpm 11 因 ignored esbuild build scripts 退出1。运行既有开发 link 脚本后，后续仅用 `pnpm_config_verify_deps_before_run=false` 防重复自动安装覆盖精确 Cordis link；没有批准脚本、改仓库配置或跳过检查。自动生成未跟踪 workspace 占位经读取核验删除，不把初次 install 说成成功。
+- 在全部代码组合 `734b4752e4af32fb40aad8e0f726c8c55d5832cd` 实际串行执行如下；日志 job `bash-cdb57df8e3d94e1a`，全部退出0。文档追加不改变运行代码，接受后的最终 SHA 以结果 ref 为准。
+
+```sh
+pnpm_config_verify_deps_before_run=false pnpm typecheck
+pnpm_config_verify_deps_before_run=false pnpm build
+pnpm_config_verify_deps_before_run=false pnpm test
+node --check client.js
+pnpm_config_verify_deps_before_run=false pnpm test:native-headless
+git diff --check
+```
+
+- 全量 **39 文件 / 502 项通过**。原生 headless 的内部 build 也通过；隔离 fixture `/tmp/dsh-swarm-native-headless.rBQH5K` 验证缺失路由在 worker 启动前失败、两原生 worker stream 后真实 SIGINT、一个 persisted stopped final/aborted=true/error=null、退出130、原始临时 checkout 不变。模型为明确 blocking fake adapter，没有调用付费模型。
+- 真实 Git 组合/Remote registry/ProjectionRegistry 回归不等于真实模型自主编码或浏览器目视验收；本轮没有部署当前 GUI，也没有安装、重启或替代服务。测试的有效分支与未覆盖高风险均按上节报告。
+
+## R6 公共协作体系（2026-10-29）
+
+### 交付与协议边界
+
+本轮两名同权 worker 自主协商领域/投递/工具/GUI 范围，复用既有 domain、事件、串行队列、admission、Task CAS 与 Git 验证。不是扩展私信 `target=all`，不从沉默推断共识，也不以“原型”删减请求或版本确认。只交付 Swarm 结果分支；未合并用户主分支、未安装插件/修改 profile/DSH、未重启 Host、未启动替代服务器。
+
+- [公共类型](<src/public-types.ts>) 和 [schema](<src/public-schema.ts>) 在原 Run 增加八个 map：channels、threads、publicMessages、subscriptions、notifications、channelReads、responseRequests、agreements。新建 run 带 general；旧记录仅增加空公共容器和确定性 general，不复制私信、不追加伪历史。持久化边界检查 map key 与实体 id、公共引用/作者/相关方同 run，以及全文 offered/read 与确认版本一致性。
+- [PublicCollaboration](<src/public-collaboration.ts>) 是同步 reducer 的业务入口；身份来自真实 Session 映射，回执 `(sessionId,callId)` 在同一次 update 保存。频道归档仅创建者、线程元数据仅创建者、消息修订仅作者、请求响应仅目标、撤回仅提出者、约定修订仅创建者、确认仅该版本列名相关方。并发操作用 revision/version CAS；不同动作复用 callId 拒绝，重放已完成操作不重复事件，即使 run 已暂停。
+- [输入 schema](<src/public-input.ts>) 的 16 种动作、9 种查询视图是完整工具契约。`swarm_discuss({command:{action,...}})` 与 `swarm_public_read({...})` 使用 camelCase 公共字段，保留原 9 工具的 snake_case 与私信语义。[Runtime](<src/runtime.ts>) 提供同 store 的 publicCollaboration，[工具](<src/tools.ts>) 真实接线到 worker preset 而非 owner。通过真实 DSH ToolRuntime/Context 的注册、执行、鉴权与卸载测试。
+- 实测 Zod 4 `toJSONSchema` 结果附有不可枚举 `~standard` 函数，DSH 的 lossless JSON schema gate 会拒绝；工具层仅投影可枚举 JSON schema 数据，保持实际参数校验，不绕过 Host gate。该故障由真实 registry 测试发现并修复。
+- [查询投影](<src/public-query.ts>) 分离当前全文与历史版本，最多20条/页与约24K字符目标（单条完整记录受字段固定上限约束）；返回显式 total/hasMore/truncated/cursor。cursor 绑定 run/viewer/filter，稳定 keyset 排序并固定新增事件上界。可按任务/线程/频道/消息/Finding 查源，当前约定和 pending 请求供后来成员加入时读取；不承诺查询期间可变状态的历史快照隔离。
+- 原私信仍只给作者/目标 worker，owner 的旧对话查看仍受旧授权；公共查询从不读取 legacy messages map。引用私信、其他 run 或不存在对象报错。Finding 不可变；讨论链接与 findingId 反查保留来源，不把讨论意见自动发布为 fact。
+
+### 通知、阅读、回应与同意
+
+完整矩阵见 [架构 §14](<ARCHITECTURE.md>)；实现位于 [events](<src/events.ts>)、[Delivery](<src/delivery.ts>) 和 [worker context](<src/worker-context.ts>)。
+
+- mentions / response_request / reply / announcement / agreement_confirmation 为 immediate。任务当前负责人/参与者/following 是 digest，未确认同线程通知合并，刷新 seq 并清 deliveredAt；显式请求独立保存且排序优先，不被普通消息降级。本人不收到自己的普通通知；无关讨论只进按线程分组的有界标题/活动数量摘要，不全员正文广播。
+- 通知先随业务持久化，再走每 worker 原串行 queue/admission。活跃者只处理 immediate；普通 digest 到 idle/settled。登记 wait 后不打断正在收尾的 activation。暂停不唤醒，恢复重投未确认，终态不启动；通知 id+seq 与本次实际送出的版本相符才记录 deliveredAt。
+- 全局 offered/observed/shown、频道当前全文版本 offered/read、通知 delivered/acknowledged、请求 pending/responded/withdrawn、约定逐版本 confirmations 是五组独立状态。后续 Lead 修复将技术展示确认改为 Host 自动执行（见下节），旧 ack_notifications/mark_read 仅兼容历史调用；陈旧回执不能吞并发合并，全文回执只记录精确展示版本。GUI owner 阅读不推进 worker 全文 offers。
+- 即使通知已 ACK，attention 仍把本人待回应请求放在普通更新前。普通发帖、全文已读、通知确认不会完成请求；只允许请求目标引用自己的同线程公开消息显式 respond。约定新版保留旧确认作为历史，但当前投影不把旧确认算成新版同意。
+- 公开线程、未答请求本身不进入 finishGaps。真正阻塞的工作仍用 Task/fail Finding，完整 owner 需求、goalRevision、Proposal、验证凭据、acceptedHead 与 pause/stop 逻辑不被聊天替代。
+
+### GUI/Remote 接口约定
+
+本轮在[正式面板](<client.js>)扩展“公共讨论 / Public discussion”，不是独立 HTML 或替代服务器。沿用 `swarmProgress` 的 owner 会话订阅与按需 Remote：`publicDiscussion(sessionId:string, runId:string, query:PublicQuery):Promise<PublicPage>`。每次读取校验真实 owner/current run，再调用 publicCollaboration.queryForOwner；无 worker/owner 阅读状态 mutation。常规流新增的 `publicActivity` 只含 protocolVersion/latestSeq 和频道/线程/待请求/约定计数，不带公共正文或私人数据。
+
+公共 pane 仅在选中时挂载；分页器持有 AbortController 与 session/run/query 身份，切换、卸载与旧请求返回都不能污染新页面。频道列表、线程/消息/请求/约定/attention/activity、修订历史和来源跳转有界分页，保留中英文、主题 token、原生按钮与键盘操作；旧 Host 缺端点明确说明。GUI 候选由另一 worker 独立验证/集成，其最终测试证据应与下方业务测试计数分开报告。
+
+### pnpm 11 固定 setup 可复现性
+
+Owner 在本轮追加的必要修复已落入[项目 workspace 配置](<pnpm-workspace.yaml>)，不是未记录的 worker shell 开关：
+
+```yaml
+verifyDepsBeforeRun: false
+allowBuilds:
+  esbuild: true
+```
+
+仅允许 esbuild 的平台二进制安装脚本（本项目构建工具）；没有允许所有依赖脚本。`verifyDepsBeforeRun:false` 防止 pnpm 11 在每个脚本前自动 install 覆盖精确 Harness/Cordis 链接；它**不取消**显式 frozen-lockfile 安装、类型检查、构建或测试。未改用户全局 pnpm/DSH 配置、依赖版本或 lockfile。
+
+实际命令（安装目录由当前环境提供，不写进项目清单）：
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run link:harness -- <当前 @deepseek-ai/dsh 安装目录>
+pnpm typecheck
+pnpm build
+pnpm test
+```
+
+本轮第一次 pnpm 安装曾以 ERR_PNPM_IGNORED_BUILDS 退出1，并产生不可用 workspace 占位；该失败没有被记为成功。以上项目策略集成后，同一组**无临时环境开关**的固定 argv 成功。Harness link 仅在显式 install 后执行一次，后续三项验证不再重新安装或替换 Cordis。Host 对组合候选再次执行固定 setup/test 后才接受提交。
+
+### 已执行的业务/投递/工具验收
+
+- 领域/投递候选 `355e48d088643b23a3fdcc9f03f894b50e97a1f0` 被 Host 接受为 `b8a7f10e124b2e8954a52bb68f7a0d42f54c3777`。
+- 活工具候选 `7737a5caee68264cd53acc31005676e287468c36` 被 Host 接受为 `f1f7c4ccf9d45b773df2d1cbe4a42f87de7eb3d7`。本 worker 实际执行上述 install/link/typecheck/build/test 全部退出0；日志任务 `bash-fd1791d09b7f488a`，**41 测试文件 / 530 项通过**。后续 GUI 合并与最终组合结果另行更新，不能把该数量当作尚未运行代码的证明。
+- [17 项公共业务测试](<tests/public-collaboration.test.ts>)：旧 run/私信隔离、A问B而C可读参与、频道/归档/作者权限、跨线程/跨 run/私信/原型键引用拒绝、请求授权/CAS、约定版本确认、任务负责人转移/动态成员、并发发帖/快照分页/搜索、重复 mutation、摘要/全文/通知/请求分离、陈旧通知 ACK、持久引用损坏拒绝。
+- [8 项公共投递测试](<tests/public-delivery.test.ts>)：真实 Store/Collaboration/Delivery 配合 fake effect ports 和 Promise 屏障，覆盖等待登记前后、收尾、暂停/停止、冷恢复独立 ACK、投递中合并版本回执、普通噪声/优先级及上下文不泄露正文。保留原[投递](<tests/delivery.test.ts>)、[事件](<tests/events.test.ts>)与[运行时](<tests/runtime.test.ts>)回归断言。
+- [工具测试](<tests/tools.test.ts>) 实测 11 工具精确注册/卸载、真实 Agent 身份、完整问答/约定调用、错误输入、以及普通未关闭线程/待回应请求不阻塞正常 finish；fixture 使用显式时钟，不 sleep 碰时序。原 Git/e2e/目标/GUI/Remote 回归仍全量运行。
+- 这些是源码、构建、真实 ToolRuntime/临时 Git 与受控 effect port 的自动化证据，**不是**当前宿主已加载新代码、真实模型已使用公共协议、浏览器已完成视觉/交互验收。本轮未部署、未安装、未重启、未启动替代 Web 服务；旧章节的真实模型/GUI检查是历史版本证据，不可挪用于 R6。
+
+## Host 自动技术回执：Lead 亲自实现（2026-10-29）
+
+用户指出“模型为了技术 ACK 多走一轮”是不必要开销。本修复由 Lead 在独立工作树完成，不覆盖 Swarm 成员 checkout，不把程序投递确认和业务答复混为一谈。
+
+- [凭据及原生 projection](<src/notification-receipts.ts>)：工具的 output.presentationMeta 与自有 swarm-context MessageSource 携带不要求模型输出的回执证据。对最终内容计算 SHA-256，只有真正进入原生 append surface 的成功 tool/result 或 user/message、且内容未被截断/替换时，才形成展示证据。没有新增 SessionEvent 类型，没有解析任意用户文本冒充 Host 证明。
+- [生命周期适配](<src/worker-receipts.ts>)：核对当前 DSH session/event 是 post-commit 但不是落盘边界，因此先经 sessions.flush，再写 Swarm domain。失败保留可重放证据、日志给诊断，不把已执行文件操作变为失败重试；既有 pre-step/pre-execute/turn-stopping 等待自动记账，不唤醒模型来做 ACK。缺持久化能力显式失败；监听与队列受 worker/plugin effect 清理。
+- [协作内核](<src/collaboration.ts>) 新增 Host-only recordShown；Worker.shownSeq 是连续摘要展示位置，保留旧 offered/observed 和显式参数兼容。正常 sync/wait/Delivery 使用有效展示位置，不要求 ack_seq/after_seq。公共 notification 只确认精确 id+seq；完整当前消息只记录实际展示 revision；正文、回应、同意状态绝不因摘要被推断。
+- [Host 消息接线](<src/dsh-worker-host.ts>) 使用已核对的 DSH host-protocol steerHostSubagentPrompt 导出，保留 owner→child 身份、原生冷恢复、串行和取消边界，保存独立 Host 来源，避免伪装成 owner 模型写的聊天。
+- [worker 指令](<src/worker-policy.ts>) 和[工具](<src/tools.ts>) 不再要求 ACK-only 调用，正常 wait 无必填 cursor。旧 ack_notifications/mark_read 只用于兼容；respond/confirm_agreement 仍是必要的显式业务动作。
+- [自动回执测试](<tests/notification-receipts.test.ts>) 使用真实 Session/ProjectionRegistry 和受控持久化屏障，覆盖日志先于回执、失败/取消/截断/改写、存储/flush 失败恢复、分页不越界、精确合并/修订版本、权限以及回应/同意不被自动修改。[真实工具管线](<tests/tools.test.ts>) 验证 sync 结果落日志后，下一次 wait 无需任何模型 ACK；[Host 适配](<tests/dsh-worker-host.test.ts>) 核对原生 Host 消息来源。
+
+Lead 将自身补丁与已接受的公共频道/GUI/活动修复 `8c77fd306ace19e9d74af4510950d002be41caee` 合入独立候选后，实际执行 `pnpm typecheck && pnpm build && pnpm test && node --check client.js && git diff --check`，全部退出 0（`bash-0927c506ddbd4f26`，**44 文件 / 560 项通过**）。另执行 `pnpm test:native-headless` 退出 0（`bash-59b21c4c85184074`）：隔离 DSH_HOME、明确 blocking fake 模型，验证缺失路由拒绝、两个原生 worker 启动、SIGINT、持久 stopped/退出130和原始临时 checkout 不变。该原生检查不是付费模型对话或自动 ACK 的真实模型性能测试。
+
+面板将通知状态明确区分为 inbox 接受和技术展示回执，不能显示成业务回应/版本同意；双语渲染回归保留这些断言。本节描述已验证的源码候选，仍须由原 Swarm 集成队列验证接受；当前宿主仍需单独授权部署，未声称真实模型或浏览器已加载此补丁。最终组合发布以 Host 回执为准。
+
+## R7 继承宿主的团队上限
+
+### 经安装版核验的边界
+
+目标仍为 DSH 0.2.1-rc.4。原生 SubagentRuntime 没有公开 capacity getter；`Service.resolveConfig` 是服务 intercept 配置，不是插件实例的配置。没有采用这两个不成立的读取方案，也没有访问 TypeScript private `config`。
+
+核验到的公共路径是 Cordis `Context[Context.isolate].subagents` → `ctx.reflect.store[scope]` → `Impl.fiber.config` → `maxActiveSubagents.get()`。安装版 Cordis 的反射实现通过同一 isolation key 查找实际注入服务；Fiber 声明的 config 为已经验证的配置，Loader 的合法 volatile 更新修改同一引用，原生 subagent manager 在预约时调用同一 Volatile getter。Loader 原始配置可能保留被拒绝的编辑值，故不读取它。解析失败给明确配置诊断，不使用 schema 默认 8 或任意 fallback。读取作用域与 [原生 worker adapter](<src/dsh-worker-host.ts>) 的启动 Host 注入相同，保留真实 owner/parent 身份及原生 admission。
+
+### 行为与兼容性
+
+- [Host Config](<src/index.ts>) 提供可选 `workerCountMax`，没有数值 default；显式正安全整数优先，移除字段恢复继承，错误类型/0/负数/小数/非有限值明确拒绝。不会为 Swarm 改写用户 DSH 全局并发配置。
+- [Runtime](<src/runtime.ts>) 统一 start/add/status 的当前上限解析；continue 是新 run，沿用旧人数也必须重新通过当前上限。上限降低不删除、终止已有成员，旧 paused run 恢复保留名册。没有把新字段写入旧 Run、复活旧终态或新增调度器。
+- `SWARM_WORKER_LIMIT` 表示团队配置拒绝；`SWARM_CONFIG_UNAVAILABLE` 表示配置能力/解析失败；原生 `ACTIVATION_LIMIT_REACHED` 映射为 `SWARM_NATIVE_CAPACITY`。显式覆盖不偷偷取 min，也不绕过原生权限或运行容量；保留实际创建失败/部分添加回执。
+- [owner 工具](<src/owner-tools.ts>) 的启动人数说明不再是 2–4，仍保留每次 `add_workers count` 为 1–4 的批次约束；[owner 上下文](<src/owner-context.ts>) 从当前 status 读取 `workerLimit`、来源、诊断和 `canAddWorkers`，不读静态 default。
+- [无界面进度](<src/headless.ts>) 在持久事件触发的 JSONL progress/final 中读取同一 runtime status 的当前 `workerControls`，不把配置写入 Run 或轮询；旧适配器缺少 status 时给显式 unavailable。成员可读名字词库耗尽后加数字后缀，不再造成隐式 256 人上限。
+- [进度](<src/progress.ts>) 透传 `workerControls`，不再把人数裁到 8。[面板](<client.js>) 验证新 DTO 的有效/不可用状态，显示继承宿主或显式覆盖；旧 v2 DTO 无来源时明确未知，不伪造继承。上限降低显示真实 `12 / 3` 而非把分母 clamp 成 12；成员色块只表示已加入成员，不按任意大 max 分配空位，更不暗示这些空位是原生可用容量。
+- 进度流保留原业务/活动事件驱动机制；未伪造通用配置订阅。quiet run 在下一事件或手动重新连接时刷新，status 与实际 add 每次重新读取。使用和取消覆盖示例见 [使用说明](<USAGE.md>)。
+
+### 实际验证与部署边界
+
+本轮 presentation 工作树执行固定 `pnpm install --frozen-lockfile` 与 `pnpm run link:harness -- <当前安装目录>` 均退出 0（`bash-52e7234e3dba4aab`）；只链接开发依赖，不安装到用户 profile。第一次所谓定向 `pnpm test -- <files>` 在当前 pnpm/Vitest 实际运行全套，564 项通过、1 项失败（`bash-d8dd358297ce4d00`）：新 owner-tools 的 5/8/12 人断言碰到尚未合入的旧 spec 上限。该失败保留，等待 backend 合并，不删断言或冒充通过。owner context/progress/client 的新测试已通过：真实来源/null 诊断、超过八人的全名册、降低后保留、坏 DTO 拒绝、旧 DTO 兼容、按钮与真实 Host 命令路径。
+
+随后以 `pnpm exec vitest run` 明确选择 5 个 presentation 测试文件，89 项全部通过，并且 `node --check client.js` / `git diff --check` 均退出 0（`bash-00b4a2980e82451e`）。
+
+组合源码 `6263b62bf8224a93ed11bf847664e2d95fc10b6c` 的固定全套检查（`bash-2438639bfca14b4a`）全部退出 0：`pnpm install --frozen-lockfile`、`pnpm run link:harness -- /nix/store/an75q8mv8px3l5nqv13fcy6xwnwd0mys-dsh-0.2.1-rc.4/lib/node_modules/@deepseek-ai/dsh/`、`pnpm typecheck`、`pnpm build`、`pnpm test`（45 文件 / 591 测试）以及 `git diff --check`。前期类型检查曾发现 const-enum 引用、无效输入测试参数类型及尚未合并的 DTO 不匹配，已修复后重跑；没有忽略这些失败。定向验证用 `pnpm exec vitest run`，避免 pnpm 的 `--` 导致实际跑全套却误报范围。
+
+[原生配置测试](<tests/dsh-worker-limit.test.ts>) 实际加载当前安装版 Cordis/SubagentRuntime（不启动模型），验证宿主默认 8、配置 12、替换 provider、隔离作用域、动态 getter、显式覆盖/移除和无效值。Schemastery 的 optional number 会保留显式 null，因此 Swarm 初始化在获取存储前再次验证，解析器每次也验证，null 从不被当作未设置。[Runtime 测试](<tests/runtime.test.ts>) 验证 8→12、并发第五次追加拒绝、降为 3 保留 12 人、旧数据恢复/resume 与 continue 重新验限、原生容量失败不伪造成功；[原生 adapter 测试](<tests/dsh-worker-host.test.ts>) 单独验证 `ACTIVATION_LIMIT_REACHED` 的错误分类。命令、owner、GUI、headless、公共频道/自动技术回执及原回归全部保留。
+
+没有修改 DSH 源码/用户 profile、部署或重启 GUI，没有启动替代服务器；源码/组件单测不等于当前 URL 已生效或真实模型/browser 端到端验收。最终提交仍须通过 Host 的组合验收，以上检查不替代它。
+
+## 布尔搜索表达式（Agensh 风格协作，2026-10-30）
+
+- 唯一解析/匹配模块 [query-expr](<src/query-expr.ts>) 为纯函数，[单测](<tests/query-expr.test.ts>) 覆盖优先级、短语、字段与错误位置。语法：词与 `"短语"` 为大小写不敏感子串；`&` 或空白为 AND，`|` 为 OR（优先级低于 AND），`-`/`!` 仅在词首表示 NOT（`foo-bar` 仍是一个词），括号分组。`kind:` 精确匹配，`author:`/`task:` 为子串匹配；未知前缀如 `http:` 视作普通词。多词显示名需加引号（`author:"Calm Robin"`）。
+- 非法表达式抛 `SWARM_INVALID_INPUT`，消息含 `position N`（0 起始字符偏移），`details.position` 同值；长度上限 500、嵌套上限 32，防止病态输入。空白查询等于不过滤。
+- `swarm_read` 查询覆盖 goal、task、finding（summary、可选 details、scope、evidence，含已过期 claim）与调用者自己的私信；第三方私信仍不可见。`kind:` 可取记录类型（goal/task/finding/message）或子类型（code/research、observed/fact/fail/patch_summary/claim）；`author:` 匹配 worker id 或显示名（task 同时匹配创建者和 owner）；`task:` 匹配 task id 或 finding 关联 task。结果原有 total/hasMore/truncated 语义不变。
+- 公开查询（`swarm_public_read`、owner GUI）在原有 channel/thread/task 过滤之后用同一表达式；`kind:` 为该 view 的记录类型（message/thread/request/agreement/channel），`author:` 为作者/创建者（thread 含参与者），`task:` 为关联 task。表达式参与游标 filter 绑定，换查询必须重新翻页。
+- GUI 会话搜索框把输入原样作为 query 发送，并在输入框下显示简短中英文语法提示（`public.searchHint`，`aria-describedby` 关联）。
+
+## CLAIM Finding、summary 限长与 details（Agensh 风格协作，2026-10-30）
+
+- 新增 Finding kind `claim`：worker 开始某范围时用 `swarm_publish kind=claim` 简短公告，可带 `task_id`/`scope`。它只是公告，不是锁；Task CAS 仍决定 owner（[测试](<tests/claims.test.ts>) 验证他人 claim 后仍可认领该 task）。
+- 实时视图规则在纯模块 [claims](<src/claims.ts>)：claim 创建满 `claimTtlMs` 后不再出现在 `swarm_sync` 的 `claims` 列表、sync/wait 事件页和被动推送通知；同作者、同 task 的更新 claim 使旧 claim 退出实时视图（无 task 的 claim 互不替换）。存储、`swarm_read` 按 id 与搜索保留全部历史。被跳过的 claim 事件仍推进游标，不会反复出现。
+- `claimTtlMs` 为 Host 配置项（Schemastery 与 `runtimeConfigSchema` 双重校验，范围 1 分钟–7 天，默认 3_600_000）。过期按 Collaboration 注入时钟在读取时判定，不写回记录。
+- summary 上限仅在发布时强制：observed/fact/fail/claim 100 字符，patch_summary 300 字符（`FINDING_SUMMARY_LIMITS`，工具参数描述写明）；超限返回 `SWARM_INVALID_INPUT`，`details` 含 kind/limit/length。持久 schema 不复检长度，旧的长 summary 与无 `details` 的记录照常加载。Host 内部生成的最终验证失败 fail Finding 不经过发布路径。
+- 可选 `details`（≤4000 字符）随记录存储；sync 事件中的 finding 投影去掉 `details` 并给出 `hasDetails`，被动通知也只带 `hasDetails: true`；`swarm_read` 按 id 返回完整记录。owner GUI 会话视图把 details 放在可折叠的“详情/Details”中，GUI 标签 `flow.finding.claim` 为“认领声明/claim”。
+- WORKER_POLICY 要求认领 task 后发布 claim、summary 保持简短 gist、细节放入 details/evidence_refs 并按需 `swarm_read` 展开。
+
+## 紧急私信优先投递（Agensh 风格协作，2026-10-30）
+
+- 私信语义：`swarm_message` 用于需要对方及时处理的紧急一对一协调（重叠编辑、阻塞依赖、直接请求），优先级高于公共流量；公共线程仍是默认协作途径，未经授权不得把私信抄到公共历史。WORKER_POLICY 与工具描述同步写明。
+- 运行中的目标：[worker-context](<src/worker-context.ts>) 的 `tools/post-execute` 被动 context 在每个工具结果边界先列出该 worker 未显示的私信（`directMessages`，有界 `peerNoticeItems` 条、正文截断 `peerNoticeChars`、`directMessagesHasMore`），再给普通更新；私信不受普通更新上限挤压。显示范围游标绝不越过本页未展示的私信，因此超出批次的私信在下一个边界继续出现。仅当日志确认显示后才推进 shownSeq（与原回执语义相同），重放可能重复，不承诺 exactly-once。
+- 空闲/等待目标：Delivery 原有唤醒与 wait/settled 屏障不变；公共 digest 仍只在空闲/结算边界发送（[测试](<tests/urgent-dm.test.ts>) 用假工具与显式屏障验证三种情况）。
+
+## Owner 重新启用单个 worker（失败隔离配套，2026-10-30）
+
+- `swarm_manage action=restart_worker worker_id=<id>` 与 `/swarm worker restart <id> [--json]` 共用 [restartWorker](<src/commands.ts>)：先按 status 校验 owner，再要求该成员存在且带 `unavailableReason`，否则分别报 `SWARM_FORBIDDEN` / `SWARM_NOT_FOUND` / `SWARM_INVALID_STATE`；随后只调用 runtime `reenableWorker(runId, workerId)`，不 resume、不重启 run，回执带当前 phase。宿主缺少该能力时明确报 `SWARM_INVALID_STATE`，不回退为整 run resume。只读 sandbox、已取消调用与子代理会话在调用 runtime 之前被拒绝。
+- `/swarm status` 的成员行显示 `UNAVAILABLE=<reason>` 与有界诊断；owner 前台状态新增 `unavailableWorkers`（id、显示名、原因码、≤160 字诊断，最多 8 项并给出省略数），并提示用 restart_worker 而非 resume/stop/start。
+- 进度 DTO 的成员新增 `unavailableReason`，`diagnostic` 优先显示 `原因: 诊断`。面板把带原因码的就绪成员显示为“已被 Host 隔离 / Isolated by Host”（初始化失败仍是 failed），并提供中英文原因说明与“重新启用”按钮。按钮只对 Host 生成的安全 id 发送 `/swarm worker restart <id> --json`，并校验回执的 runId/workerId。
+
+## 单个 worker 故障隔离（owner 追加目标，2026-10-30）
+
+- 语义变更：单个 worker 的 activation 失败（模型 MALFORMED_RESPONSE、工具参数 JSON 非法、会话崩溃等）或连续无进展，不再把整个 run 暂停为 `worker_activation_failed`。规则见 ARCHITECTURE §10.4。
+- 自动重试：Delivery 为每个 worker 记录内存中的连续失败计数。失败的 settled 或该 worker 的 notify 失败后，经同一串行队列与 admission，按退避（基数 1s 倍增，延迟可注入，dispose 时取消）重新唤醒同一 Session，最多 `activationRetries` 次（Host Config，0–10，默认 3）；成功结算清零。计数不持久化：Host 重启后 run 本来就默认 paused，resume 从零计数。
+- 隔离：重试耗尽或无进展检测触发后，Runtime 只把该 worker 标为不可用（`unavailableReason`: `activation_failed` | `no_progress`，`unavailableDetail` 带诊断与时间），追加全员可见的 `worker` 事件（status `unavailable`，reason 同原因码；公共频道时间线与 GUI 成员状态展示），并把它 claimed 的 Task 退回 open（每个各一条 task 事件）；proposed Task 与 queued/integrating Proposal 不受影响、照常验证。普通空闲仍不释放任务。公共频道可见性：`swarm_public_read view=activity`（不带 threadId/findingId）把每个 `worker` 事件投影为 general 频道的 `member_status` 条目（workerId、displayName、status、reason、同次更新释放的 releasedTaskIds）。
+- 整体暂停：仅当没有任何 ready 且可用的 worker 时 run 才 paused（reason `no_available_workers`）；整体 resume 清除上述两类不可用标记。存储/Git/执行器等 Host 基础设施失败仍走 failed。
+- owner 重新启用：`runtime.reenableWorker(runId, workerId)` 清除标记，经 `delivery.resetWorker` 清零重试/空转计数并取消未触发的退避，发 `worker` 事件（status `available`，reason `owner_reenabled`；整体 resume 清除时为 `run_resumed`），再只对该 worker 调用 `delivery.resume`，不 resume/重启 run；owner 入口为 `swarm_manage action=restart_worker`（及 `/swarm` 命令）。status、owner 上下文与 GUI（中英文）展示不可用 worker 及原因。

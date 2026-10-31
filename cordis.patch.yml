@@ -20,6 +20,9 @@
             name: '@deepseek-ai/dsh-persona'
             config:
               prefix: You are a cooperative software engineer working in your assigned private Git worktree.
+          # Workers call their tools directly; one executor per scope.
+          - id: tool-executor-native
+            name: '@deepseek-ai/dsh-tool-executor-native'
           - id: swarm-worker-tools
             name: '@local/dsh-swarm/worker'
           - id: tool-fs

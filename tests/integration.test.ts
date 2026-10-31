@@ -557,6 +557,74 @@ describe('IntegrationQueue', () => {
     expect(updated.events[1]).toMatchObject({ kind: 'task', taskId: 't1', status: 'claimed' });
   });
 
+  it.each(['conflict', 'verification', 'interrupt', 'recover'] as const)(
+    'keeps rejection facts atomic and retry-idempotent through %s',
+    async (path) => {
+      const run = baseRun();
+      addProposal(run, { id: 'p1', taskId: 't1' });
+      addWorker(run, 't1');
+      proposalOf(run, 'p1').diagnosticsRef = 'prior-diagnostic';
+      const worker = run.workers.w1!;
+      worker.waitRegistration = { afterSeq: 0, mode: 'selected', taskIds: ['t1'], proposalIds: [] };
+      if (path === 'interrupt' || path === 'recover') run.phase = 'paused';
+      const { store, workspace, queue } = fixture(run);
+      workspace.candidate = path === 'conflict'
+        ? { kind: 'conflict', diagnostics: 'CONFLICT' }
+        : { kind: 'candidate', commit: CANDIDATE };
+      workspace.outcome = { passed: false, interrupted: false, exitCode: 2, timedOut: false, log: 'failed' };
+      await store.create(run);
+      const reject = () => path === 'interrupt'
+        ? queue.interrupt(RUN_ID, 'pause')
+        : path === 'recover' ? queue.recover(RUN_ID) : queue.process(RUN_ID);
+
+      await reject();
+
+      const updated = store.get(RUN_ID);
+      expect(taskOf(updated, 't1')).toMatchObject({
+        status: 'claimed', revision: 2, ownerWorkerId: 'w1', proposalId: null,
+      });
+      expect(updated.workers.w1).toMatchObject({
+        currentTaskId: 't1', observedSeq: 0, offeredSeq: 0, wakeTargetSeq: 2,
+      });
+      expect(updated.events.map((event) => [event.seq, event.kind, event.authorWorkerId])).toEqual([
+        [1, 'proposal', null], [2, 'task', null],
+      ]);
+      expect(proposalOf(updated, 'p1').diagnosticsRef).toBe(
+        path === 'interrupt' || path === 'recover' ? 'prior-diagnostic'
+          : only(Object.values(updated.integrationAttempts)).diagnosticsRef,
+      );
+      expect(workspace.publishCalls).toEqual([]);
+      expect(updated.acceptedHead).toBe(BASE);
+
+      await reject();
+      expect(store.get(RUN_ID)).toEqual(updated);
+    },
+  );
+
+  it('does not reclaim non-proposed tasks or rewrite terminal proposals during bulk interruption', async () => {
+    const run = baseRun({ phase: 'paused' });
+    addProposal(run, { id: 'pending', taskId: 'already-claimed' });
+    addProposal(run, { id: 'accepted', taskId: 'done', status: 'accepted' });
+    addProposal(run, { id: 'rejected', taskId: 'claimed', status: 'rejected' });
+    addProposal(run, { id: 'orphan', taskId: 'missing' });
+    run.tasks['already-claimed'] = { ...taskOf(run, 'already-claimed'), status: 'claimed', revision: 9 };
+    run.tasks.done = { ...taskOf(run, 'done'), status: 'done' };
+    run.tasks.claimed = { ...taskOf(run, 'claimed'), status: 'claimed' };
+    delete run.tasks.missing;
+    const { store, queue } = fixture(run);
+    await store.create(run);
+    const before = store.get(RUN_ID);
+
+    await queue.interrupt(RUN_ID, 'stop');
+
+    const updated = store.get(RUN_ID);
+    expect(updated.tasks).toEqual(before.tasks);
+    expect(updated.proposals.accepted).toEqual(before.proposals.accepted);
+    expect(updated.proposals.rejected).toEqual(before.proposals.rejected);
+    expect(updated.events.map((event) => event.kind === 'proposal' && event.proposalId)).toEqual(['pending', 'orphan']);
+    expect(updated.revision).toBe(before.revision + 1);
+  });
+
   it('records a merge conflict without moving the result ref', async () => {
     const run = baseRun({ acceptedHead: SUBMITTED_HEAD });
     addProposal(run, { id: 'p1', taskId: 't1' });

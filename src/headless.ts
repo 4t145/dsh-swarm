@@ -21,6 +21,7 @@
 
 import { SwarmError, normalizeError } from './errors.ts';
 import type { StateStore } from './store.ts';
+import type { WorkerControls } from './worker-limit.ts';
 import type { Millis, Run, RunPhase, RunSpec, WorkerInitializationState } from './types.ts';
 
 /** Phase values a driver may exit on; non-terminal phases never settle it. */
@@ -48,6 +49,8 @@ export type HeadlessObservation = HeadlessRunObserver | Pick<StateStore, 'get' |
 export interface SwarmHeadlessRuntime {
   start(ownerSessionId: string, spec: RunSpec): Promise<Run>;
   stop(ownerSessionId: string): Promise<Run>;
+  /** Optional for legacy adapters; production reads the same current policy as GUI/status. */
+  status?(ownerSessionId: string): { runId: string; ownerSessionId: string; workerControls?: WorkerControls };
 }
 
 /** Bounded task counts copied from the run aggregate. */
@@ -82,6 +85,7 @@ export interface HeadlessProgressLine {
   quiesceTarget: string | null;
   tasks: HeadlessTaskCounts;
   workers: HeadlessWorkerRow[];
+  workerControls: WorkerControls;
   proposals: { queued: number; integrating: number; accepted: number; rejected: number };
   verifications: { queued: number; running: number; passed: number; failed: number; interrupted: number };
   finishRequested: boolean;
@@ -101,6 +105,7 @@ export interface HeadlessFinalLine {
   resultRef: string;
   tasks: HeadlessTaskCounts;
   workers: HeadlessWorkerRow[];
+  workerControls: WorkerControls;
   proposals: HeadlessProgressLine['proposals'];
   verifications: HeadlessProgressLine['verifications'];
   finishRequested: boolean;
@@ -329,6 +334,18 @@ export function runSwarmHeadless(
     }
   };
 
+  const currentWorkerControls = (run: Run): WorkerControls => {
+    try {
+      const status = runtime.status?.(ownerSessionId);
+      if (!status || status.runId !== run.id || status.ownerSessionId !== ownerSessionId || !status.workerControls) {
+        return { canAdd: false, maxWorkers: null, source: null, diagnostic: 'Current worker-limit status is unavailable for this run' };
+      }
+      return status.workerControls;
+    } catch (error) {
+      return { canAdd: false, maxWorkers: null, source: null, diagnostic: normalizeError(error).message };
+    }
+  };
+
   const projection = (run: Run, index: number): HeadlessProgressLine => {
     const timestamp = now();
     return {
@@ -344,6 +361,7 @@ export function runSwarmHeadless(
       quiesceTarget: run.quiesceTarget,
       tasks: countTasks(run),
       workers: workerRows(run),
+      workerControls: currentWorkerControls(run),
       proposals: countProposals(run),
       verifications: countVerifications(run),
       finishRequested: run.finishRequest !== null,
@@ -368,6 +386,7 @@ export function runSwarmHeadless(
       resultRef: run.resultRef,
       tasks: countTasks(run),
       workers: workerRows(run),
+      workerControls: currentWorkerControls(run),
       proposals: countProposals(run),
       verifications: countVerifications(run),
       finishRequested: run.finishRequest !== null,

@@ -8,7 +8,6 @@
  * never invents a worker identity supplied by the caller.
  */
 
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
@@ -16,12 +15,13 @@ import type { CommandResult } from '@deepseek-ai/dsh-commands';
 import type { Session } from '@deepseek-ai/dsh-session';
 
 import { SwarmError, normalizeError } from './errors.ts';
-import { parseRunSpec } from './spec.ts';
+import { loadRunSpecFile } from './spec-file.ts';
+import type { RunStatus } from './runtime.ts';
 import type { AddWorkerReceipt, AppendGoalInput, AppendGoalReceipt, GoalRecord, Run, RunSpec } from './types.ts';
 
 /** Fixed usage line repeated by parse diagnostics. */
 export const SWARM_USAGE =
-  'usage: start --spec <path> | append <goal text> | append --json <object> | continue | worker add [--json] | status [--details] | pause | resume [--budget <30m|1h>] | stop | task release|cancel <id> --revision <n> --reason <text>';
+  'usage: start --spec <path> | append <goal text> | append --json <object> | continue | worker add [--json] | worker restart <worker-id> [--json] | status [--details] | pause | resume [--budget <30m|1h>] | stop | task release|cancel <id> --revision <n> --reason <text>';
 
 /** Maximum characters returned to the human UI for one command. */
 const MAX_RESULT_TEXT = 4000;
@@ -35,6 +35,7 @@ export type SwarmCommand =
   | { readonly kind: 'append'; readonly input: AppendGoalInput; readonly json: boolean }
   | { readonly kind: 'continue' }
   | { readonly kind: 'worker'; readonly action: 'add'; readonly json: boolean }
+  | { readonly kind: 'worker'; readonly action: 'restart'; readonly workerId: string; readonly json: boolean }
   | { readonly kind: 'status'; readonly details: boolean }
   | { readonly kind: 'pause' }
   | { readonly kind: 'resume'; readonly budgetMinutes?: number }
@@ -160,12 +161,15 @@ export interface SwarmRunStatusView {
     readonly cancelled: number;
     readonly total: number;
   };
+  readonly workerControls?: NonNullable<RunStatus['workerControls']>;
   readonly workers: readonly {
     readonly id: string;
     readonly sessionId: string;
     readonly initializationState: string;
     readonly nativeStatus: string;
     readonly currentTaskId: string | null;
+    readonly unavailableReason?: string | null;
+    readonly unavailableDetail?: WorkerUnavailableView | null;
   }[];
   readonly proposals: {
     readonly queued: number;
@@ -185,6 +189,23 @@ export interface SwarmRunStatusView {
   readonly details?: SwarmRunStatusDetailsView;
 }
 
+/** Why Host isolated one worker; set by worker failure isolation, cleared by restart. */
+export interface WorkerUnavailableView {
+  readonly reason: string;
+  readonly diagnostic: string;
+  readonly at: number;
+}
+
+/** Receipt for re-enabling one unavailable worker; the run phase is never changed. */
+export interface RestartWorkerReceipt {
+  readonly action: 'restart_worker';
+  readonly runId: string;
+  readonly workerId: string;
+  readonly displayName?: string;
+  readonly unavailableReason: string | null;
+  readonly phase: string;
+}
+
 /** The task record fields rendered after a control mutation. */
 export interface SwarmTaskView {
   readonly id: string;
@@ -201,6 +222,8 @@ export interface SwarmRuntimePort {
   appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt>;
   continueGoals(ownerSessionId: string): Promise<SwarmRunView>;
   addWorker(ownerSessionId: string): Promise<AddWorkerReceipt>;
+  /** Re-enable one unavailable worker (owner check done by the caller via status). Absent on older runtimes. */
+  reenableWorker?(runId: string, workerId: string): Promise<{ id: string; displayName?: string; unavailableReason: string | null }>;
   status(ownerSessionId: string, details?: boolean): SwarmRunStatusView;
   runForOwner?(ownerSessionId: string): Run;
   pause(ownerSessionId: string): Promise<SwarmRunView>;
@@ -318,8 +341,17 @@ export function parseSwarmCommand(input: string): SwarmCommand {
       expectNoArguments('stop', args);
       return { kind: 'stop' };
     case 'worker':
+      if (args[0] === 'restart') {
+        const rest = args.slice(1);
+        const json = rest.includes('--json');
+        const ids = rest.filter((arg) => arg !== '--json');
+        if (ids.length !== 1 || ids[0]!.trim() === '' || ids[0]!.startsWith('--') || rest.filter((arg) => arg === '--json').length > 1) {
+          throw invalidInput(`expected worker restart <worker-id> [--json]; ${SWARM_USAGE}`);
+        }
+        return { kind: 'worker', action: 'restart', workerId: ids[0]!, json };
+      }
       if (args[0] !== 'add' || args.length > 2 || (args[1] !== undefined && args[1] !== '--json')) {
-        throw invalidInput(`expected worker add [--json]; ${SWARM_USAGE}`);
+        throw invalidInput(`expected worker add [--json] or worker restart <worker-id> [--json]; ${SWARM_USAGE}`);
       }
       return { kind: 'worker', action: 'add', json: args[1] === '--json' };
     case 'task':
@@ -413,6 +445,11 @@ export async function handleSwarmCommand(
       }
       case 'worker': {
         assertWritableGoalAction(ctx, invocation);
+        if (command.action === 'restart') {
+          const receipt = await restartWorker(runtime, ownerSessionId, command.workerId);
+          return { kind: 'success', text: command.json ? JSON.stringify(receipt)
+            : `${receipt.displayName ?? receipt.workerId} (${receipt.workerId}): re-enabled; run phase ${receipt.phase} unchanged` };
+        }
         const receipt = await runtime.addWorker(ownerSessionId);
         return { kind: 'success', text: command.json ? JSON.stringify(receipt)
           : `${receipt.displayName} (${receipt.workerId}): ${receipt.disposition === 'paused' ? 'reserved; resume the run to start' : 'started'}` };
@@ -512,31 +549,7 @@ async function startRun(
     );
   }
 
-  const absoluteSpecPath = path.resolve(cwd, specPath);
-  let text: string;
-  try {
-    const target = await ctx.fs.resolve(specPath, { cwd, signal: invocation.signal });
-    text = await ctx.fs.readText(target, invocation.signal);
-  } catch (error) {
-    throw new SwarmError(
-      'SWARM_INVALID_INPUT',
-      `failed to read swarm spec ${absoluteSpecPath}: ${messageOf(error)}`,
-      { details: { specPath: absoluteSpecPath }, cause: error },
-    );
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new SwarmError(
-      'SWARM_INVALID_SPEC',
-      `swarm spec ${absoluteSpecPath} is not valid JSON: ${messageOf(error)}`,
-      { details: { specPath: absoluteSpecPath }, cause: error },
-    );
-  }
-
-  const spec = parseRunSpec(parsed, absoluteSpecPath);
+  const spec = await loadRunSpecFile(ctx.fs, cwd, specPath, invocation.signal, 'detail');
   const run = await runtime.start(ownerSessionId, spec);
   return { kind: 'success', text: formatStartReceipt(run) };
 }
@@ -684,6 +697,38 @@ function singleOption(args: readonly string[], flag: string): string {
   return value;
 }
 
+/**
+ * Re-enable one unavailable worker of the caller's own run. Shared by `/swarm worker restart`
+ * and `swarm_manage action=restart_worker`; never resumes, pauses or restarts the run.
+ *
+ * @throws SwarmError `SWARM_FORBIDDEN` for another owner's run, `SWARM_NOT_FOUND` for an unknown
+ *   worker, `SWARM_INVALID_STATE` when the worker is available or the Host lacks the capability.
+ */
+export async function restartWorker(runtime: Pick<SwarmRuntimePort, 'status' | 'reenableWorker'>,
+  ownerSessionId: string, workerId: string): Promise<RestartWorkerReceipt> {
+  const status = runtime.status(ownerSessionId);
+  if (status.ownerSessionId !== ownerSessionId) {
+    throw new SwarmError('SWARM_FORBIDDEN', `session ${ownerSessionId} does not own run ${status.runId}`,
+      { details: { runId: status.runId, ownerSessionId } });
+  }
+  const worker = status.workers.find((item) => item.id === workerId);
+  if (!worker) {
+    throw new SwarmError('SWARM_NOT_FOUND', `worker ${workerId} is not a member of run ${status.runId}`,
+      { details: { runId: status.runId, workerId } });
+  }
+  if (!worker.unavailableReason) {
+    throw new SwarmError('SWARM_INVALID_STATE', `worker ${workerId} is not unavailable; nothing to re-enable`,
+      { details: { runId: status.runId, workerId } });
+  }
+  if (typeof runtime.reenableWorker !== 'function') {
+    throw new SwarmError('SWARM_INVALID_STATE', 'this Host cannot re-enable individual workers');
+  }
+  const record = await runtime.reenableWorker(status.runId, workerId);
+  return { action: 'restart_worker', runId: status.runId, workerId: record.id,
+    ...(record.displayName === undefined ? {} : { displayName: record.displayName }),
+    unavailableReason: record.unavailableReason, phase: runtime.status(ownerSessionId).phase };
+}
+
 function expectNoArguments(subcommand: string, args: readonly string[]): void {
   const first = args[0];
   if (first !== undefined) {
@@ -764,12 +809,19 @@ function formatStatus(status: SwarmRunStatusView, details: boolean): string {
     if (goals.deferred > 0) lines.splice(3, 0, 'deferred goals: saved, not executing; /swarm continue after this run ends');
   }
 
+  const controls = status.workerControls;
+  lines.push(`team limit: ${controls?.maxWorkers ?? 'unavailable'} source=${controls?.source ?? 'unavailable'} canAdd=${controls?.canAdd ?? false} (not native free capacity)`);
+  if (controls?.diagnostic) lines.push(`team limit diagnostic: ${controls.diagnostic.slice(0, 200)}`);
+
   if (status.workers.length > 0) {
     lines.push(`workers (${status.workers.length}):`);
     for (const worker of status.workers) {
       lines.push(
-        `- ${worker.id} session=${worker.sessionId} init=${worker.initializationState} native=${worker.nativeStatus} task=${worker.currentTaskId ?? '-'}`,
+        `- ${worker.id} session=${worker.sessionId} init=${worker.initializationState} native=${worker.nativeStatus} task=${worker.currentTaskId ?? '-'}`
+          + (worker.unavailableReason ? ` UNAVAILABLE=${worker.unavailableReason}` : ''),
       );
+      const diagnostic = worker.unavailableDetail?.diagnostic;
+      if (worker.unavailableReason && diagnostic) lines.push(`  unavailable diagnostic: ${diagnostic.slice(0, 200)}`);
     }
   }
 
@@ -857,10 +909,6 @@ function limitText(text: string): string {
     return text;
   }
   return `${text.slice(0, MAX_RESULT_TEXT)}\n... (truncated)`;
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function invalidInput(message: string): SwarmError {

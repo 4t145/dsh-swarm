@@ -6,6 +6,8 @@
  */
 
 import { z } from 'zod';
+import { publicEventSchema, publicStateShape, publicReferenceIssues } from './public-schema.ts';
+import { defaultPublicState } from './public-types.ts';
 import { SwarmError, type SwarmErrorCode } from './errors.ts';
 import type { CommandSpec, Run, SwarmRuntimeConfig, VerificationConfig } from './types.ts';
 
@@ -22,29 +24,58 @@ export const jsonValueSchema = z.json();
 
 /* --------------------------- 执行配置 --------------------------- */
 
+/** Per-command wall-clock limit used when a spec omits `timeoutMs`. */
+export const DEFAULT_COMMAND_TIMEOUT_MS = 600_000;
+
 export const commandSpecSchema = z.strictObject({
   argv: z.array(z.string().min(1)).min(1),
-  timeoutMs: z.number().int().positive(),
+  timeoutMs: z.number().int().positive().default(DEFAULT_COMMAND_TIMEOUT_MS),
 });
 
 /** setup 可为空；test 必须至少一条，否则 run 无法判定候选能否发布。 */
 export const verificationConfigSchema = z.strictObject({
-  setup: z.array(commandSpecSchema),
+  setup: z.array(commandSpecSchema).default([]),
   test: z.array(commandSpecSchema).min(1),
 });
 
+/** Claims leave live views/notices after this long by default (1 hour); history keeps them. */
+export const DEFAULT_CLAIM_TTL_MS = 3_600_000;
+/** Automatic re-wakes of one worker after a failed activation before it is isolated. */
+export const DEFAULT_ACTIVATION_RETRIES = 3;
+export const ACTIVATION_RETRIES_MAX = 10;
+/** First backoff delay; doubles per consecutive failure. */
+export const DEFAULT_ACTIVATION_RETRY_BASE_MS = 1_000;
+
+/** Validated bounds for the configurable claim TTL: 1 minute to 7 days. */
+export const CLAIM_TTL_MIN_MS = 60_000;
+export const CLAIM_TTL_MAX_MS = 7 * 24 * 3_600_000;
+
+/** Publication-time summary caps per Finding kind; longer supporting text belongs in `details`. */
+export const FINDING_SUMMARY_LIMITS = {
+  observed: 100,
+  fact: 100,
+  fail: 100,
+  claim: 100,
+  patch_summary: 300,
+} as const;
+/** Cap for the optional on-demand `details` field. */
+export const FINDING_DETAILS_MAX_CHARS = 4000;
+
 export const DEFAULT_RUNTIME_CONFIG: SwarmRuntimeConfig = {
   workerCountMin: 2,
-  workerCountMax: 4,
   defaultWorkerCount: 2,
   eventPageSize: 20,
+  claimTtlMs: DEFAULT_CLAIM_TTL_MS,
+  activationRetries: DEFAULT_ACTIVATION_RETRIES,
 };
 
 export const runtimeConfigSchema = z.strictObject({
   workerCountMin: z.number().int().min(1),
-  workerCountMax: z.number().int().min(1),
+  workerCountMax: z.number().int().min(1).optional(),
   defaultWorkerCount: z.number().int().min(1),
   eventPageSize: z.number().int().min(1).max(200),
+  claimTtlMs: z.number().int().min(CLAIM_TTL_MIN_MS).max(CLAIM_TTL_MAX_MS).default(DEFAULT_CLAIM_TTL_MS),
+  activationRetries: z.number().int().min(0).max(ACTIVATION_RETRIES_MAX).default(DEFAULT_ACTIVATION_RETRIES),
 });
 
 /* --------------------------- 判别字段 --------------------------- */
@@ -63,7 +94,7 @@ const runPhaseSchema = z.enum([
 const quiesceTargetSchema = z.enum(['completed', 'paused', 'stopped', 'failed']);
 const taskKindSchema = z.enum(['code', 'research']);
 const taskStatusSchema = z.enum(['open', 'claimed', 'proposed', 'done', 'blocked', 'cancelled']);
-const findingKindSchema = z.enum(['observed', 'fact', 'fail', 'patch_summary']);
+const findingKindSchema = z.enum(['observed', 'fact', 'fail', 'patch_summary', 'claim']);
 const proposalStatusSchema = z.enum(['queued', 'integrating', 'accepted', 'rejected']);
 const attemptStatusSchema = z.enum([
   'merging',
@@ -111,8 +142,14 @@ export const workerRecordSchema = z.strictObject({
   initializationState: z.enum(['pending', 'initializing', 'ready', 'failed']),
   initializationError: z.string().nullable(),
   unavailableReason: z.string().nullable(),
+  unavailableDetail: z.strictObject({
+    reason: z.enum(['activation_failed', 'no_progress', 'initialization_failed']),
+    diagnostic: z.string(),
+    at: millisSchema,
+  }).nullable().optional(),
   offeredSeq: seqSchema,
   observedSeq: seqSchema,
+  shownSeq: seqSchema.optional(),
   notifiedSeq: seqSchema,
   wakeTargetSeq: seqSchema,
   waitRegistration: waitRegistrationSchema.nullable(),
@@ -158,7 +195,9 @@ export const findingRecordSchema = z.strictObject({
   authorWorkerId: idSchema,
   taskId: idSchema.nullable(),
   kind: findingKindSchema,
+  // Caps apply at publication only, so older stored records with long summaries still load.
   summary: z.string().min(1),
+  details: z.string().min(1).optional(),
   scope: z.array(z.string()),
   evidenceRefs: z.array(z.string()),
   supersedesId: idSchema.nullable(),
@@ -318,7 +357,20 @@ const goalEventSchema = z.strictObject({
   audience: audienceAllSchema,
 });
 
+const workerEventSchema = z.strictObject({
+  kind: z.literal('worker'),
+  seq: seqSchema,
+  createdAt: millisSchema,
+  authorWorkerId: idSchema.nullable(),
+  workerId: idSchema,
+  status: z.enum(['unavailable', 'available']),
+  reason: z.string().nullable(),
+  audience: audienceAllSchema,
+});
+
 export const swarmEventSchema = z.discriminatedUnion('kind', [
+  publicEventSchema,
+  workerEventSchema,
   goalEventSchema,
   taskEventSchema,
   findingEventSchema,
@@ -340,6 +392,7 @@ export const mutationReceiptSchema = z.strictObject({
 /* --------------------------- run 聚合 --------------------------- */
 
 const runShape = z.strictObject({
+  ...publicStateShape,
   id: idSchema,
   ownerSessionId: z.string().min(1),
   repositoryRoot: z.string().min(1),
@@ -391,6 +444,7 @@ const runShape = z.strictObject({
  * 每个 map 的键等于实体自身 id；事件 seq 严格递增且 nextSeq 大于最大 seq。
  */
 export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
+  for (const issue of publicReferenceIssues(run)) ctx.addIssue({ code: 'custom', ...issue });
   const checkKeys = (field: string, entries: [string, { id: string }][]): void => {
     for (const [key, value] of entries) {
       if (key !== value.id) {
@@ -403,8 +457,15 @@ export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
     }
   };
 
+  for (const field of ['channels', 'threads', 'publicMessages', 'notifications', 'subscriptions',
+    'channelReads', 'responseRequests', 'agreements'] as const) checkKeys(field, Object.entries(run[field]));
   checkKeys('goals', Object.entries(run.goals));
   checkKeys('workers', Object.entries(run.workers));
+  for (const [id, worker] of Object.entries(run.workers)) {
+    if (worker.shownSeq !== undefined && worker.shownSeq >= run.nextSeq) {
+      ctx.addIssue({ code: 'custom', path: ['workers', id, 'shownSeq'], message: 'shownSeq must be within the run event log' });
+    }
+  }
   checkKeys('tasks', Object.entries(run.tasks));
   checkKeys('findings', Object.entries(run.findings));
   checkKeys('messages', Object.entries(run.messages));
@@ -441,6 +502,9 @@ export const runSchema: z.ZodType<Run> = runShape.superRefine((run, ctx) => {
       path: ['nextSeq'],
     });
   }
+}).transform((run) => {
+  if (Object.keys(run.channels).length === 0) run.channels = defaultPublicState(run.id, run.createdAt).channels;
+  return run;
 });
 
 /**
@@ -494,18 +558,14 @@ export function parseRuntimeConfig(value: unknown): SwarmRuntimeConfig {
     });
   }
   const config = result.data;
-  if (
-    config.defaultWorkerCount < config.workerCountMin ||
-    config.defaultWorkerCount > config.workerCountMax
-  ) {
+  if (config.defaultWorkerCount < config.workerCountMin) {
     throw new SwarmError(
       'SWARM_INVALID_INPUT',
-      'defaultWorkerCount must be within [workerCountMin, workerCountMax]',
+      'defaultWorkerCount must be at least workerCountMin',
       {
         details: {
           defaultWorkerCount: config.defaultWorkerCount,
           workerCountMin: config.workerCountMin,
-          workerCountMax: config.workerCountMax,
         },
       },
     );

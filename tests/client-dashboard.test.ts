@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { runInNewContext } from 'node:vm';
+import { clientSource as source, loadClient } from './client-fixture.ts';
 import { describe, expect, it, vi } from 'vitest';
 
 // These tests exercise pure UI derivation and stream ownership, not a browser or visual preview.
@@ -29,7 +28,21 @@ interface Options {
   now?: () => number;
   onChange: (state: State) => void;
 }
+interface GraphItem {
+  id: string;
+  sha: string;
+  parents: string[];
+  subject: string;
+  committedAt: number;
+}
+interface GraphRow {
+  id: string;
+  lane: number;
+  incoming: number[];
+  edges: Array<{ from: number; to: number }>;
+}
 interface Client {
+  computeGraph(items: GraphItem[]): { rows: GraphRow[]; maxLanes: number };
   initialState(sessionId: string, available?: boolean): State;
   visibleState(state: State, sessionId: string, available: boolean): State;
   readFrame(item: unknown): Progress | null;
@@ -43,20 +56,7 @@ interface Client {
   duration(ms: number): string;
   dictionaries: Record<'en' | 'zh', Record<string, string>>;
 }
-interface BrowserModule { factory(require: (name: string) => unknown): { progressClient: Client } }
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
-let captured: BrowserModule | undefined;
-runInNewContext(source, {
-  window: { __ModuleLoader__: { load: (module: BrowserModule) => { captured = module; } } },
-  AbortController, Date, Error, TypeError, console,
-  setInterval: (callback: () => void, ms: number) => globalThis.setInterval(callback, ms),
-  clearInterval: (timer: ReturnType<typeof setInterval>) => globalThis.clearInterval(timer),
-});
-if (!captured) throw new Error('Client module did not register');
-const client = captured.factory((name) => {
-  if (name === 'react') return {}; // Pure helpers never render or emulate React.
-  throw new Error(`Unexpected import ${name}`);
-}).progressClient;
+const client = loadClient<{ progressClient: Client }>().progressClient;
 
 function worker(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -146,6 +146,28 @@ describe('dashboard facts and compatibility', () => {
     expect(() => client.readFrame({ seq: 1, progress: progress({ workers: [worker({ activity: { ...worker().activity as object, diagnostic: {} } })] }) })).toThrow('details');
   });
 
+  it('validates inherited/override/unavailable worker limit DTOs without a fixed maximum', () => {
+    const workers = Array.from({ length: 12 }, (_, index) => worker({ id: `w${index}` }));
+    const valid = [
+      { canAdd: true, maxWorkers: 16, source: 'host', diagnostic: null },
+      { canAdd: false, maxWorkers: 3, source: 'override', diagnostic: null },
+      { canAdd: false, maxWorkers: null, source: null, diagnostic: 'Native config unavailable' },
+      { canAdd: true, maxWorkers: 16 }, // Legacy v2 keeps an explicitly unknown source.
+    ];
+    for (const workerControls of valid) {
+      const frame = client.readFrame({ seq: 1, progress: progress({ workers, workerControls }) });
+      expect(frame?.workerControls).toEqual(workerControls);
+      expect(frame?.workers).toHaveLength(12);
+    }
+    for (const workerControls of [
+      { canAdd: true, maxWorkers: null, source: null, diagnostic: 'unavailable' },
+      { canAdd: false, maxWorkers: null, source: null, diagnostic: null },
+      { canAdd: false, maxWorkers: 12, source: 'invented', diagnostic: null },
+      { canAdd: false, maxWorkers: 12, source: 'host', diagnostic: {} },
+      ...[0, -1, 1.5, NaN, Infinity, '12'].map((maxWorkers) => ({ canAdd: true, maxWorkers, source: 'host', diagnostic: null })),
+    ]) expect(() => client.readFrame({ seq: 1, progress: progress({ workerControls }) })).toThrow('worker controls');
+  });
+
   it('permits simultaneous collaboration and integration without a synthetic percentage', () => {
     const stages = client.deriveWorkflow(progress());
     expect(stages.map((stage) => [stage.id, stage.state])).toEqual([
@@ -155,6 +177,28 @@ describe('dashboard facts and compatibility', () => {
     expect(client.deriveWorkflow(progress({ phase: 'completed' }))[3]?.state).toBe('complete');
     expect(client.deriveWorkflow(progress({ phase: 'stopped' }))[3]?.state).not.toBe('complete');
     expect(source).not.toContain('role: "progressbar"');
+  });
+
+  it('renders every stage as completed after the run completes (regression: middle stages went dark)', () => {
+    // Idle, finished run: no pending proposals, no running checks, no finish request left in the snapshot.
+    const done = progress({
+      phase: 'completed', finishRequest: null,
+      proposals: { queued: 0, integrating: 0, accepted: 3, rejected: 0 },
+      verifications: { queued: 0, running: 0, passed: 4, failed: 0, interrupted: 0 },
+      workers: [worker({ initializationState: 'stopped' })],
+    });
+    expect(client.deriveWorkflow(done).map((stage) => stage.state)).toEqual(['complete', 'complete', 'complete', 'complete']);
+    expect(client.deriveWorkflow(done)[2]?.counts).toEqual({ accepted: 3, pending: 0 });
+    for (const phase of ['stopped', 'failed']) expect(client.deriveWorkflow(progress({ phase })).map((stage) => stage.state)).not.toEqual(['complete', 'complete', 'complete', 'complete']);
+  });
+
+  it('keeps the dashboard to key progress: no team roster, delivery details or activity feed', () => {
+    const panel = source.slice(source.indexOf('function DashboardPanel('), source.indexOf('\n\t\t}', source.indexOf('function DashboardPanel(')));
+    expect(panel).toContain('deriveWorkflow(p)');
+    expect(panel).toContain('h(TaskBoard');
+    for (const removed of ['TeamCard', 'DeliveryCard', 'h(Timeline']) expect(panel).not.toContain(removed);
+    expect(source).not.toContain('function TeamCard(');
+    expect(source).not.toContain('function DeliveryCard(');
   });
 
   it('keeps claimed ownership on inactive workers and hides obsolete done pointers', () => {
@@ -313,6 +357,28 @@ describe('progress stream ownership', () => {
     await subscription.done;
     expect(seen.states.at(-1)).toMatchObject({ status: 'error', progress: { tasks: { total: 4 } } });
     expect(feed.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('lays out branch and merge lanes for the commit graph', () => {
+    const graph = client.computeGraph([
+      { id: 'm', sha: 'm', parents: ['a', 'b'], subject: 'merge', committedAt: 1 },
+      { id: 'a', sha: 'a', parents: ['c'], subject: 'a', committedAt: 1 },
+      { id: 'b', sha: 'b', parents: ['c'], subject: 'b', committedAt: 1 },
+      { id: 'c', sha: 'c', parents: [], subject: 'c', committedAt: 1 },
+    ]);
+    expect(graph.rows.map((row) => row.lane)).toEqual([0, 0, 1, 0]);
+    expect(graph.rows[0]?.edges).toEqual([{ from: 0, to: 1 }]);
+    expect(graph.rows[2]?.edges).toEqual([{ from: 1, to: 0 }]);
+    expect(graph.maxLanes).toBe(2);
+  });
+
+  it('reuses a closed lane instead of growing the graph', () => {
+    const graph = client.computeGraph([
+      { id: 'a', sha: 'a', parents: ['base'], subject: 'a', committedAt: 2 },
+      { id: 'base', sha: 'base', parents: [], subject: 'base', committedAt: 1 },
+    ]);
+    expect(graph.rows.map((row) => row.lane)).toEqual([0, 0]);
+    expect(graph.maxLanes).toBe(1);
   });
 
   it('cleans abort/stream once and suppresses all late updates after session change/unmount', async () => {

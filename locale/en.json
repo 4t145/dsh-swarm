@@ -1,4 +1,8 @@
 {
+  "schema": {
+    "workerCountMax": "Optional Swarm team-size override (positive integer). Leave unset to inherit the running DSH subagents maxActiveSubagents. Does not reserve or bypass native capacity.",
+    "claimTtlMs": "How long a claim finding stays in live views and pushed notices (milliseconds, 1 minute to 7 days, default 1 hour). Expired claims remain in history and search; a claim is an announcement, not a lock."
+  },
   "meta": {
     "title": "Swarm · Peer collaboration",
     "description": "Keep adding goals while peer workers collaborate in isolated Git worktrees and deliver verified changes."

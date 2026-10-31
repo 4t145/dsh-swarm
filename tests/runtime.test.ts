@@ -10,6 +10,9 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveWorkerLimit } from '../src/worker-limit.ts';
+import { buildPublicPage } from '../src/public-query.ts';
+import { publicQuerySchema } from '../src/public-input.ts';
 
 /** 模块 mock 共享状态；vi.hoisted 保证在 import runtime 之前建立。 */
 const harness = vi.hoisted(() => ({
@@ -29,6 +32,7 @@ const harness = vi.hoisted(() => ({
         kind: 'create' | 'notify',
       ) => Promise<{ signal: AbortSignal; release(): void }>;
       onError: (runId: string, error: unknown) => void;
+      onWorkerUnavailable?: (runId: string, workerId: string, reason: 'activation_failed' | 'no_progress', diagnostic: string) => void;
     },
   },
   integration: {
@@ -58,6 +62,10 @@ vi.mock('../src/delivery.ts', () => ({
 
     async resume(runId: string, workerId: string): Promise<void> {
       harness.delivery.kicks.push(`${runId}:${workerId}:resume`);
+    }
+
+    resetWorker(runId: string, workerId: string): void {
+      harness.delivery.kicks.push(`${runId}:${workerId}:reset`);
     }
 
     async kick(runId: string): Promise<void> {
@@ -355,6 +363,7 @@ function createHarness(options: { start?: number; runtime?: SwarmRuntimeOptions 
     clock,
     id: () => `id-${(counter += 1)}`,
     eventPageSize: 20,
+    workerLimit: () => ({ maxWorkers: 4, source: 'host' }),
     ...options.runtime,
   });
   return { runtime, store, table, host, workspace, artifacts, clock };
@@ -501,6 +510,104 @@ beforeEach(() => {
   harness.integration.gate = null;
 });
 
+describe('current worker limit policy', () => {
+  it('admits teams above four, uses current host value and serializes competing additions', async () => {
+    let hostLimit = 8;
+    const resolve = vi.fn((owner: string) => { expect(owner).toBe(OWNER); return resolveWorkerLimit(undefined, () => hostLimit); });
+    const h = createHarness({ runtime: { workerLimit: resolve } });
+    const run = await startRun(h, { workers: 8 });
+    await settleWorkers(h, run.id);
+    expect(h.runtime.status(OWNER).workerControls).toEqual({ canAdd: false, maxWorkers: 8, source: 'host', diagnostic: null });
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_WORKER_LIMIT', details: { maxWorkers: 8, source: 'host' } });
+    hostLimit = 12;
+    expect(h.runtime.status(OWNER).workerControls?.canAdd).toBe(true);
+    const additions = await Promise.allSettled(Array.from({ length: 5 }, () => h.runtime.addWorker(OWNER)));
+    expect(additions.filter((result) => result.status === 'fulfilled')).toHaveLength(4);
+    expect(additions.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(h.runtime.status(OWNER).workers).toHaveLength(12);
+    hostLimit = 3;
+    expect(h.runtime.status(OWNER).workerControls).toEqual({ canAdd: false, maxWorkers: 3, source: 'host', diagnostic: null });
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_WORKER_LIMIT' });
+    expect(h.store.get(run.id).phase).toBe('running');
+    expect(Object.keys(h.store.get(run.id).workers)).toHaveLength(12);
+    await h.runtime.pause(OWNER);
+    await h.runtime.resume(OWNER);
+    expect(Object.keys(h.store.get(run.id).workers)).toHaveLength(12);
+    await h.runtime.dispose();
+  });
+
+  it('explicit policy is not clamped to host capacity and removing it restores inheritance', async () => {
+    let override: number | undefined = 9;
+    const h = createHarness({ runtime: { workerLimit: () => resolveWorkerLimit(override, () => 6) } });
+    const run = await startRun(h, { workers: 8 });
+    await settleWorkers(h, run.id);
+    expect(h.runtime.status(OWNER).workerControls).toMatchObject({ maxWorkers: 9, source: 'override', canAdd: true });
+    override = undefined;
+    expect(h.runtime.status(OWNER).workerControls).toMatchObject({ maxWorkers: 6, source: 'host', canAdd: false });
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_WORKER_LIMIT' });
+    expect(h.runtime.status(OWNER).workers).toHaveLength(8);
+    await h.runtime.dispose();
+  });
+
+  it('rejects invalid or unavailable configuration before repository work and preserves visible old members', async () => {
+    const missing = createHarness({ runtime: { workerLimit: undefined } });
+    const inspect = vi.spyOn(missing.workspace, 'inspect');
+    await expect(startRun(missing)).rejects.toMatchObject({ code: 'SWARM_CONFIG_UNAVAILABLE' });
+    expect(inspect).not.toHaveBeenCalled();
+    expect(missing.store.list()).toHaveLength(0);
+    await missing.runtime.dispose();
+
+    let value: unknown = 8;
+    const h = createHarness({ runtime: { workerLimit: () => resolveWorkerLimit(value, () => 12) } });
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    for (value of [0, -1, 1.5, NaN, Infinity, '8', null, false]) {
+      expect(h.runtime.status(OWNER).workerControls).toMatchObject({ canAdd: false, maxWorkers: null, source: null });
+      expect(h.runtime.status(OWNER).workerControls?.diagnostic).toContain('workerCountMax');
+      await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_CONFIG_UNAVAILABLE' });
+      expect(h.runtime.status(OWNER).workers).toHaveLength(2);
+    }
+    await h.runtime.dispose();
+  });
+
+  it('recovers old records without cached policy; resume retains roster but continuation checks current limit', async () => {
+    const h = createHarness({ runtime: { workerLimit: () => ({ maxWorkers: 8, source: 'host' }) } });
+    const run = await startRun(h, { workers: 6 });
+    await settleWorkers(h, run.id);
+    await h.runtime.dispose();
+    let limit = 3;
+    const recovered = new SwarmRuntime(h.store, h.host, h.workspace, h.artifacts, {
+      clock: h.clock, id: () => 'continued-run', workerLimit: () => ({ maxWorkers: limit, source: 'host' }),
+    });
+    await recovered.recover();
+    expect(recovered.status(OWNER).workers).toHaveLength(6);
+    expect(recovered.status(OWNER).workerControls).toMatchObject({ canAdd: false, maxWorkers: 3 });
+    await recovered.resume(OWNER);
+    expect(recovered.status(OWNER).workers).toHaveLength(6);
+    await recovered.stop(OWNER);
+    await recovered.appendGoal(OWNER, { text: 'next round' }, 'append-next');
+    await expect(recovered.continueGoals(OWNER)).rejects.toMatchObject({ code: 'SWARM_WORKER_LIMIT' });
+    expect(h.store.list()).toHaveLength(1);
+    limit = 12;
+    const next = await recovered.continueGoals(OWNER);
+    expect(Object.keys(next.workers)).toHaveLength(6);
+    expect(recovered.status(OWNER).workerControls).toMatchObject({ maxWorkers: 12, source: 'host' });
+    await recovered.dispose();
+  });
+
+  it('does not report a native capacity failure as successful expansion or team policy refusal', async () => {
+    const h = createHarness({ runtime: { workerLimit: () => ({ maxWorkers: 12, source: 'override' }) } });
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    harness.delivery.onStart = async () => { throw new SwarmError('SWARM_NATIVE_CAPACITY', 'native active child limit: 2'); };
+    await expect(h.runtime.addWorker(OWNER)).rejects.toMatchObject({ code: 'SWARM_NATIVE_CAPACITY' });
+    expect(h.runtime.status(OWNER).phase).toBe('failed');
+    expect(h.runtime.status(OWNER).workerControls).toMatchObject({ maxWorkers: 12, source: 'override' });
+    expect(h.runtime.status(OWNER).diagnostics.join(' ')).toContain('native active child limit');
+    await h.runtime.dispose();
+  });
+});
+
 describe('dynamic workers', () => {
   it('reserves unique persisted names and admits concurrent additions up to the limit', async () => {
     const h = createHarness();
@@ -515,7 +622,7 @@ describe('dynamic workers', () => {
     expect(workers.every((worker) => /^[A-Z][a-z]+ [A-Z][a-z]+$/u.test(worker.displayName ?? ''))).toBe(true);
     expect(harness.delivery.starts).toHaveLength(4);
     expect(h.runtime.status(OWNER).workers.map((worker) => worker.displayName)).toEqual(workers.map((worker) => worker.displayName));
-    expect(h.runtime.status(OWNER).workerControls).toEqual({ canAdd: false, maxWorkers: 4 });
+    expect(h.runtime.status(OWNER).workerControls).toEqual({ canAdd: false, maxWorkers: 4, source: 'host', diagnostic: null });
     const loaded = createMemoryStateStore(h.table);
     expect(Object.values(loaded.get(run.id).workers).map((worker) => worker.displayName)).toEqual(workers.map((worker) => worker.displayName));
   });
@@ -1287,15 +1394,110 @@ describe('cross-module wiring regressions', () => {
     await h.runtime.dispose();
   });
 
-  it('pauses a failed worker activation without turning it into permanent run failure', async () => {
+  it('isolates only the failed worker, releases its claimed task and keeps the run running', async () => {
     const h = createHarness();
     const run = await startRun(h);
     await settleWorkers(h, run.id);
+    const [failedId, otherId] = workerIds(run);
+    await seedClaimedTask(h.store, run.id, failedId!);
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, failedId!, 'activation_failed', 'activation a1 failed; 3 automatic retries exhausted');
+    await waitFor(() => h.store.get(run.id).workers[failedId!]?.unavailableReason === 'activation_failed', 'worker isolation');
+
+    const current = h.store.get(run.id);
+    expect(current.phase).toBe('running');
+    expect(current.workers[failedId!]?.unavailableDetail).toMatchObject({ reason: 'activation_failed',
+      diagnostic: expect.stringContaining('retries exhausted') });
+    expect(current.workers[failedId!]?.currentTaskId).toBeNull();
+    expect(current.workers[otherId!]?.unavailableReason).toBeNull();
+    expect(current.tasks['t1']).toMatchObject({ status: 'open', ownerWorkerId: null, revision: 2 });
+    expect(current.events.some((event) => event.kind === 'worker' && event.workerId === failedId
+      && event.status === 'unavailable' && event.audience.kind === 'all')).toBe(true);
+    expect(h.runtime.status(OWNER).workers.find((w) => w.id === failedId)?.unavailableDetail?.reason).toBe('activation_failed');
+    // Visible in the public general channel activity for every member, with the released task.
+    const page = buildPublicPage(current, publicQuerySchema.parse({ view: 'activity', channelId: `${run.id}:general` }), otherId!);
+    expect(page.items).toContainEqual(expect.objectContaining({ kind: 'member_status', workerId: failedId,
+      status: 'unavailable', reason: 'activation_failed', releasedTaskIds: ['t1'] }));
+    await h.runtime.dispose();
+  });
+
+  it('keeps a proposed task with its proposal when its worker is isolated', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    const [failedId] = workerIds(run);
+    await seedClaimedTask(h.store, run.id, failedId!);
+    await h.store.update(run.id, (current) => ({ ...current,
+      tasks: { ...current.tasks, t1: { ...current.tasks['t1']!, status: 'proposed', proposalId: 'p1' } } }));
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, failedId!, 'no_progress', 'settled twice without progress');
+    await waitFor(() => h.store.get(run.id).workers[failedId!]?.unavailableReason === 'no_progress', 'worker isolation');
+    expect(h.store.get(run.id).tasks['t1']).toMatchObject({ status: 'proposed', ownerWorkerId: failedId, proposalId: 'p1' });
+    expect(h.store.get(run.id).phase).toBe('running');
+    await h.runtime.dispose();
+  });
+
+  it('pauses the whole run only when no worker remains available', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    const [first, second] = workerIds(run);
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, first!, 'activation_failed', 'x');
+    await waitFor(() => h.store.get(run.id).workers[first!]?.unavailableReason !== null, 'first isolation');
+    expect(h.store.get(run.id).phase).toBe('running');
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, second!, 'no_progress', 'y');
+    await waitFor(() => h.store.get(run.id).phase === 'paused', 'all-unavailable pause');
+    expect(h.store.get(run.id).reason).toBe('no_available_workers');
+    await h.runtime.dispose();
+  });
+
+  it('routes legacy worker-scoped onError reports to isolation, not a run pause', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    const [failedId] = workerIds(run);
     harness.delivery.options?.onError(run.id, new SwarmError('SWARM_INTERNAL', 'worker failed', {
-      details: { workerId: workerIds(run)[0] ?? '', activationId: 'activation-1' },
+      details: { workerId: failedId!, activationId: 'activation-1' },
     }));
-    await waitFor(() => h.store.get(run.id).phase === 'paused', 'worker failure pause');
-    expect(h.store.get(run.id).reason).toBe('worker_activation_failed');
+    await waitFor(() => h.store.get(run.id).workers[failedId!]?.unavailableReason === 'activation_failed', 'isolation');
+    expect(h.store.get(run.id).phase).toBe('running');
+    await h.runtime.dispose();
+  });
+
+  it('restart_worker re-enables one worker, resets its retries and wakes only it', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    const [failedId, otherId] = workerIds(run);
+    harness.delivery.options?.onWorkerUnavailable?.(run.id, failedId!, 'activation_failed', 'x');
+    await waitFor(() => h.store.get(run.id).workers[failedId!]?.unavailableReason !== null, 'isolation');
+    const before = harness.delivery.kicks.length;
+    const runBefore = h.store.get(run.id);
+
+    const record = await h.runtime.reenableWorker(run.id, failedId!);
+    await macrotask();
+    expect(record.unavailableReason).toBeNull();
+    expect(record.unavailableDetail).toBeNull();
+    const after = h.store.get(run.id);
+    expect(after.phase).toBe('running');
+    expect(after.deadline).toBe(runBefore.deadline);
+    expect(harness.delivery.kicks.slice(before)).toEqual([`${run.id}:${failedId}:reset`, `${run.id}:${failedId}:resume`]);
+    expect(harness.delivery.kicks.slice(before).some((kick) => kick.includes(otherId!))).toBe(false);
+    expect(after.events.some((event) => event.kind === 'worker' && event.workerId === failedId && event.status === 'available')).toBe(true);
+    await expect(h.runtime.reenableWorker(run.id, otherId!)).rejects.toMatchObject({ code: 'SWARM_INVALID_STATE' });
+    await h.runtime.dispose();
+  });
+
+  it('restart_worker on a paused (all-unavailable) run re-enables without resuming it', async () => {
+    const h = createHarness();
+    const run = await startRun(h);
+    await settleWorkers(h, run.id);
+    for (const id of workerIds(run)) harness.delivery.options?.onWorkerUnavailable?.(run.id, id, 'activation_failed', 'x');
+    await waitFor(() => h.store.get(run.id).phase === 'paused', 'pause');
+    const [first] = workerIds(run);
+    const before = harness.delivery.kicks.length;
+    await h.runtime.reenableWorker(run.id, first!);
+    await macrotask();
+    expect(h.store.get(run.id).phase).toBe('paused');
+    expect(harness.delivery.kicks.slice(before)).toEqual([`${run.id}:${first}:reset`]);
     await h.runtime.dispose();
   });
 

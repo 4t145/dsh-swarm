@@ -30,7 +30,7 @@ import {
   type SwarmOwnerRuntimePort,
   type SwarmOwnerToolContext,
 } from '../src/owner-tools.ts';
-import type { AppendGoalInput, AppendGoalReceipt, RunPhase, RunSpec } from '../src/types.ts';
+import type { AddWorkerReceipt, AppendGoalInput, AppendGoalReceipt, RunPhase, RunSpec } from '../src/types.ts';
 import { SwarmError } from '../src/errors.ts';
 
 /** The real Host services must satisfy the narrow owner-tool context. */
@@ -189,6 +189,23 @@ class FakeRuntime implements SwarmOwnerRuntimePort {
   readonly appendCalls: Array<{ ownerSessionId: string; input: AppendGoalInput; callId: string }> = [];
   readonly continueCalls: string[] = [];
   disposition: AppendGoalReceipt['disposition'] = 'executing';
+  readonly addCalls: string[] = [];
+  /** Fail the Nth addWorker call (1-based) with this error. */
+  addFailure: { at: number; error: unknown } | undefined;
+
+  readonly reenableCalls: Array<{ runId: string; workerId: string }> = [];
+
+  async reenableWorker(runId: string, workerId: string) {
+    this.reenableCalls.push({ runId, workerId });
+    return { id: workerId, displayName: 'Calm Robin', unavailableReason: null };
+  }
+
+  async addWorker(ownerSessionId: string): Promise<AddWorkerReceipt> {
+    this.addCalls.push(ownerSessionId);
+    const n = this.addCalls.length;
+    if (this.addFailure && n >= this.addFailure.at) throw this.addFailure.error;
+    return { runId: 'run-1', workerId: 'w' + (n + 2), displayName: 'Worker ' + (n + 2), phase: 'running', disposition: 'started' };
+  }
 
   async appendGoal(ownerSessionId: string, input: AppendGoalInput, callId: string): Promise<AppendGoalReceipt> {
     this.appendCalls.push({ ownerSessionId, input, callId });
@@ -260,13 +277,24 @@ async function call(
 
 describe('parseManageInput', () => {
   it('accepts every action and rejects unknown actions or extra fields', () => {
-    for (const action of ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue'] as const) {
+    for (const action of ['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers'] as const) {
       expect(parseManageInput({ action }).action).toBe(action);
     }
     expect(parseManageInput({ action: 'resume', budget_minutes: 5 }).budget_minutes).toBe(5);
     expect(() => parseManageInput({ action: 'restart' })).toThrowError(/SWARM_INVALID_INPUT|invalid/);
     expect(() => parseManageInput({ action: 'status', ownerSessionId: 'forged' })).toThrow();
     expect(() => parseManageInput({})).toThrow();
+  });
+
+  it('accepts a minimal inline spec and names failing fields in the message', () => {
+    const parsed = parseManageInput({
+      action: 'start',
+      spec: { repository: '.', goal: 'g', acceptanceCriteria: ['c'], verification: { test: [{ argv: ['pnpm', 'test'] }] } },
+    });
+    expect(parsed.spec?.verification.test[0]?.timeoutMs).toBe(600_000);
+    expect(parsed.spec?.workers).toBe(2);
+    expect(() => parseManageInput({ action: 'start', spec: { repository: '.', goal: 'g', acceptanceCriteria: ['c'] } }))
+      .toThrowError(/spec\.verification: /);
   });
 });
 
@@ -286,7 +314,14 @@ describe('registerOwnerTools', () => {
       additionalProperties: false,
     });
     const action = (definition?.parameters.properties as Record<string, { enum?: string[] }>)['action'];
-    expect(action?.enum).toEqual(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue']);
+    expect(action?.enum).toEqual(['start', 'status', 'pause', 'resume', 'stop', 'append', 'continue', 'add_workers', 'restart_worker']);
+    // Agents should find the start path from the tool description alone.
+    expect(definition?.description).toContain('action=start');
+    expect(definition?.description).toContain('only way to start');
+    const schemaText = JSON.stringify(definition?.parameters);
+    expect(schemaText).not.toContain('2–4');
+    expect(schemaText).toContain('current effective team limit');
+    expect(schemaText).toContain('batch bound is not the team limit');
     // The Host accepts only its documented JSON Schema subset.
     expect(() => {
       if (definition !== undefined) assertObjectJsonSchema(definition.parameters);
@@ -376,6 +411,17 @@ describe('handleSwarmManage start', () => {
     expect(result).not.toHaveProperty('messages');
   });
 
+  it('passes team counts above four to the authoritative Host for inline and file specs', async () => {
+    for (const workers of [5, 8, 12]) {
+      const ctx = new FakeContext();
+      ctx.specText = JSON.stringify({ ...SPEC_INPUT, workers });
+      const runtime = new FakeRuntime();
+      await call(ctx, runtime, { action: 'start', spec: { ...SPEC_INPUT, workers } });
+      await call(ctx, runtime, { action: 'start', spec_path: 'swarm.json' });
+      expect(runtime.startCalls.map((entry) => entry.spec.workers)).toEqual([workers, workers]);
+    }
+  });
+
   it('requires exactly one spec source', async () => {
     const ctx = new FakeContext();
     const runtime = new FakeRuntime();
@@ -401,7 +447,7 @@ describe('handleSwarmManage start', () => {
 
   it('rejects an invalid configured spec without starting a run', async () => {
     const ctx = new FakeContext();
-    ctx.specText = JSON.stringify({ ...SPEC_INPUT, workers: 9 });
+    ctx.specText = JSON.stringify({ ...SPEC_INPUT, workers: 1 });
     const runtime = new FakeRuntime();
     await expect(
       call(ctx, runtime, { action: 'start', spec_path: 'swarm.json' }),
@@ -518,5 +564,78 @@ describe('handleSwarmManage status and controls', () => {
     const runtime = new FakeRuntime();
     await call(ctx, runtime, { action: 'resume' });
     expect(runtime.resumeCalls).toEqual([{ ownerSessionId: 'owner-1', budgetMinutes: undefined }]);
+  });
+});
+
+describe('swarm_manage add_workers', () => {
+  it('adds the requested members sequentially under the real owner identity', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    const result = await call(ctx, runtime, { action: 'add_workers', count: 2 }, OWNER_AGENT);
+    expect(runtime.addCalls).toEqual([OWNER_AGENT.id, OWNER_AGENT.id]);
+    expect(result).toMatchObject({ action: 'add_workers', requested: 2, error: null });
+    expect((result as { added: unknown[] }).added).toHaveLength(2);
+  });
+
+  it('defaults to one member and rejects out-of-range counts', () => {
+    expect(parseManageInput({ action: 'add_workers' }).count).toBeUndefined();
+    expect(() => parseManageInput({ action: 'add_workers', count: 0 })).toThrow();
+    expect(() => parseManageInput({ action: 'add_workers', count: 5 })).toThrow();
+  });
+
+  it('reports partial success instead of hiding the limit error', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    runtime.addFailure = { at: 2, error: new SwarmError('SWARM_INVALID_STATE', 'a run supports at most 4 workers') };
+    const result = await call(ctx, runtime, { action: 'add_workers', count: 3 }, OWNER_AGENT);
+    expect(runtime.addCalls).toHaveLength(2);
+    expect(result).toMatchObject({ requested: 3, error: { code: 'SWARM_INVALID_STATE' } });
+    expect((result as { added: unknown[] }).added).toHaveLength(1);
+  });
+
+  it('throws when the first addition fails and refuses subagents before any call', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    runtime.addFailure = { at: 1, error: new SwarmError('SWARM_NOT_RUNNING', 'cannot add a worker while run is completed') };
+    await expect(call(ctx, runtime, { action: 'add_workers' }, OWNER_AGENT)).rejects.toThrow('cannot add');
+    const fresh = new FakeRuntime();
+    await expect(call(ctx, fresh, { action: 'add_workers' }, SUBAGENT_AGENT)).rejects.toThrow();
+    expect(fresh.addCalls).toEqual([]);
+  });
+});
+
+describe('swarm_manage restart_worker', () => {
+  const unavailable = (runtime: FakeRuntime, reason: string | null) => {
+    runtime.statusView = { ...structuredClone(BASE_STATUS), workers: [{ ...BASE_STATUS.workers[0]!, unavailableReason: reason,
+      unavailableDetail: reason ? { reason, diagnostic: 'MALFORMED_RESPONSE x3', at: 5 } : null }] };
+  };
+
+  it('re-enables one unavailable worker of the owner run without changing the run phase', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    unavailable(runtime, 'activation_failed');
+    const result = await call(ctx, runtime, { action: 'restart_worker', worker_id: 'w1' }, OWNER_AGENT);
+    expect(runtime.reenableCalls).toEqual([{ runId: BASE_STATUS.runId, workerId: 'w1' }]);
+    expect(result).toMatchObject({ action: 'restart_worker', workerId: 'w1', unavailableReason: null, phase: BASE_STATUS.phase });
+    expect(runtime.resumeCalls).toEqual([]);
+    expect(runtime.startCalls).toEqual([]);
+  });
+
+  it('requires worker_id and rejects available, unknown, foreign and read-only targets', async () => {
+    const ctx = new FakeContext();
+    const runtime = new FakeRuntime();
+    await expect(call(ctx, runtime, { action: 'restart_worker' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_INVALID_INPUT' });
+    unavailable(runtime, null);
+    await expect(call(ctx, runtime, { action: 'restart_worker', worker_id: 'w1' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_INVALID_STATE' });
+    unavailable(runtime, 'no_progress');
+    await expect(call(ctx, runtime, { action: 'restart_worker', worker_id: 'nobody' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_NOT_FOUND' });
+    runtime.statusView = { ...runtime.statusView, ownerSessionId: 'someone-else' };
+    await expect(call(ctx, runtime, { action: 'restart_worker', worker_id: 'w1' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_FORBIDDEN' });
+    const readOnly = new FakeContext();
+    readOnly.mode = 'read-only';
+    unavailable(runtime, 'no_progress');
+    await expect(call(readOnly, runtime, { action: 'restart_worker', worker_id: 'w1' }, OWNER_AGENT)).rejects.toMatchObject({ code: 'SWARM_FORBIDDEN' });
+    await expect(call(ctx, runtime, { action: 'restart_worker', worker_id: 'w1' }, SUBAGENT_AGENT)).rejects.toThrow();
+    expect(runtime.reenableCalls).toEqual([]);
   });
 });

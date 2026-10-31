@@ -15,8 +15,11 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm';
 import type { JsonSchemaNode, ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import type { StoredArtifacts } from './artifacts.ts';
 import { SwarmError } from './errors.ts';
+import { toolReceiptMeta } from './notification-receipts.ts';
+import { publicCommandSchema, publicQuerySchema } from './public-input.ts';
 import type { SwarmRuntime } from './runtime.ts';
 import type { JsonValue } from './types.ts';
+import { FINDING_DETAILS_MAX_CHARS, FINDING_SUMMARY_LIMITS } from './schema.ts';
 
 /* ------------------------------------------------------------------ */
 /* 共享基础设施                                                        */
@@ -43,7 +46,9 @@ interface CallerIdentity {
 interface WorkerToolSpec<S extends z.ZodType> {
   readonly name: string;
   readonly description: string;
-  readonly properties: Record<string, JsonSchemaNode>;
+  readonly properties?: Record<string, JsonSchemaNode>;
+  /** Generated JSON Schema for structured public protocol discriminated unions. */
+  readonly parameters?: Record<string, unknown>;
   readonly required?: readonly string[];
   readonly input: S;
   readonly run: (
@@ -101,14 +106,24 @@ function parameterSchema(
   return Object.fromEntries(Object.entries(node));
 }
 
+/** Zod attaches non-enumerable ~standard functions; project only JSON schema data for DSH's lossless schema gate. */
+function generatedParameters(schema: z.ZodType): Record<string, JsonValue> {
+  const value = toJsonValue(z.toJSONSchema(schema, { io: 'input' }));
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new SwarmError('SWARM_INTERNAL', 'Generated tool parameters must be an object');
+  }
+  return value;
+}
+
 function defineWorkerTool<S extends z.ZodType>(spec: WorkerToolSpec<S>): ToolDefinition {
   return {
     name: spec.name,
     description: spec.description,
-    parameters: parameterSchema(spec.properties, spec.required),
+    parameters: spec.parameters ?? parameterSchema(spec.properties ?? {}, spec.required),
     output: {
       schema: OUTPUT_SCHEMA,
       render: (_args, value): ContentBlock[] => [{ type: 'text', text: JSON.stringify(value) }],
+      presentationMeta: (_args, value) => toolReceiptMeta(spec.name, value),
     },
     execute: async (args, exec) => {
       const agent = exec.agent;
@@ -164,9 +179,14 @@ const taskUpdateInput = z.strictObject({
   finding_id: z.string().min(1).optional(),
 });
 
+const FINDING_KINDS = ['observed', 'fact', 'fail', 'patch_summary', 'claim'] as const;
+const SUMMARY_LIMIT_TEXT = `at most ${FINDING_SUMMARY_LIMITS.observed} characters for observed/fact/fail/claim, `
+  + `${FINDING_SUMMARY_LIMITS.patch_summary} for patch_summary`;
+
 const publishInput = z.strictObject({
-  kind: z.enum(['observed', 'fact', 'fail', 'patch_summary']),
+  kind: z.enum(FINDING_KINDS),
   summary: z.string().min(1),
+  details: z.string().min(1).max(FINDING_DETAILS_MAX_CHARS).optional(),
   scope: z.array(z.string().min(1)).optional(),
   evidence_refs: z.array(z.string().min(1)).optional(),
   task_id: z.string().min(1).optional(),
@@ -186,7 +206,7 @@ const submitInput = z.strictObject({
 });
 
 const waitInput = z.strictObject({
-  after_seq: z.number().int().min(0),
+  after_seq: z.number().int().min(0).optional(),
   task_ids: z.array(z.string().min(1)).optional(),
   proposal_ids: z.array(z.string().min(1)).optional(),
 });
@@ -222,18 +242,42 @@ export function registerWorkerTools(
   artifacts: StoredArtifacts,
 ): () => void {
   const collaboration = runtime.collaboration;
+  const discussInput = z.strictObject({ command: publicCommandSchema });
 
   const specs: ToolDefinition[] = [
+    defineWorkerTool({
+      name: 'swarm_discuss',
+      description: 'Manage public collaboration in this run. command.action creates/archives channels, creates/updates threads, '
+        + 'posts/replies/revises messages, subscribes, requests/responds/withdraws responses, creates/revises/confirms versioned '
+        + 'agreements, or links Findings. Host automatically records notification display and full-message display; '
+        + 'do not call ack_notifications or mark_read for routine bookkeeping (retained only for legacy callers). '
+        + 'Use public threads by default. Structured mentions and responseRequestedFrom use worker IDs; @text alone does not notify. '
+        + 'Revision/version checks are mandatory where specified. Reading or ACK is never a response/agreement; public chat never changes owner requirements or Task CAS.',
+      parameters: generatedParameters(discussInput),
+      input: discussInput,
+      run: (input, exec, caller) => runtime.publicCollaboration.execute(caller.sessionId, input.command, exec.callId),
+    }),
+    defineWorkerTool({
+      name: 'swarm_public_read',
+      description: 'Discover public channels, threads, full messages, response requests, current agreements, personal priority attention, '
+        + 'thread activity, message revisions or agreement versions. Filter/search by channel/thread/task/Finding; use messageId to locate a message. '
+        + 'Returns bounded pages and nextCursor. All members including later arrivals can read public history regardless of subscription. '
+        + 'Host records only the exact full versions actually displayed; summaries never mark full messages read. '
+        + 'No manual ACK or read-confirmation call is needed. Pending responses stay above ordinary chatter.',
+      parameters: generatedParameters(publicQuerySchema),
+      input: publicQuerySchema,
+      run: (input, _exec, caller) => runtime.publicCollaboration.query(caller.sessionId, input),
+    }),
     defineWorkerTool({
       name: 'swarm_sync',
       description:
         'Read the run goal, acceptance criteria, accepted commit, your worker identity, the task board, '
-        + 'and new collaboration items. Returns one bounded page plus your cursor range; acknowledge with '
-        + 'ack_seq on a later call.',
+        + 'and new collaboration items. Returns one bounded page; Host automatically records display after logging. '
+        + 'Read further pages without ack_seq; no acknowledgement-only calls or chat replies are needed.',
       properties: {
         ack_seq: {
           type: 'integer',
-          description: 'Run seq to confirm as read. Must lie within the offered range you already received.',
+          description: 'Legacy explicit cursor only. Omit for normal use: technical display receipts are automatic.',
         },
         limit: { type: 'integer', description: 'Maximum items to return in this page.' },
       },
@@ -245,11 +289,11 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_read',
       description:
-        'Read one record by id, or search tasks, findings, and your direct messages. Diagnostic artifact ids '
+        'Read one record by id, or search goals, tasks, findings, and your direct messages with a boolean query expression. Diagnostic artifact ids '
         + '(starting with swarm-artifact-) return bounded text slices instead.',
       properties: {
         id: { type: 'string', description: 'Task, finding, message, or diagnostic artifact id.' },
-        query: { type: 'string', description: 'Case-insensitive text filter when no id is given.' },
+        query: { type: 'string', description: 'When no id is given: Search expression: terms (case-insensitive substring), \"quoted phrases\", AND via & or whitespace, OR via |, NOT via - or !, parentheses, field filters kind:, author: (worker id or display name), task:. Example: (build | test) -kind:claim author:w2. Invalid expressions fail with SWARM_INVALID_INPUT naming the position. Covers full history: goals, tasks, findings (summary, details, expired claims) and your own direct messages; results report total and truncated.' },
         cursor: { type: 'string', description: 'nextCursor from a previous read result.' },
         limit: {
           type: 'integer',
@@ -354,11 +398,17 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_publish',
       description:
-        'Publish an immutable finding: an observed fact, a decision peers must build on, or a failure that '
-        + 'needs repair. Returns the stored finding with the event seq peers will see.',
+        'Publish an immutable finding: an observed fact, a decision peers must build on, a failure that '
+        + 'needs repair, or a claim announcing the scope you are about to work on (an announcement, not a lock; '
+        + 'Task CAS stays the authority). Claims leave live views after a TTL and a newer claim on the same task '
+        + 'replaces yours there; history and search keep all. Returns the stored finding with the event seq peers will see.',
       properties: {
-        kind: { type: 'string', enum: ['observed', 'fact', 'fail', 'patch_summary'], description: 'Finding kind.' },
-        summary: { type: 'string', description: 'Concise, self-contained statement.' },
+        kind: { type: 'string', enum: [...FINDING_KINDS], description: 'Finding kind. Use claim when starting a scope.' },
+        summary: { type: 'string', description: `Short gist pushed to peers: ${SUMMARY_LIMIT_TEXT}.` },
+        details: {
+          type: 'string',
+          description: `Optional supporting detail (at most ${FINDING_DETAILS_MAX_CHARS} characters). Not pushed in notices; peers expand it with swarm_read by id.`,
+        },
         scope: { type: 'array', items: { type: 'string' }, description: 'Affected paths or areas.' },
         evidence_refs: {
           type: 'array',
@@ -380,6 +430,7 @@ export function registerWorkerTools(
           {
             kind: input.kind,
             summary: input.summary,
+            details: input.details,
             scope: input.scope,
             evidenceRefs: input.evidence_refs,
             taskId: input.task_id,
@@ -393,8 +444,13 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_message',
       description:
-        'Send a short private message to one peer worker, addressed by worker id or session id. '
-        + 'Returns the delivered message; only the sender and recipient can read it.',
+        'Send a short urgent private message to one peer worker, addressed by worker id or session id. '
+        + 'Direct messages have higher priority than public traffic: a running recipient sees it at its next '
+        + 'tool-result boundary and an idle or waiting recipient is woken. Use it only for targeted one-to-one '
+        + 'coordination that needs prompt attention (an overlapping edit, a blocking dependency, a direct request); '
+        + 'public threads stay the default for anything others may need. Never copy a private message into public '
+        + 'history without authorization. Returns the stored message; only the sender and recipient can read it. '
+        + 'Delivery is at-least-once to the boundary, not exactly-once.',
       properties: {
         target: { type: 'string', description: 'Recipient worker id or session id.' },
         body: { type: 'string', description: 'Message text.' },
@@ -436,10 +492,10 @@ export function registerWorkerTools(
     defineWorkerTool({
       name: 'swarm_wait',
       description:
-        'Wait for collaboration events after a run seq, optionally limited to given task or proposal ids. '
-        + 'Returns immediately when matching events already exist beyond that seq.',
+        'Wait for new collaboration using the Host-maintained display cursor, optionally limited to task or proposal ids. '
+        + 'Already-pending events return immediately. No separate synchronization or ACK is needed just to wait.',
       properties: {
-        after_seq: { type: 'integer', description: 'Last run seq you have observed.' },
+        after_seq: { type: 'integer', description: 'Optional legacy explicit cursor; normally omit to use automatic display receipts.' },
         task_ids: {
           type: 'array',
           items: { type: 'string' },
@@ -451,7 +507,6 @@ export function registerWorkerTools(
           description: 'Only wake for these proposals.',
         },
       },
-      required: ['after_seq'],
       input: waitInput,
       run: async (input, exec, caller) => {
         const busy = ctx.jobs

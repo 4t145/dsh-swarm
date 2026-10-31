@@ -1,5 +1,7 @@
 /** Native Cordis Host entry for the single-process Swarm service. */
-import { Service, type Context } from '@deepseek-ai/cordis';
+import { Service, type Context, type Volatile } from '@deepseek-ai/cordis';
+import { dshWorkerLimitResolver } from './dsh-worker-limit.ts';
+import { positiveLimit } from './worker-limit.ts';
 import Schema from '@deepseek-ai/schemastery';
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain';
 import type {} from '@deepseek-ai/dsh-agent';
@@ -15,7 +17,7 @@ import { artifactSchema, StoredArtifacts } from './artifacts.ts';
 import { registerSwarmCommand } from './commands.ts';
 import { DshCommandExecutor } from './dsh-executor.ts';
 import { DshWorkerHost } from './dsh-worker-host.ts';
-import { runSchema } from './schema.ts';
+import { ACTIVATION_RETRIES_MAX, DEFAULT_ACTIVATION_RETRIES, CLAIM_TTL_MAX_MS, CLAIM_TTL_MIN_MS, DEFAULT_CLAIM_TTL_MS, runSchema } from './schema.ts';
 import type { Run, RunSpec } from './types.ts';
 import type { ArtifactRecord } from './artifacts.ts';
 import type {} from '@deepseek-ai/dsh-fs';
@@ -26,12 +28,19 @@ import { GitWorkspace } from './workspace.ts';
 import { registerOwnerTools } from './owner-tools.ts';
 import { registerOwnerContext } from './owner-context.ts';
 import { registerProgress } from './progress.ts';
+import { registerWorktrees } from './worktrees.ts';
 import { runSwarmHeadless, type RunSwarmHeadlessOptions, type SwarmHeadlessResult } from './headless.ts';
 import { HeadlessDriverLifetime } from './headless-lifetime.ts';
 
 /** Deployment controls; goals and verification commands belong in each run spec. */
 export interface SwarmConfig {
+  /** Optional live team limit; no numeric default, inherits native config when unset. */
+  workerCountMax?: Volatile<number | undefined>;
   eventPageSize: number;
+  /** Claim Findings leave live views/notices after this many ms (history keeps them). */
+  claimTtlMs: number;
+  /** Automatic re-wakes of one failed worker before only that worker is isolated. */
+  activationRetries: number;
   commandOutputBytes: number;
   commandGraceMs: number;
   /** Distinct CLI storage avoids recovering another live GUI process's runs. */
@@ -61,7 +70,10 @@ export class SwarmService extends Service {
   ];
 
   static Config = Schema.object({
+    workerCountMax: Schema.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).volatile(),
     eventPageSize: Schema.number().min(1).max(100).default(20),
+    activationRetries: Schema.number().step(1).min(0).max(ACTIVATION_RETRIES_MAX).default(DEFAULT_ACTIVATION_RETRIES),
+    claimTtlMs: Schema.number().step(1).min(CLAIM_TTL_MIN_MS).max(CLAIM_TTL_MAX_MS).default(DEFAULT_CLAIM_TTL_MS),
     commandOutputBytes: Schema.number().min(4096).max(4194304).default(262144),
     commandGraceMs: Schema.number().min(100).max(30000).default(3000),
     storageDomainName: Schema.string().default('local_swarm'),
@@ -113,6 +125,9 @@ export class SwarmService extends Service {
   }
 
   private async initialize(config: SwarmConfig): Promise<SwarmRuntime> {
+    // Schemastery preserves explicit null in optional fields; it is not absence.
+    const override = config.workerCountMax?.get();
+    if (override !== undefined) positiveLimit(override, 'workerCountMax');
     const domain = await this.ctx.storageDomain.open(domainSpec(config.storageDomainName));
     const store = new MemoryStateStore(domain.table('runs'));
     this.observerValue = { get: (id) => store.get(id), subscribe: (listener) => store.subscribe(listener) };
@@ -123,7 +138,12 @@ export class SwarmService extends Service {
       maxOutputBytes: config.commandOutputBytes,
     });
     const workspace = new GitWorkspace(executor);
-    const runtime = new SwarmRuntime(store, host, workspace, artifacts, { eventPageSize: config.eventPageSize });
+    const runtime = new SwarmRuntime(store, host, workspace, artifacts, {
+      eventPageSize: config.eventPageSize,
+      claimTtlMs: config.claimTtlMs ?? DEFAULT_CLAIM_TTL_MS,
+      activationRetries: config.activationRetries ?? DEFAULT_ACTIVATION_RETRIES,
+      workerLimit: dshWorkerLimitResolver(this.ctx, config.workerCountMax),
+    });
     this.artifactsValue = artifacts;
     let disposeOwnerTools: (() => void) | undefined;
     let disposeOwnerContext: (() => void) | undefined;
@@ -145,7 +165,10 @@ export class SwarmService extends Service {
       disposeOwnerTools = registerOwnerTools(this.ctx, runtime);
       disposeOwnerContext = registerOwnerContext(this.ctx, runtime);
       // Read-only progress service used by the browser panel and headless observer.
-      progress = registerProgress(this.ctx, runtime, store, { git: workspace });
+      progress = await registerProgress(this.ctx, runtime, store, { git: workspace });
+      // Repository worktree catalogue and creation; independent of any run and
+      // never changes the owner session's working directory.
+      registerWorktrees(this.ctx, executor);
       return runtime;
     } catch (error) {
       await this.closeResources();

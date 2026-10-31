@@ -9,6 +9,10 @@
  * - 有限状态使用带判别字段的 union；未知值必须在入口被拒绝。
  */
 
+import { defaultPublicState, type PublicEvent, type PublicState } from './public-types.ts';
+export type { ChannelRecord, ThreadRecord, PublicMessageRecord, NotificationRecord, PublicEvent,
+  ResponseRequestRecord, AgreementRecord, SubscriptionRecord, ChannelReadRecord } from './public-types.ts';
+
 export type RunId = string;
 export type WorkerId = string;
 export type TaskId = string;
@@ -74,12 +78,16 @@ export interface RunSpec {
 export interface SwarmRuntimeConfig {
   /** 允许的 worker 数量下限，架构固定为 2。 */
   workerCountMin: number;
-  /** 允许的 worker 数量上限，架构固定为 4。 */
-  workerCountMax: number;
+  /** Optional team-policy override; absence inherits the live native configuration. */
+  workerCountMax?: number;
   /** spec 未给出时的默认 worker 数量。 */
   defaultWorkerCount: number;
   /** 单次增量事件/列表返回的条目上限，默认 20。 */
   eventPageSize: number;
+  /** claim Finding 在实时视图/通知中保留的毫秒数，默认 1 小时；历史与搜索不受影响。 */
+  claimTtlMs: number;
+  /** 单个 worker 激活失败后自动重唤醒的次数上限，默认 3；用尽后仅隔离该 worker。 */
+  activationRetries: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -137,10 +145,14 @@ export interface WorkerRecord {
   initializationError: string | null;
   /** 插件诊断标签（provider 缺失、Session 缺失、最近恢复失败等），不是原生状态。 */
   unavailableReason: string | null;
+  /** Reason + bounded diagnostic for an isolated worker; absent on legacy records. */
+  unavailableDetail?: WorkerUnavailableDetail | null;
   /** 已连续扫描到的位置：该前缀内对自己可见的事件都已提供。 */
   offeredSeq: EventSeq;
   /** 明确确认已读到的位置。 */
   observedSeq: EventSeq;
+  /** Host-persisted contiguous event-summary display receipt; not full-body reading or consent. */
+  shownSeq?: EventSeq;
   /** 控制通知已被 inbox 接受的上界。 */
   notifiedSeq: EventSeq;
   /** 需要提醒的事件上界（持久 wakePending）。 */
@@ -230,9 +242,10 @@ export interface TaskRecord {
 
 /**
  * 发现类型。`fail` 表示已证伪路径或存在未修复缺陷；
- * 只有后者填写 blockingRepairTaskId。
+ * 只有后者填写 blockingRepairTaskId。`claim` 是“即将处理某范围”的公告，不是锁；
+ * 过 TTL 后退出实时视图，同作者同任务的新 claim 替换旧 claim，历史与搜索保留全部。
  */
-export type FindingKind = 'observed' | 'fact' | 'fail' | 'patch_summary';
+export type FindingKind = 'observed' | 'fact' | 'fail' | 'patch_summary' | 'claim';
 
 export interface FindingRecord {
   id: FindingId;
@@ -241,6 +254,8 @@ export interface FindingRecord {
   taskId: TaskId | null;
   kind: FindingKind;
   summary: string;
+  /** Optional longer detail; never pushed in notices, expanded via swarm_read by id. Absent on older records. */
+  details?: string;
   scope: string[];
   evidenceRefs: string[];
   supersedesId: FindingId | null;
@@ -422,6 +437,24 @@ export interface HeadEvent extends SwarmEventBase {
   audience: { kind: 'all' };
 }
 
+export type WorkerUnavailableReasonCode = 'activation_failed' | 'no_progress' | 'initialization_failed';
+
+/** 被 Host 隔离的 worker 的持久原因；diagnostic 截断，不含日志全文。 */
+export interface WorkerUnavailableDetail {
+  reason: WorkerUnavailableReasonCode;
+  diagnostic: string;
+  at: Millis;
+}
+
+/** 单 worker 被隔离或重新启用：公共可见，但不代替 Task CAS，也不改变 run 相位。 */
+export interface WorkerEvent extends SwarmEventBase {
+  kind: 'worker';
+  workerId: WorkerId;
+  status: 'unavailable' | 'available';
+  reason: string | null;
+  audience: { kind: 'all' };
+}
+
 /** 控制状态变化：只用于审计与状态显示，不用于唤醒模型。 */
 export interface RunEvent extends SwarmEventBase {
   kind: 'run';
@@ -438,7 +471,7 @@ export interface GoalEvent extends SwarmEventBase {
   audience: { kind: 'all' };
 }
 
-export type SwarmEvent = TaskEvent | FindingEvent | MessageEvent | ProposalEvent | HeadEvent | RunEvent | GoalEvent;
+export type SwarmEvent = TaskEvent | FindingEvent | MessageEvent | ProposalEvent | HeadEvent | RunEvent | GoalEvent | PublicEvent | WorkerEvent;
 
 /**
  * 幂等 mutation 记录，键为 `${workerSessionId}:${toolCallId}`。
@@ -461,7 +494,7 @@ export interface MutationReceipt {
  * 一个 run 的全部协作业务数据。一次业务变更必须在一个 update 内完成：
  * 检查条件、改对象、加 revision、追加事件、加 nextSeq。
  */
-export interface Run {
+export interface Run extends PublicState {
   id: RunId;
   ownerSessionId: string;
   /** 用户源仓库绝对路径（不是任何 worktree）。 */
@@ -573,6 +606,7 @@ export function createRun(input: CreateRunInput): Run {
     acceptedHead: input.baseCommit,
     resultRef: input.resultRef,
     integrationWorktree: null,
+    ...defaultPublicState(input.id, createdAt),
     workers: {},
     tasks: {},
     findings: {},

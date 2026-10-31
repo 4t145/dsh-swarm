@@ -11,11 +11,13 @@
 import { describe, expect, it } from 'vitest';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { ToolCallId } from '@deepseek-ai/dsh-llm';
-import { SessionId } from '@deepseek-ai/dsh-session';
+import { ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm';
+import { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
+import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
 import { createScope, scopeOf } from '@deepseek-ai/dsh-scope';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
 import { ToolRuntime, type ToolExecutionResult } from '@deepseek-ai/dsh-tools';
+import { NativeToolExecutor } from '@deepseek-ai/dsh-tool-executor-native';
 import { StoredArtifacts, type ArtifactRecord, type ArtifactTable } from '../src/artifacts.ts';
 import {
   verificationFingerprint,
@@ -38,6 +40,7 @@ import {
   type WorkerRecord,
 } from '../src/types.ts';
 import { registerWorkerTools } from '../src/tools.ts';
+import { registerWorkerReceipts } from '../src/worker-receipts.ts';
 import { apply, inject, name as pluginName } from '../src/worker.ts';
 
 /* ------------------------------------------------------------------ */
@@ -224,7 +227,8 @@ async function makeHarness(
     personaSuffix: '',
     toolOrder: undefined,
   });
-  new ToolRuntime(ctx, { mode: 'native', maxParallelSubCalls: 10 });
+  new ToolRuntime(ctx);
+  ctx.tools.setExecutor(new NativeToolExecutor(ctx));
 
   const jobs = new FakeJobs();
   ctx.provide('jobs', jobs);
@@ -233,6 +237,8 @@ async function makeHarness(
   const artifacts = new StoredArtifacts(new InMemoryArtifactTable());
   const runtime = new SwarmRuntime(store, new FakeHost(), new FakeWorkspace(), artifacts, {
     eventPageSize: 20,
+    workerLimit: () => ({ maxWorkers: 8, source: 'host' }),
+    clock: { now: () => 1000, setTimeout: () => () => {} },
   });
 
   const run = createRun({
@@ -286,13 +292,14 @@ async function makeHarness(
     dispose,
     async call(toolName, args, agent) {
       calls += 1;
-      return ctx.tools.execute({
-        callId: ToolCallId(`call-${calls}`),
-        name: toolName,
-        arguments: args,
+      const batch = await ctx.tools.execute({
+        calls: [{ type: 'tool-call', id: ToolCallId(`call-${calls}`), name: toolName, arguments: JSON.stringify(args) }],
         ...(agent === undefined ? {} : { agent }),
         signal: new AbortController().signal,
       });
+      const result = batch.results[0]?.result;
+      if (result === undefined) throw new Error(`no result for ${toolName}`);
+      return result;
     },
   };
 }
@@ -302,12 +309,14 @@ async function makeHarness(
 /* ------------------------------------------------------------------ */
 
 describe('worker tools', () => {
-  it('registers exactly the nine swarm tools and removes them on dispose', async () => {
+  it('registers the nine legacy and two public tools and removes them on dispose', async () => {
     const harness = await makeHarness();
     const before = toolNames(harness.ctx);
     expect(before).toEqual([
+      'swarm_discuss',
       'swarm_finish',
       'swarm_message',
+      'swarm_public_read',
       'swarm_publish',
       'swarm_read',
       'swarm_submit',
@@ -338,6 +347,66 @@ describe('worker tools', () => {
 
     const anonymous = await call('swarm_sync', {});
     expect(failureMessage(anonymous)).toContain('requires an owning agent session');
+  });
+
+  it('executes public commands through the real registry and keeps history visible across workers', async () => {
+    const { call, store } = await makeHarness();
+    const thread = successValue(await call('swarm_discuss', { command: {
+      action: 'create_thread', channelId: 'run-1:general', title: 'Public API contract',
+    } }, agentFor('s1')));
+    const posted = successValue(await call('swarm_discuss', { command: {
+      action: 'post', threadId: thread.id, body: 'Review this interface', mentions: ['w2'], responseRequestedFrom: ['w2'],
+    } }, agentFor('s1')));
+    expect(posted).toMatchObject({ kind: 'public', authorWorkerId: 'w1', body: 'Review this interface' });
+    const page = successValue(await call('swarm_public_read', { view: 'messages', threadId: thread.id }, agentFor('s2')));
+    expect(page).toMatchObject({ total: 1, items: [{ kind: 'message', message: { id: posted.id } }] });
+    expect(store.get('run-1').messages).toEqual({});
+    const request = Object.values(store.get('run-1').responseRequests)[0]!;
+    const response = successValue(await call('swarm_discuss', { command: {
+      action: 'post', threadId: thread.id, body: 'Agreed to test', replyToMessageId: posted.id,
+    } }, agentFor('s2')));
+    const answered = successValue(await call('swarm_discuss', { command: {
+      action: 'respond', requestId: request.id, expectedRevision: request.revision, responseMessageId: response.id,
+    } }, agentFor('s2')));
+    expect(answered.status).toBe('responded');
+    const agreement = successValue(await call('swarm_discuss', { command: {
+      action: 'create_agreement', threadId: thread.id, title: 'Contract', content: 'Test before release',
+      sourceMessageIds: [posted.id, response.id], stakeholderWorkerIds: ['w1', 'w2'],
+    } }, agentFor('s1')));
+    const confirmed = successValue(await call('swarm_discuss', { command: {
+      action: 'confirm_agreement', agreementId: agreement.id, version: 1,
+    } }, agentFor('s2')));
+    expect(confirmed).toMatchObject({ confirmations: [{ workerId: 'w2', version: 1 }] });
+  });
+
+  it('rejects public caller spoofing, foreign attention, invalid filters and malformed revision inputs', async () => {
+    const { call } = await makeHarness();
+    expect(failureMessage(await call('swarm_public_read', { view: 'channels' }))).toContain('requires an owning agent');
+    expect(failureMessage(await call('swarm_public_read', { view: 'channels' }, agentFor('outsider')))).toContain('not a Swarm worker');
+    expect(failureMessage(await call('swarm_public_read', { view: 'attention', workerId: 'w1' }, agentFor('s2')))).toContain('current worker');
+    expect((await call('swarm_public_read', { view: 'messages', limit: 21 }, agentFor('s1'))).isError).toBe(true);
+    expect((await call('swarm_discuss', { command: { action: 'post', threadId: 'foreign', body: 'no', authorWorkerId: 'w2' } }, agentFor('s1'))).isError).toBe(true);
+    expect((await call('swarm_discuss', { command: { action: 'revise_message', messageId: 'no', body: 'no' } }, agentFor('s1'))).isError).toBe(true);
+  });
+
+  it('leaves ordinary open discussion and unresponded requests outside the finish gate', async () => {
+    const harness = await makeHarness({ withFinishCredential: true });
+    const thread = successValue(await harness.call('swarm_discuss', { command: {
+      action: 'create_thread', channelId: 'run-1:general', title: 'Optional followup',
+    } }, agentFor('s1')));
+    successValue(await harness.call('swarm_discuss', { command: {
+      action: 'post', threadId: thread.id, body: 'Optional thoughts?', responseRequestedFrom: ['w2'],
+    } }, agentFor('s1')));
+    const before = harness.store.get('run-1');
+    const result = successValue(await harness.call('swarm_finish', {
+      accepted_commit: HEAD, notes: [{ criterion: 'csv import works', evidence: [HEAD] }],
+    }, agentFor('s1')));
+    expect(result.status).toBe('accepted');
+    expect(before.goalRevision).toBe(0);
+    expect(before.tasks).toEqual({});
+    expect(before.acceptedHead).toBe(HEAD);
+    expect(Object.values(before.threads)[0]?.status).toBe('open');
+    expect(Object.values(before.responseRequests)[0]?.status).toBe('pending');
   });
 
   it('refuses swarm_wait while an owned job is running', async () => {
@@ -404,8 +473,38 @@ describe('worker tools', () => {
     );
   });
 
+  it('logs real tool output metadata and waits without an ACK-only model call', async () => {
+    const h = await makeHarness();
+    await h.ctx.plugin(SessionStore);
+    await h.ctx.plugin(SessionProjectionRegistry);
+    h.ctx.on('session/flush', () => {}); // controlled persistence boundary
+    const session = h.ctx.sessions.create(SessionId('s1'));
+    const agent = { id: session.id, session } as Agent;
+    const receipts = await registerWorkerReceipts(h.ctx, h.runtime.collaboration);
+    try {
+      await h.runtime.collaboration.message('s2', { target: 'w1', body: 'interface ready' }, 'peer-message');
+      const result = await h.call('swarm_sync', {}, agent);
+      expect(result.isError).toBe(false);
+      expect(result.meta).toHaveProperty('swarmDisplay');
+      expect(h.store.get('run-1').workers.w1?.shownSeq).toBeUndefined();
+      const callId = ToolCallId('call-1');
+      const call = session.append('tool/call', { turn: 1, step: 1, callId, name: 'swarm_sync', arguments: '{}' });
+      session.append('tool/result', { turn: 1, step: 1,
+        message: createToolResultMessage({ callId, content: result.content, isError: result.isError }), meta: result.meta },
+      { surfaceOp: 'append', sourceEventSeqs: [call.seq] });
+      // The next ordinary tool is the durability barrier; the model never submits ack_seq.
+      const parked = await h.call('swarm_wait', {}, agent);
+      expect(parked).toMatchObject({ isError: false, concludesTurn: true });
+      expect(h.store.get('run-1').workers.w1).toMatchObject({ shownSeq: 1, observedSeq: 0 });
+      expect(Object.keys(h.store.get('run-1').messages)).toHaveLength(1);
+      expect(h.store.get('run-1').nextSeq).toBe(2);
+    } finally { await receipts.dispose(); await h.ctx.fiber.dispose(); await h.store.close(); }
+  });
+
   it('installs tools and the worker policy in the preset scope and cleans them up', async () => {
     const harness = await makeHarness({ registerTools: false });
+    await harness.ctx.plugin(SessionStore);
+    await harness.ctx.plugin(SessionProjectionRegistry);
     const scope = createScope(harness.ctx, {});
     const key = scopeOf(scope.ctx);
 
@@ -419,9 +518,9 @@ describe('worker tools', () => {
     await apply(scope.ctx);
 
     expect(pluginName).toBe('swarm-worker');
-    expect(inject).toEqual(['swarm', 'tools', 'systemPrompt', 'jobs']);
-    // preset scope 拿到 9 个工具，global scope 仍然没有：不污染父 session。
-    expect(toolNames(harness.ctx, key)).toHaveLength(9);
+    expect(inject).toEqual(['swarm', 'tools', 'systemPrompt', 'jobs', 'sessions', 'sessionProjections']);
+    // The two public tools join the nine legacy tools only in the worker preset scope.
+    expect(toolNames(harness.ctx, key)).toHaveLength(11);
     expect(toolNames(harness.ctx)).toHaveLength(0);
 
     // 同一 scope 再注册同名 policy section 必须失败：说明 worker 已经占用该名字。
